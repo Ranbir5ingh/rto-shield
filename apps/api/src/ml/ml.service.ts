@@ -39,9 +39,9 @@ export class MlService {
     );
   }
 
-  async health(): Promise<MlHealth | null> {
+  async health(timeoutMs = 3000): Promise<MlHealth | null> {
     try {
-      const response = await fetch(`${this.baseUrl()}/health`, { signal: AbortSignal.timeout(3000) });
+      const response = await fetch(`${this.baseUrl()}/health`, { signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) return null;
       return (await response.json()) as MlHealth;
     } catch {

@@ -77,6 +77,15 @@ describe('RTO Shield API', () => {
     return response.body.csrfToken as string;
   }
 
+  it('reports shallow and deep health without a session', async () => {
+    const health = await request(app.getHttpServer()).get('/api/health').expect(200);
+    expect(health.body.ok).toBe(true);
+    const deep = await request(app.getHttpServer()).get('/api/health/deep').expect(200);
+    expect(deep.body.ok).toBe(true);
+    expect(deep.body.ml.ok).toBe(true);
+    expect(JSON.stringify(deep.body)).not.toMatch(/token|phone|address/i);
+  });
+
   it('requires csrf, then signs up and reads the session', async () => {
     const agent = request.agent(app.getHttpServer());
     await agent.post('/api/auth/signup').send({
