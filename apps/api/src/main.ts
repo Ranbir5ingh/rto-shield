@@ -19,7 +19,9 @@ async function prepareEnv() {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('MONGODB_URI is required in production');
     }
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    // Keep the specifier non-literal so `nest build` does not require this dev-only package.
+    const memoryPackage = 'mongodb-memory-server';
+    const { MongoMemoryServer } = await import(memoryPackage);
     const memory = await MongoMemoryServer.create();
     process.env.MONGODB_URI = memory.getUri();
     process.env.MONGODB_MODE = 'memory';
