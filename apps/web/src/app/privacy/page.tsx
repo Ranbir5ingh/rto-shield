@@ -6,7 +6,8 @@ export default function PrivacyPage() {
       <Link href="/" className="text-sm font-semibold text-saffron">
         ← RTO Shield
       </Link>
-      <h1 className="mt-4 font-display text-5xl">Privacy</h1>
+      <p className="mt-6 font-deva text-lg text-ink/70">गोपनीयता</p>
+      <h1 className="mt-2 font-display text-display-2">Privacy</h1>
       <div className="mt-8 space-y-5 text-base leading-7 text-ink/80">
         <p>
           Buyer phone numbers and street addresses are encrypted at rest with AES-GCM. The key comes from

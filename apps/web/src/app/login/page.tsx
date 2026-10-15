@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { DemoButton } from '@/components/DemoButton';
 import { Button, Field, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import type { PublicUser } from '@/lib/types';
@@ -37,7 +38,8 @@ function LoginForm() {
       <Link href="/" className="font-display text-3xl">
         RTO Shield
       </Link>
-      <h1 className="mt-6 font-display text-4xl">Log in</h1>
+      <p className="font-deva text-sm text-ink/60">वापस आइए</p>
+      <h1 className="mt-2 font-display text-display-2">Log in</h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <Field label="Email">
           <input className={inputClass} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -50,6 +52,10 @@ function LoginForm() {
           {pending ? 'Checking…' : 'Log in'}
         </Button>
       </form>
+      <div className="mt-6 border-t border-line pt-4">
+        <p className="mb-3 text-sm text-ink/70">Judging the product? Skip the spreadsheet.</p>
+        <DemoButton />
+      </div>
       <p className="mt-4 text-sm">
         New shop? <Link href="/signup" className="font-semibold text-saffron">Create an account</Link>
       </p>

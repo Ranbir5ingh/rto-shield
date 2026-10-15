@@ -7,6 +7,7 @@ import { Public } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import { loginSchema, signupSchema, type LoginInput, type SignupInput } from '../common/validation';
 import type { UserDocument } from '../database/user.schema';
+import { OrdersService } from '../orders/orders.service';
 import { AuthService } from './auth.service';
 
 const authLimit = Number(process.env.AUTH_RATE_LIMIT_MAX || 30);
@@ -14,7 +15,10 @@ const authLimit = Number(process.env.AUTH_RATE_LIMIT_MAX || 30);
 @Controller('auth')
 @Throttle({ default: { limit: authLimit, ttl: 900000 } })
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly orders: OrdersService,
+  ) {}
 
   @Public()
   @Get('csrf')
@@ -33,6 +37,24 @@ export class AuthController {
     const session = await this.auth.signup(body);
     this.auth.writeSession(res, session);
     return { user: session.user, csrfToken: session.csrf };
+  }
+
+  @Public()
+  @Post('demo')
+  async demo(@Res({ passthrough: true }) res: Response) {
+    const { session, user } = await this.auth.createDemo();
+    let scored = false;
+    let notice: string | null = null;
+    try {
+      await this.orders.loadSample(user);
+      const result = await this.orders.score(user);
+      scored = result.scored > 0;
+      if (!scored) notice = 'Sample orders are in the shop. Score them once the model is awake.';
+    } catch {
+      notice = 'Sample orders are loaded. Scoring will finish when the model wakes. Open Score and try again.';
+    }
+    this.auth.writeSession(res, session);
+    return { user: session.user, csrfToken: session.csrf, scored, notice };
   }
 
   @Public()

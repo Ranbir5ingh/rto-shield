@@ -77,6 +77,20 @@ export class AuthService implements OnModuleInit {
     return randomBytes(32).toString('hex');
   }
 
+  async createDemo() {
+    const email = `demo+${randomBytes(4).toString('hex')}@demo.rtoshield.tech`;
+    const passwordHash = await bcrypt.hash(randomBytes(18).toString('base64url'), this.rounds());
+    const user = await this.users.create({
+      email,
+      passwordHash,
+      name: 'Asha Mehra',
+      shopName: 'Asha Studio',
+      messageLanguage: 'hinglish',
+      rtoCostInr: 150,
+    });
+    return { session: await this.issue(user), user };
+  }
+
   async signup(input: SignupInput) {
     const passwordHash = await bcrypt.hash(input.password, this.rounds());
     try {

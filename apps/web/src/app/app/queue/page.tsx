@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button, Notice, RiskBadge } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -103,7 +104,11 @@ export default function QueuePage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-semibold">{order.buyerName}</h2>
+                  <h2 className="font-semibold">
+                    <Link href={`/app/orders/${order.id}`} className="hover:underline">
+                      {order.buyerName}
+                    </Link>
+                  </h2>
                   <RiskBadge band={order.riskBand} />
                   <span className="text-sm tabular-nums">{order.riskScore}</span>
                 </div>

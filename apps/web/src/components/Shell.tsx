@@ -38,32 +38,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (!user) return <p className="p-8 text-sm">Opening your shop…</p>;
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line bg-white/80">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4">
+    <div className="min-h-screen lg:grid lg:grid-cols-[15rem_1fr]">
+      <aside className="border-b border-line bg-card/80 lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 lg:block">
           <div>
-            <Link href="/app" className="font-display text-2xl">
+            <Link href="/app" className="font-display text-2xl leading-none">
               RTO Shield
             </Link>
-            <p className="text-xs text-ink/60">{user.shopName}</p>
+            <p className="font-deva text-sm text-ink/60">आरटीओ शील्ड</p>
+            <p className="mt-2 text-sm font-medium">{user.shopName}</p>
           </div>
-          <nav className="flex flex-wrap gap-1 text-sm">
-            {links.map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                className={`rounded-full px-3 py-1.5 ${pathname === href ? 'bg-navy text-white' : 'hover:bg-paper'}`}
-              >
-                {label}
-              </Link>
-            ))}
-            <button type="button" onClick={logout} className="rounded-full px-3 py-1.5 text-ink/70">
-              Log out
-            </button>
-          </nav>
+          <button type="button" onClick={logout} className="text-sm text-ink/60 lg:mt-6">
+            Log out
+          </button>
         </div>
-      </header>
-      <div className="mx-auto max-w-6xl space-y-3 px-5 py-4">
+        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 text-sm lg:flex-col lg:px-3">
+          {links.map(([href, label]) => (
+            <Link
+              key={href}
+              href={href}
+              className={`whitespace-nowrap rounded-full px-3 py-2 ${pathname === href ? 'bg-navy text-white' : 'hover:bg-paper'}`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+      <div>
+      <div className="mx-auto max-w-page space-y-3 px-4 py-4 sm:px-6">
         {status?.encryption === 'development-fallback' ? (
           <Notice>Encryption key is not set. This process is using a development key. Set ENCRYPTION_KEY before real buyer data.</Notice>
         ) : null}
@@ -84,7 +86,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </Notice>
         ) : null}
       </div>
-      <main className="mx-auto max-w-6xl px-5 pb-16">{children}</main>
+      <main className="mx-auto max-w-page px-4 pb-16 sm:px-6">{children}</main>
+      </div>
     </div>
   );
 }

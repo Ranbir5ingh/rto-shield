@@ -29,9 +29,15 @@ export class VoiceService {
     const model = this.config.get<string>('ELEVENLABS_MODEL_ID') || 'eleven_multilingual_v2';
     try {
       const audio = await traceSpan(
-        'elevenlabs.tts',
+        'tts elevenlabs.hindi',
         'gen_ai.tts',
-        { model, chars: safe.length },
+        {
+          'gen_ai.operation.name': 'tts',
+          'gen_ai.system': 'elevenlabs',
+          'gen_ai.request.model': model,
+          'gen_ai.usage.input_tokens': safe.length,
+          chars: safe.length,
+        },
         async () => {
           const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
             method: 'POST',

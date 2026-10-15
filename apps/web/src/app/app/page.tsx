@@ -44,7 +44,7 @@ export default function DashboardPage() {
         {cards.map(([label, value, hint]) => (
           <article key={label} className="rounded-2xl border border-line bg-card p-4 shadow-card">
             <p className="text-xs uppercase tracking-wider text-ink/50">{label}</p>
-            <p className="mt-2 font-display text-3xl">{value}</p>
+            <p className="mt-2 font-display text-4xl tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-ink/60">{hint}</p>
           </article>
         ))}

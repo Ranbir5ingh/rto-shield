@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
 import { Button, Field, Notice, RiskBadge, inputClass } from '@/components/ui';
@@ -143,7 +144,9 @@ export default function OrdersPage() {
             {orders.map((order) => (
               <tr key={order.id} className="border-b border-line/80 align-top">
                 <td className="px-3 py-3">
-                  <div className="font-medium">{order.externalOrderId}</div>
+                  <Link href={`/app/orders/${order.id}`} className="font-medium underline-offset-2 hover:underline">
+                    {order.externalOrderId}
+                  </Link>
                   <div className="text-xs text-ink/50">{order.pincode} · {order.paymentType}</div>
                 </td>
                 <td className="py-3">

@@ -220,6 +220,26 @@ describe('RTO Shield API', () => {
     expect(exported.headers['content-type']).toMatch(/text\/csv/);
   });
 
+  it('opens an isolated demo shop in one request', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const opened = await agent.post('/api/auth/demo').set('x-csrf-token', token).expect(201);
+    expect(opened.body.user.shopName).toBe('Asha Studio');
+    expect(opened.body.user.email).toMatch(/@demo\.rtoshield\.tech$/);
+    expect(opened.body.scored).toBe(true);
+    const orders = await agent.get('/api/orders?limit=5').expect(200);
+    expect(orders.body.total).toBeGreaterThan(20);
+    const stranger = request.agent(app.getHttpServer());
+    const strangerToken = await csrf(stranger);
+    await stranger
+      .post('/api/auth/signup')
+      .set('x-csrf-token', strangerToken)
+      .send({ email: 'other@shop.test', password: 'supersecret', name: 'Other', shopName: 'Other Shop' })
+      .expect(201);
+    const theirs = await stranger.get('/api/orders?limit=5').expect(200);
+    expect(theirs.body.total).toBe(0);
+  });
+
   it('rejects a bad login with the same message', async () => {
     const agent = request.agent(app.getHttpServer());
     const token = await csrf(agent);

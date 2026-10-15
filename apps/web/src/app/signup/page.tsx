@@ -22,7 +22,7 @@ export default function SignupPage() {
     setError('');
     try {
       await api('/auth/signup', { method: 'POST', body: JSON.stringify(form) });
-      router.push('/app/history');
+      router.push('/app/start');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create the account');
     } finally {
@@ -35,7 +35,8 @@ export default function SignupPage() {
       <Link href="/" className="font-display text-3xl">
         RTO Shield
       </Link>
-      <h1 className="mt-6 font-display text-4xl">Open your shop</h1>
+      <p className="font-deva text-sm text-ink/60">नई दुकान</p>
+      <h1 className="mt-2 font-display text-display-2">Open your shop</h1>
       <p className="mt-2 text-sm text-ink/70">Email and password. You can score sample orders before any real buyer data.</p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <Field label="Your name">

@@ -37,8 +37,9 @@ export function WakeScreen({
   const percent = Math.round(progress * 100);
   return (
     <div className="flex min-h-screen items-center justify-center px-5 py-16">
-      <div className="w-full max-w-md rounded-3xl border border-line bg-card p-8 shadow-card">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-saffron">Free hosting</p>
+      <div className="panel w-full max-w-md p-8">
+        <p className="font-deva text-sm text-ink/60">आरटीओ शील्ड</p>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-saffron">Free hosting</p>
         <h1 className="mt-3 font-display text-4xl tracking-tight">RTO Shield</h1>
         <div className="mt-4" role="status" aria-live="polite" aria-busy={!failed}>
           <p className="text-lg leading-7 text-ink/80">{failed ? 'The servers did not wake in time.' : message}</p>

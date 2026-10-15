@@ -256,7 +256,7 @@ MIT License. Copyright (c) 2026 Ranbir Singh.
 ## Still missing
 
 - No card checkout. ₹499/month is the suggested price, not a billed plan.
-- Demo GIFs are placeholders in `docs/demo/`.
+- Demo GIFs are still not recorded in `docs/demo/`. Use **Open the demo shop** on the landing page instead.
 - TabPFN (API or local weights) is not installed in the default image. The running model is scikit-learn until you add `TABPFN_TOKEN` or the `tabpfn` package (`apps/ml/requirements-optional.txt`). Local TabPFN pulls PyTorch and is large.
 - Rate limiting and sessions are single-process.
 - Render free spin-down for the API and ML service is expected. The Vercel app stays up and shows a wake-up screen. Atlas IP access is an operator step.

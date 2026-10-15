@@ -20,7 +20,7 @@ export function TrendChart({
   const d = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Weekly RTO rate">
-      <path d={d} fill="none" stroke="#c4551a" strokeWidth="3" />
+      <path className="chart-line" d={d} fill="none" stroke="#c9841a" strokeWidth="3" />
       {coords.map((point) => (
         <g key={point.label + point.x}>
           <circle cx={point.x} cy={point.y} r="4" fill="#1b3344" />
@@ -49,7 +49,7 @@ export function Distribution({ bands }: { bands: { Low: number; Medium: number; 
             <span className="tabular-nums">{count}</span>
           </div>
           <div className="h-2 rounded-full bg-line">
-            <div className={`h-2 rounded-full ${color}`} style={{ width: `${(count / total) * 100}%` }} />
+            <div className={`bar-fill h-2 rounded-full ${color}`} style={{ width: `${(count / total) * 100}%` }} />
           </div>
         </div>
       ))}

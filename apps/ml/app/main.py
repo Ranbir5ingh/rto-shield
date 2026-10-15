@@ -12,7 +12,7 @@ from app.address import annotate
 from app.config import settings
 from app.messages import generate_messages
 from app.predictors import health_payload, score_orders
-from app.tracing import init_sentry
+from app.tracing import init_sentry, traced
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 init_sentry()
@@ -70,11 +70,21 @@ async def predict(
     _guard(x_internal_token)
     history = [row.model_dump() for row in body.history]
     pending = [row.model_dump() for row in body.pending]
-    # Address text stays inside this service. Only quality flags enter the model matrix.
-    annotated_history, source_h, warn_h = await annotate(history)
-    annotated_pending, source_p, warn_p = await annotate(pending)
-    # Preserve labels that annotate() keeps via dict copy.
-    result = score_orders(annotated_history, annotated_pending)
+    with traced(
+        "gen_ai.invoke_agent",
+        "invoke_agent rto.score",
+        **{
+            "gen_ai.operation.name": "invoke_agent",
+            "gen_ai.system": "rto-shield",
+            "gen_ai.request.model": "tabpfn-or-fallback",
+            "rows_history": len(history),
+            "rows_pending": len(pending),
+        },
+    ):
+        # Address text stays inside this service. Only quality flags enter the model matrix.
+        annotated_history, source_h, warn_h = await annotate(history)
+        annotated_pending, source_p, warn_p = await annotate(pending)
+        result = score_orders(annotated_history, annotated_pending)
     result["address_source"] = source_p if pending else source_h
     result["warnings"] = [*warn_h, *warn_p, *result["warnings"]]
     # Do not echo raw addresses back.

@@ -21,12 +21,13 @@ export class MlService {
   }
 
   async predict(history: MlOrder[], pending: MlOrder[]): Promise<PredictResponse> {
-    return traceSpan(
-      'ml.predict',
-      'ai.tabpfn',
-      { rows_history: history.length, rows_pending: pending.length },
-      () => this.post<PredictResponse>('/v1/predict', { history, pending }),
-    );
+    return traceSpan('invoke_agent rto.score', 'gen_ai.invoke_agent', {
+      'gen_ai.operation.name': 'invoke_agent',
+      'gen_ai.system': 'rto-shield',
+      'gen_ai.request.model': 'tabpfn-or-fallback',
+      rows_history: history.length,
+      rows_pending: pending.length,
+    }, () => this.post<PredictResponse>('/v1/predict', { history, pending }));
   }
 
   async messages(shopName: string, orders: Array<Record<string, unknown>>): Promise<{
@@ -34,9 +35,12 @@ export class MlService {
     warnings: string[];
     messages: MlMessage[];
   }> {
-    return traceSpan('ml.messages', 'gen_ai.chat', { rows: orders.length }, () =>
-      this.post('/v1/messages', { shop_name: shopName, orders }),
-    );
+    return traceSpan('chat gemma.messages', 'gen_ai.chat', {
+      'gen_ai.operation.name': 'chat',
+      'gen_ai.system': 'gemma',
+      'gen_ai.request.model': 'gemma',
+      rows: orders.length,
+    }, () => this.post('/v1/messages', { shop_name: shopName, orders }));
   }
 
   async health(timeoutMs = 3000): Promise<MlHealth | null> {
