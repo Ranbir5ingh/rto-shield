@@ -1,0 +1,104 @@
+# Render Blueprint: Next.js web, NestJS API, FastAPI ML.
+# Set MONGODB_URI to MongoDB Atlas after the first create.
+# Set WEB_ORIGIN to the web service URL (https://rto-shield-web.onrender.com)
+# so cookies and CORS match. API_URL is injected from the API service.
+services:
+  - type: web
+    name: rto-shield-ml
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r apps/ml/requirements.txt
+    startCommand: uvicorn app.main:app --app-dir apps/ml --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      - key: TABPFN_TOKEN
+        sync: false
+      - key: TABPFN_MAX_ROWS
+        value: "500"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMMA_MODEL
+        value: gemma-3-27b-it
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: gemma3:4b
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: ML_INTERNAL_TOKEN
+        generateValue: true
+
+  - type: web
+    name: rto-shield-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build -w @rto/api
+    startCommand: npm run start -w @rto/api
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.14.0"
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: rto-shield-ml
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: ML_INTERNAL_TOKEN
+        fromService:
+          type: web
+          name: rto-shield-ml
+          envVarKey: ML_INTERNAL_TOKEN
+      - key: WEB_ORIGIN
+        sync: false
+      - key: COOKIE_SAMESITE
+        value: lax
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_multilingual_v2
+      - key: SERPAPI_KEY
+        sync: false
+      - key: BCRYPT_ROUNDS
+        value: "12"
+
+  - type: web
+    name: rto-shield-web
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build -w @rto/web
+    startCommand: npm run start -w @rto/web
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22.14.0"
+      - key: API_URL
+        fromService:
+          type: web
+          name: rto-shield-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SENTRY_DSN
+        sync: false
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"

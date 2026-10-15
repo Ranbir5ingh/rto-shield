@@ -147,3 +147,19 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Python
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.pyc
+
+# Next.js
+.next/
+
+# Nest
+apps/api/dist/
+
+# Local mongo / coverage
+coverage/

@@ -1,0 +1,80 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ml:
+    build: ./apps/ml
+    ports:
+      - "8000:8000"
+    environment:
+      TABPFN_TOKEN: ${TABPFN_TOKEN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMMA_MODEL: ${GEMMA_MODEL:-gemma-3-27b-it}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGODB_URI: mongodb://mongo:27017/rto-shield
+      JWT_SECRET: ${JWT_SECRET:-dev-compose-jwt-secret-change-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-dev-compose-encryption-key-change-me}
+      WEB_ORIGIN: http://localhost:3000
+      ML_SERVICE_URL: http://ml:8000
+      ML_INTERNAL_TOKEN: ${ML_INTERNAL_TOKEN:-}
+      COOKIE_SAMESITE: lax
+      COOKIE_SECURE: "false"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ml:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:4000
+      PORT: 3000
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    depends_on:
+      - api
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+
+volumes:
+  mongo:

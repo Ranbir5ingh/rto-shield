@@ -1,0 +1,25 @@
+name: Model evaluation
+
+on:
+  schedule:
+    # Monday 06:30 UTC — re-score the synthetic shop and publish the metrics.
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m app.eval_sample
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: apps/ml/eval-results.json
