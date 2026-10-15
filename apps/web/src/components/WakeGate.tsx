@@ -37,28 +37,27 @@ export function WakeScreen({
 }) {
   const percent = Math.round(progress * 100);
   return (
-    <div className="flex min-h-screen items-center justify-center px-5 py-16">
-      <div className="panel w-full max-w-md p-8">
-        <p className="font-deva text-sm text-ink/60">आरटीओ शील्ड</p>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-saffron">Free hosting</p>
-        <h1 className="mt-3 font-display text-4xl tracking-tight">RTO Shield</h1>
-        <div className="mt-4" role="status" aria-live="polite" aria-busy={!failed}>
-          <p className="text-lg leading-7 text-ink/80">{failed ? 'The servers did not wake in time.' : message}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-paper px-6">
+      <div className="w-full max-w-lg">
+        <p className="text-xs uppercase tracking-[0.22em] text-muted">RTO Shield</p>
+        <h1 className="mt-4 font-medium text-display-2">Getting the servers ready</h1>
+        <div className="mt-6" role="status" aria-live="polite" aria-busy={!failed}>
+          <p className="text-base leading-7 text-muted">{failed ? 'The servers did not wake in time.' : message}</p>
         </div>
         <div
-          className="mt-6 h-2 overflow-hidden rounded-full bg-line"
+          className="mt-8 h-px bg-ink/15"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={failed ? percent : percent}
+          aria-valuenow={percent}
           aria-label="Server wake-up"
         >
           <div
-            className="h-full rounded-full bg-saffron motion-reduce:transition-none transition-[width] duration-500"
+            className="h-px bg-ink motion-reduce:transition-none transition-[width] duration-500"
             style={{ width: `${percent}%` }}
           />
         </div>
-        <p className="mt-3 text-sm tabular-nums text-ink/60">Elapsed {elapsedLabel}</p>
+        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-muted">Elapsed {elapsedLabel}</p>
         {failed ? (
           <div className="mt-6">
             <p className="mb-4 text-sm leading-6 text-ink/70">

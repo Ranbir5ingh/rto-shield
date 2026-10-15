@@ -31,12 +31,11 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-12">
-      <Link href="/" className="font-display text-3xl">
+    <div className="panel mx-auto my-10 flex min-h-[70vh] max-w-md flex-col justify-center px-6 py-12 sm:px-10">
+      <Link href="/" className="text-lg font-medium">
         RTO Shield
       </Link>
-      <p className="font-deva text-sm text-ink/60">नई दुकान</p>
-      <h1 className="mt-2 font-display text-display-2">Open your shop</h1>
+      <h1 className="mt-6 font-medium text-display-2">Open your shop</h1>
       <p className="mt-2 text-sm text-ink/70">Email and password. You can score sample orders before any real buyer data.</p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <Field label="Your name">
@@ -57,7 +56,7 @@ export default function SignupPage() {
         </Button>
       </form>
       <p className="mt-4 text-sm">
-        Already packing? <Link href="/login" className="font-semibold text-saffron">Log in</Link>
+        Already packing? <Link href="/login" className="font-medium underline">Log in</Link>
       </p>
     </div>
   );

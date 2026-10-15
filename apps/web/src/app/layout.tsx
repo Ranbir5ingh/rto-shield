@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
-import { Fraunces, Outfit, Tiro_Devanagari_Hindi } from 'next/font/google';
+import { Manrope, Noto_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
 
-const display = Fraunces({ subsets: ['latin'], variable: '--font-display' });
-const sans = Outfit({ subsets: ['latin'], variable: '--font-sans', weight: ['400', '500', '600'] });
-const deva = Tiro_Devanagari_Hindi({ subsets: ['devanagari'], weight: '400', variable: '--font-deva' });
+const sans = Manrope({ subsets: ['latin'], variable: '--font-sans', weight: ['400', '500', '600', '700'] });
+const hindi = Noto_Sans({ subsets: ['devanagari'], variable: '--font-hindi', weight: ['400', '500'] });
 
 export const metadata: Metadata = {
   title: 'RTO Shield — stop paying for orders that come back',
@@ -18,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${sans.variable} ${deva.variable} font-sans text-ink antialiased`}>
+      <body className={`${sans.variable} ${hindi.variable} bg-paper font-sans text-ink antialiased`}>
         <Script id="wake-backends" strategy="beforeInteractive">
           {landingWakeScript()}
         </Script>

@@ -26,7 +26,7 @@ export default function StartPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-saffron">Shop setup</p>
+      <p className="text-xs uppercase tracking-[0.18em] text-muted">Shop setup</p>
       <h1 className="font-display text-display-2">How should this shop learn?</h1>
       <p className="text-sm leading-7 text-ink/75">
         The model needs past outcomes. You can load a synthetic Indian shop and score it now, or bring your own sheet. Real phones stay encrypted. Sample buyers are invented.

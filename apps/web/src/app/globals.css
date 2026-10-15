@@ -7,26 +7,79 @@
 }
 
 body {
-  background:
-    radial-gradient(900px 420px at 100% -10%, rgba(201, 132, 26, 0.16), transparent 55%),
-    radial-gradient(700px 380px at -10% 10%, rgba(26, 39, 68, 0.08), transparent 50%),
-    #f3ecdf;
+  background: #e5e9eb;
+  color: #111111;
 }
 
 ::selection {
-  background: #efd3a2;
+  background: #111111;
+  color: #ffffff;
 }
 
 :focus-visible {
-  outline: 2px solid #c9841a;
-  outline-offset: 2px;
+  outline: 2px solid #111111;
+  outline-offset: 3px;
 }
 
 .panel {
-  border: 1px solid #e4d5bf;
-  background: #fffaf3;
-  border-radius: 1.5rem;
-  box-shadow: 0 1px 0 rgba(22, 19, 15, 0.05), 0 18px 40px rgba(26, 39, 68, 0.06);
+  background: #ffffff;
+  border-radius: 1.75rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.8rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.pill-dark {
+  background: #111111;
+  color: #ffffff;
+}
+
+.pill-dark:hover {
+  background: #2a2a2a;
+}
+
+.pill-light {
+  background: #ffffff;
+  color: #111111;
+}
+
+.pill-light:hover {
+  background: #111111;
+  color: #ffffff;
+}
+
+.marquee {
+  display: flex;
+  overflow: hidden;
+  border-block: 1px solid rgba(17, 17, 17, 0.08);
+}
+
+.marquee-track {
+  display: flex;
+  min-width: max-content;
+  gap: 2.5rem;
+  padding-block: 0.9rem;
+  animation: marquee 28s linear infinite;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .chart-line {
@@ -57,15 +110,11 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .chart-line,
-  .bar-fill {
+  .bar-fill,
+  .marquee-track,
+  .page-transition {
     animation: none;
     stroke-dashoffset: 0;
     transform: none;
-  }
-
-  [data-frame] {
-    position: static !important;
-    opacity: 1 !important;
-    margin-top: 1rem;
   }
 }

@@ -5,30 +5,38 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#16130f',
-        paper: '#f3ecdf',
-        card: '#fffaf3',
-        saffron: '#c9841a',
-        forest: '#1c6a45',
-        navy: '#1a2744',
-        line: '#e4d5bf',
-        danger: '#8c2e2a',
+        ink: '#111111',
+        paper: '#e5e9eb',
+        card: '#ffffff',
+        muted: '#6b6b6b',
+        line: '#d5dadd',
+        low: '#1f6b45',
+        mid: '#8a5a12',
+        high: '#9b1c1c',
+        // Legacy names kept so older class strings still resolve to this palette.
+        saffron: '#111111',
+        forest: '#1f6b45',
+        navy: '#111111',
+        danger: '#9b1c1c',
         warn: '#8a5a12',
       },
       fontFamily: {
-        display: ['var(--font-display)', 'Georgia', 'serif'],
-        sans: ['var(--font-sans)', 'sans-serif'],
-        deva: ['var(--font-deva)', 'serif'],
+        display: ['var(--font-sans)', 'Manrope', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Manrope', 'sans-serif'],
+        hindi: ['var(--font-hindi)', 'sans-serif'],
       },
       fontSize: {
-        'display-1': ['clamp(2.7rem,6vw,5.4rem)', { lineHeight: '0.96', letterSpacing: '-0.03em' }],
-        'display-2': ['clamp(2rem,4vw,3.4rem)', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
+        'display-1': ['clamp(2.2rem, 4.6vw, 3.5rem)', { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '500' }],
+        'display-2': ['clamp(1.75rem, 3vw, 2.5rem)', { lineHeight: '1.1', letterSpacing: '-0.03em', fontWeight: '500' }],
       },
       boxShadow: {
-        card: '0 1px 0 rgba(22, 19, 15, 0.05), 0 18px 40px rgba(26, 39, 68, 0.06)',
+        card: '0 24px 60px rgba(17, 17, 17, 0.05)',
       },
       maxWidth: {
         page: '72rem',
+      },
+      borderRadius: {
+        card: '1.75rem',
       },
     },
   },

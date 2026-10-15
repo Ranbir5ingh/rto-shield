@@ -11,11 +11,11 @@ export function RiskBadge({ band }: { band: string | null }) {
 
 export function Notice({ tone = 'warn', children }: { tone?: 'warn' | 'info' | 'good'; children: ReactNode }) {
   const tones = {
-    warn: 'border-warn/30 bg-warn/10 text-warn',
-    info: 'border-navy/15 bg-white text-navy',
-    good: 'border-forest/20 bg-forest/10 text-forest',
+    warn: 'bg-white text-ink',
+    info: 'bg-white text-ink',
+    good: 'bg-white text-ink',
   };
-  return <div className={`rounded-xl border px-4 py-3 text-sm leading-6 ${tones[tone]}`}>{children}</div>;
+  return <div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${tones[tone]}`}>{children}</div>;
 }
 
 export function Field({
@@ -34,7 +34,7 @@ export function Field({
 }
 
 export const inputClass =
-  'w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none ring-saffron/30 focus:ring-2';
+  'w-full rounded-2xl border border-line bg-white px-3 py-3 text-sm outline-none focus:border-ink';
 
 export function Button({
   children,
@@ -42,9 +42,9 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'ghost' | 'danger' }) {
   const tones = {
-    primary: 'bg-saffron text-white hover:bg-[#a84614]',
-    ghost: 'border border-line bg-white text-ink hover:bg-paper',
-    danger: 'bg-danger text-white hover:bg-[#821f1f]',
+    primary: 'bg-ink text-white hover:bg-[#2a2a2a]',
+    ghost: 'bg-white text-ink hover:bg-ink hover:text-white',
+    danger: 'bg-high text-white hover:bg-[#7a1616]',
   };
   return (
     <button

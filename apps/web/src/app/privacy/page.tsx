@@ -3,11 +3,10 @@ import Link from 'next/link';
 export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-12">
-      <Link href="/" className="text-sm font-semibold text-saffron">
-        ← RTO Shield
+      <Link href="/" className="text-sm font-medium underline">
+        RTO Shield
       </Link>
-      <p className="mt-6 font-deva text-lg text-ink/70">गोपनीयता</p>
-      <h1 className="mt-2 font-display text-display-2">Privacy</h1>
+      <h1 className="mt-8 font-medium text-display-2">Privacy</h1>
       <div className="mt-8 space-y-5 text-base leading-7 text-ink/80">
         <p>
           Buyer phone numbers and street addresses are encrypted at rest with AES-GCM. The key comes from

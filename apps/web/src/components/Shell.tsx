@@ -35,35 +35,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.replace('/');
   }
 
-  if (!user) return <p className="p-8 text-sm">Opening your shop…</p>;
+  if (!user) return <p className="p-8 text-sm text-muted">Opening your shop…</p>;
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="border-b border-line bg-card/80 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 lg:block">
+    <div className="min-h-screen bg-paper">
+      <header className="sticky top-0 z-20 bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
-            <Link href="/app" className="font-display text-2xl leading-none">
+            <Link href="/app" className="text-lg font-medium tracking-tight">
               RTO Shield
             </Link>
-            <p className="font-deva text-sm text-ink/60">आरटीओ शील्ड</p>
-            <p className="mt-2 text-sm font-medium">{user.shopName}</p>
+            <p className="text-sm text-muted">{user.shopName}</p>
           </div>
-          <button type="button" onClick={logout} className="text-sm text-ink/60 lg:mt-6">
+          <button type="button" onClick={logout} className="text-sm text-muted hover:text-ink">
             Log out
           </button>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 text-sm lg:flex-col lg:px-3">
+        <nav className="mx-auto flex max-w-page gap-2 overflow-x-auto px-4 pb-3 text-sm sm:px-6">
           {links.map(([href, label]) => (
             <Link
               key={href}
               href={href}
-              className={`whitespace-nowrap rounded-full px-3 py-2 ${pathname === href ? 'bg-navy text-white' : 'hover:bg-paper'}`}
+              className={`whitespace-nowrap rounded-full px-4 py-2 ${pathname === href ? 'bg-ink text-white' : 'bg-paper hover:bg-white'}`}
             >
               {label}
             </Link>
           ))}
         </nav>
-      </aside>
+      </header>
       <div>
       <div className="mx-auto max-w-page space-y-3 px-4 py-4 sm:px-6">
         {status?.encryption === 'development-fallback' ? (

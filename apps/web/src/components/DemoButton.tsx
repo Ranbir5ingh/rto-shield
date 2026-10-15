@@ -27,7 +27,7 @@ export function DemoButton({ className = '' }: { className?: string }) {
         type="button"
         onClick={open}
         disabled={pending}
-        className={`inline-flex items-center justify-center rounded-full bg-saffron px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#a86d12] disabled:opacity-60 ${className}`}
+        className={`pill pill-dark disabled:opacity-60 ${className}`}
       >
         {pending ? 'Opening Asha Studio…' : 'Open the demo shop'}
       </button>

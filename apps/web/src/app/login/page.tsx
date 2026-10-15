@@ -34,12 +34,11 @@ function LoginForm() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
-      <Link href="/" className="font-display text-3xl">
+    <div className="panel mx-auto my-10 flex min-h-[70vh] max-w-md flex-col justify-center px-6 py-12 sm:px-10">
+      <Link href="/" className="text-lg font-medium">
         RTO Shield
       </Link>
-      <p className="font-deva text-sm text-ink/60">वापस आइए</p>
-      <h1 className="mt-2 font-display text-display-2">Log in</h1>
+      <h1 className="mt-6 font-medium text-display-2">Log in</h1>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <Field label="Email">
           <input className={inputClass} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -57,7 +56,7 @@ function LoginForm() {
         <DemoButton />
       </div>
       <p className="mt-4 text-sm">
-        New shop? <Link href="/signup" className="font-semibold text-saffron">Create an account</Link>
+        New shop? <Link href="/signup" className="font-medium underline">Create an account</Link>
       </p>
     </div>
   );

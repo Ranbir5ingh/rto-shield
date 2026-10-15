@@ -118,7 +118,7 @@ export default function QueuePage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {waLink(order, textFor(order)) ? (
-                  <a className="rounded-full bg-forest px-4 py-2 text-sm font-semibold text-white" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
+                  <a className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
                     Open WhatsApp
                   </a>
                 ) : null}
@@ -138,7 +138,7 @@ export default function QueuePage() {
               ))}
             </ul>
             <p className="mt-3 text-sm text-ink/80">{order.address}</p>
-            <p className="mt-3 rounded-xl bg-paper p-3 text-sm leading-6">{textFor(order)}</p>
+            <p className="mt-3 rounded-2xl bg-paper p-3 font-hindi text-sm leading-6">{textFor(order)}</p>
             {order.messages ? (
               <p className="mt-2 text-sm text-ink/70">
                 Prepaid nudge: {order.messages.prepaid_nudge}
