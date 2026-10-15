@@ -1,9 +1,12 @@
 # Render Blueprint: NestJS API and FastAPI ML, both on the free plan.
-# The Next.js app is hosted on Vercel, not Render. See README "Deploy on Vercel".
+# Public custom domains:
+#   API  https://api.rtoshield.tech
+#   ML   https://ml.rtoshield.tech
+# The Next.js app is https://www.rtoshield.tech on Vercel. See README "Deploy on Vercel".
 # After the first create, set MONGODB_URI to MongoDB Atlas.
-# Set WEB_ORIGIN to the Vercel origin. Comma-separate extra origins, for example
-# https://your-app.vercel.app,https://your-domain.example
-# ML_SERVICE_URL is injected from the ML service.
+# Set WEB_ORIGIN to https://www.rtoshield.tech. Comma-separate extra origins, for example
+# https://www.rtoshield.tech,http://localhost:3000
+# ML_SERVICE_URL is injected from the ML service. https://ml.rtoshield.tech points at that service.
 services:
   - type: web
     name: rto-shield-ml
@@ -33,6 +36,9 @@ services:
         value: "0.2"
       - key: ML_INTERNAL_TOKEN
         generateValue: true
+      # Extra origins for public GET /health. www and localhost are already allowed in code.
+      - key: ML_CORS_ORIGINS
+        value: https://www.rtoshield.tech,https://rtoshield.tech
 
   - type: web
     name: rto-shield-api
@@ -62,7 +68,7 @@ services:
           type: web
           name: rto-shield-ml
           envVarKey: ML_INTERNAL_TOKEN
-      # Vercel production origin, comma-separated if you also use a custom domain.
+      # Set to https://www.rtoshield.tech. Comma-separate extra origins. No trailing slash.
       - key: WEB_ORIGIN
         sync: false
       - key: COOKIE_SAMESITE

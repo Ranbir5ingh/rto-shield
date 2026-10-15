@@ -1,5 +1,4 @@
-# Optional predictors. The service runs without these.
-# TabPFN client calls Prior Labs when TABPFN_TOKEN is set.
-tabpfn-client==0.1.7
-# Local TabPFN pulls PyTorch and is large. Install only if you want fully offline TabPFN.
+# The production image already installs tabpfn-client (see requirements.txt).
+# Local TabPFN pulls PyTorch and is too large for the 512MB Render instance.
+# Install it only on a machine that should score fully offline:
 # tabpfn>=2.0.0

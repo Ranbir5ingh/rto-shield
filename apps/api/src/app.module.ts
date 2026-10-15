@@ -27,6 +27,8 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         uri: config.getOrThrow<string>('MONGODB_URI'),
+        // Listen without waiting for Atlas. GET /api/health never touches this connection.
+        lazyConnection: true,
       }),
     }),
     ThrottlerModule.forRoot({

@@ -7,9 +7,10 @@ import {
   WAKE_GRACE_MS,
   WAKE_TIMEOUT_MS,
   formatElapsed,
+  initialWake,
   probeWake,
   routeNeedsApi,
-  wakeDelayMs,
+  stepWake,
   wakeMessage,
   wakeProgress,
   type WakeSnapshot,
@@ -98,24 +99,25 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
     }, 1000);
 
     async function run() {
-      let n = 0;
+      let machine = initialWake();
       while (!cancelled) {
+        const probe = await probeWake();
+        if (cancelled) return;
+        const stepped = stepWake(machine, probe, Date.now() - started);
+        machine = stepped.machine;
+        setSnap(machine.snap);
+        setElapsed(machine.elapsedMs);
+        setPhase(machine.phase);
+        if (machine.phase !== 'checking') {
+          clearInterval(clock);
+          return;
+        }
         if (Date.now() - started > WAKE_TIMEOUT_MS) {
           clearInterval(clock);
           setPhase('failed');
           return;
         }
-        const next = await probeWake();
-        if (cancelled) return;
-        setSnap(next);
-        setElapsed(Date.now() - started);
-        if (next.api && next.ml) {
-          clearInterval(clock);
-          setPhase('ready');
-          return;
-        }
-        await sleep(wakeDelayMs(n));
-        n += 1;
+        await sleep(stepped.waitMs);
       }
     }
 

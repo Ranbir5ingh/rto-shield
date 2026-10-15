@@ -2,6 +2,7 @@ import './instrument';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { closeServer, startBootHealth } from './boot-health';
 import { configureApp } from './configure-app';
 
 async function prepareEnv() {
@@ -33,11 +34,19 @@ async function prepareEnv() {
 
 async function bootstrap() {
   await prepareEnv();
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
-  configureApp(app);
   const port = Number(process.env.PORT || 4000);
-  await app.listen(port, '0.0.0.0');
-  Logger.log(`API listening on ${port}`, 'Bootstrap');
+  // Occupies the port immediately so Render's health check is not waiting on MongoDB.
+  const boot = await startBootHealth(port);
+  try {
+    const app = await NestFactory.create(AppModule, { bodyParser: false });
+    configureApp(app);
+    await closeServer(boot);
+    await app.listen(port, '0.0.0.0');
+    Logger.log(`API listening on ${port}`, 'Bootstrap');
+  } catch (error) {
+    await closeServer(boot);
+    throw error;
+  }
 }
 
 void bootstrap();

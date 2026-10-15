@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Fraunces, Outfit, Tiro_Devanagari_Hindi } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
+import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
 
 const display = Fraunces({ subsets: ['latin'], variable: '--font-display' });
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${display.variable} ${sans.variable} ${deva.variable} font-sans text-ink antialiased`}>
         <Script id="wake-backends" strategy="beforeInteractive">
-          {`fetch('/api/health',{cache:'no-store'}).catch(function(){});fetch('/api/health/deep',{cache:'no-store'}).catch(function(){});`}
+          {landingWakeScript()}
         </Script>
         <WakeGate>{children}</WakeGate>
       </body>

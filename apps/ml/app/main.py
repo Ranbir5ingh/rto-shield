@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.address import annotate
@@ -17,7 +19,32 @@ from app.tracing import init_sentry, traced
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 init_sentry()
 
+# Browser wake-up pings come from the web app. Predict and messages stay server-to-server.
+DEFAULT_CORS_ORIGINS = (
+    "https://www.rtoshield.tech",
+    "https://rtoshield.tech",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+
+def cors_origins() -> list[str]:
+    extra = [part.strip() for part in os.getenv("ML_CORS_ORIGINS", "").split(",") if part.strip()]
+    seen: list[str] = []
+    for origin in [*DEFAULT_CORS_ORIGINS, *extra]:
+        if origin not in seen:
+            seen.append(origin)
+    return seen
+
+
 app = FastAPI(title="RTO Shield ML", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins(),
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 class OrderIn(BaseModel):
@@ -59,6 +86,8 @@ def _guard(token: str | None) -> None:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    # Public and unauthenticated, even when ML_INTERNAL_TOKEN is set.
+    # health_payload only checks whether optional packages exist. It does not import or fit a model.
     return health_payload()
 
 

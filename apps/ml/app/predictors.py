@@ -53,12 +53,21 @@ def _subsample(X: np.ndarray, y: np.ndarray, limit: int, seed: int = 0) -> tuple
 
 
 def _try_tabpfn_client(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
+    """Score with the Prior Labs API. Never prompts and never loads local torch weights."""
+    import os
+
     import tabpfn_client
 
-    token = settings.tabpfn_token
+    token = settings.tabpfn_token.strip()
+    # The client reads TABPFN_TOKEN itself. Set it here so a token that arrived
+    # only through settings is visible, and so nothing falls through to a browser login.
+    os.environ["TABPFN_TOKEN"] = token
     if hasattr(tabpfn_client, "set_access_token"):
+        # In-process only. This does not write the token to disk.
         tabpfn_client.set_access_token(token)
     if hasattr(tabpfn_client, "init"):
+        # set_access_token marks the client initialized without turning server mode on.
+        # fit() refuses to run unless use_server is true, and local mode is unsupported.
         tabpfn_client.init(use_server=True)
     from tabpfn_client import TabPFNClassifier
 
@@ -229,6 +238,15 @@ def _pack(row: dict[str, Any], probability: float, model: str) -> dict[str, Any]
     }
 
 
+def active_predictor_name() -> str:
+    """Which scorer /health should name. A token plus the API client means TabPFN."""
+    if settings.tabpfn_token and module_available("tabpfn_client"):
+        return "tabpfn-client"
+    if module_available("tabpfn"):
+        return "tabpfn-local"
+    return "sklearn-gradient-boosting"
+
+
 def health_payload() -> dict[str, Any]:
     return {
         "ok": True,
@@ -238,12 +256,6 @@ def health_payload() -> dict[str, Any]:
         "gemini": bool(settings.gemini_api_key),
         "ollama_configured": bool(settings.ollama_base_url),
         "sentry": bool(settings.sentry_dsn),
-        "active_predictor": (
-            "tabpfn-client"
-            if settings.tabpfn_token and module_available("tabpfn_client")
-            else "tabpfn-local"
-            if module_available("tabpfn")
-            else "sklearn-gradient-boosting"
-        ),
+        "active_predictor": active_predictor_name(),
         "privacy": "Pincode is not a model feature. Phone numbers are not accepted by this service.",
     }

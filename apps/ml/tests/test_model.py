@@ -116,7 +116,10 @@ def test_voice_script_has_no_phone():
     assert "हाँ" in msg["voice_script_hi"] or "हा" in msg["hindi"] or "हाँ" in msg["hindi"]
 
 
-def test_predict_endpoint_labels_fallback():
+def test_predict_endpoint_labels_fallback(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tabpfn_token", "")
     client = TestClient(app)
     data = generate(80, 3, seed=3)
     # Strip phone if present — the schema does not accept it, which is the point.
@@ -179,12 +182,70 @@ def test_internal_token(monkeypatch):
     client = TestClient(app)
     denied = client.post("/v1/messages", json={"shop_name": "A", "orders": []})
     assert denied.status_code == 401
+    health = client.get("/health", headers={"origin": "https://www.rtoshield.tech"})
+    assert health.status_code == 200
+    assert health.json()["ok"] is True
+    assert health.headers["access-control-allow-origin"] == "https://www.rtoshield.tech"
     allowed = client.post(
         "/v1/messages",
         headers={"x-internal-token": "secret"},
         json={"shop_name": "A", "orders": []},
     )
     assert allowed.status_code == 200
+
+
+def test_health_reports_tabpfn_when_the_token_is_present(monkeypatch):
+    import importlib.util
+
+    import numpy as np
+
+    from app.config import settings
+    from app.predictors import _fit_predict, _try_tabpfn_client
+
+    assert importlib.util.find_spec("tabpfn_client") is not None
+    assert importlib.util.find_spec("tabpfn") is None
+    monkeypatch.setattr(settings, "tabpfn_token", "present")
+    client = TestClient(app)
+    health = client.get("/health").json()
+    assert health["ok"] is True
+    assert health["tabpfn_token"] is True
+    assert health["tabpfn_client_installed"] is True
+    assert health["tabpfn_local_installed"] is False
+    assert health["active_predictor"] == "tabpfn-client"
+
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setenv("TABPFN_TOKEN", "present")
+    import tabpfn_client
+
+    monkeypatch.setattr(tabpfn_client, "set_access_token", lambda token: calls.append(("set", token)))
+    monkeypatch.setattr(tabpfn_client, "init", lambda use_server=True: calls.append(("init", use_server)))
+    monkeypatch.setattr(tabpfn_client, "interactive_login", lambda *args, **kwargs: calls.append(("interactive", args)))
+
+    class FakeClassifier:
+        def fit(self, X, y):
+            calls.append(("fit", X.shape[0]))
+            return self
+
+        def predict_proba(self, X):
+            return np.tile(np.array([0.25, 0.75]), (len(X), 1))
+
+    monkeypatch.setattr(tabpfn_client, "TabPFNClassifier", FakeClassifier)
+    train = np.array([[0.0], [1.0], [0.2], [0.8]])
+    labels = np.array([0, 1, 0, 1])
+    probs = _try_tabpfn_client(train, labels, train[:2])
+    assert probs.shape == (2,)
+    assert ("set", "present") in calls
+    assert ("init", True) in calls
+    assert not any(item[0] == "interactive" for item in calls)
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("tabpfn api down")
+
+    monkeypatch.setattr("app.predictors._try_tabpfn_client", explode)
+    monkeypatch.setattr("app.predictors.module_available", lambda name: name == "tabpfn_client")
+    fallback, name, _label = _fit_predict(train, labels, train[:2])
+    assert name == "sklearn-gradient-boosting"
+    assert len(fallback) == 2
 
 
 def test_auc_ties_stay_finite():

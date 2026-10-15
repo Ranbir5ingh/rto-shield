@@ -16,6 +16,8 @@ const HOP = new Set([
 ]);
 
 const UPSTREAM_MS = 55_000;
+/** Health polls must return while Render is still booting, so the next ping can fire. */
+const HEALTH_UPSTREAM_MS = 3_500;
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
@@ -35,8 +37,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     init.body = Buffer.from(await request.arrayBuffer());
   }
 
+  const timeoutMs = path[0] === 'health' ? HEALTH_UPSTREAM_MS : UPSTREAM_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let upstream: Response;
   try {
     upstream = await fetch(target, { ...init, signal: controller.signal });

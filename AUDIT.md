@@ -23,7 +23,7 @@ Audited against the product a seller actually uses: signup, a scored shop, a con
 | Order detail | Missing as a page. Detail was only inside the queue card. | Working | `/app/orders/[id]` shows score, reasons, address quality, WhatsApp, voice, and pincode context. |
 | Demo recordings | Placeholder paths in the README. The GIF files were not in the repo. | Still open | The landing page is the live demo. Recording three GIFs needs a running shop and a screen capture; the files are still not in `docs/demo/`. |
 | Billing | Informational ₹499. | Unchanged | Still no card checkout, on purpose. |
-| TabPFN / Gemma / ElevenLabs / SerpApi without keys | Honest fallbacks. | Unchanged | The hosted Render services do not have those keys unless an operator sets them. The UI says which fallback ran. |
+| TabPFN / Gemma / ElevenLabs / SerpApi without keys | Honest fallbacks. | TabPFN client is now in the ML image. | With `TABPFN_TOKEN` set, `/health` reports `tabpfn-client`. An API error still falls back to scikit-learn. Gemma, ElevenLabs, and SerpApi stay optional. |
 
 ## Tests added
 

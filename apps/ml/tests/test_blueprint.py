@@ -24,3 +24,12 @@ def test_render_blueprint_has_api_and_ml_on_free():
     ml_keys = {item["key"] for item in by_name["rto-shield-ml"]["envVars"]}
     for key in ("TABPFN_TOKEN", "GEMINI_API_KEY", "OLLAMA_BASE_URL", "SENTRY_DSN"):
         assert key in ml_keys
+    requirements = (ROOT / "apps/ml/requirements.txt").read_text(encoding="utf-8")
+    names = []
+    for line in requirements.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        names.append(stripped.split("==")[0].split(">=")[0].split("[")[0].strip())
+    assert "tabpfn-client" in names
+    assert "tabpfn" not in names

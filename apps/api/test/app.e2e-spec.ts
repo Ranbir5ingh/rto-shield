@@ -84,6 +84,8 @@ describe('RTO Shield API', () => {
     expect(deep.body.ok).toBe(true);
     expect(deep.body.ml.ok).toBe(true);
     expect(JSON.stringify(deep.body)).not.toMatch(/token|phone|address/i);
+    const ml = await request(app.getHttpServer()).get('/api/health/ml').expect(200);
+    expect(ml.body).toEqual({ ok: true });
   });
 
   it('requires csrf, then signs up and reads the session', async () => {
