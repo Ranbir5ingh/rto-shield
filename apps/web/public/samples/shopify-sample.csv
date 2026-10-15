@@ -1,0 +1,4 @@
+Name,Email,Financial Status,Fulfillment Status,Total,Shipping Name,Shipping Address1,Shipping City,Shipping Zip,Shipping Province,Shipping Phone,Payment Method,Created at
+#1001,buyer1@example.com,pending,fulfilled,899,Aarav Sharma,"H.No 12, Lane 4, Andheri West",Mumbai,400058,Maharashtra,9000000001,Cash on Delivery (COD),2026-09-01 14:22:00 +0530
+#1002,buyer2@example.com,paid,fulfilled,699,Imran Khan,"44 MG Road",Bengaluru,560001,Karnataka,9000000003,Razorpay,2026-09-03 11:05:00 +0530
+#1003,buyer3@example.com,pending,,1499,Priya Nair,near Hanuman mandir,Lucknow,226010,Uttar Pradesh,9000000002,Cash on Delivery (COD),2026-09-02 23:10:00 +0530

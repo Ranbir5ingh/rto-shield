@@ -1,0 +1,162 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Button, Notice, RiskBadge } from '@/components/ui';
+import { ApiError, api } from '@/lib/api';
+import { inr } from '@/lib/format';
+import type { OrderDetail, PublicUser } from '@/lib/types';
+
+export default function QueuePage() {
+  const [orders, setOrders] = useState<OrderDetail[]>([]);
+  const [language, setLanguage] = useState<PublicUser['messageLanguage']>('hinglish');
+  const [error, setError] = useState('');
+  const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
+
+  async function load() {
+    const [queue, me] = await Promise.all([
+      api<{ orders: OrderDetail[] }>('/queue'),
+      api<{ user: PublicUser }>('/auth/me'),
+    ]);
+    setOrders(queue.orders);
+    setLanguage(me.user.messageLanguage);
+  }
+
+  useEffect(() => {
+    load().catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load the queue'));
+  }, []);
+
+  function textFor(order: OrderDetail) {
+    if (!order.messages) return '';
+    if (language === 'hindi') return order.messages.hindi;
+    if (language === 'english') return order.messages.english;
+    return order.messages.hinglish;
+  }
+
+  function waLink(order: OrderDetail, text: string) {
+    if (!order.waUrl || !text) return null;
+    const number = order.waUrl.split('?')[0];
+    return `${number}?text=${encodeURIComponent(text)}`;
+  }
+
+  async function outcome(id: string, value: 'confirmed' | 'cancelled' | 'no_response') {
+    setError('');
+    try {
+      await api(`/orders/${id}/outcome`, { method: 'PATCH', body: JSON.stringify({ outcome: value }) });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save the outcome');
+    }
+  }
+
+  async function voice(order: OrderDetail) {
+    setError('');
+    try {
+      const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
+        `/orders/${order.id}/voice`,
+        { method: 'POST' },
+      );
+      if (result.audioBase64 && result.mime) {
+        const audio = new Audio(`data:${result.mime};base64,${result.audioBase64}`);
+        await audio.play();
+      } else if (result.notice) {
+        setError(`${result.notice} Script: ${result.script}`);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Voice failed');
+    }
+  }
+
+  async function pin(order: OrderDetail) {
+    const body = await api<{ locality: string | null; region: string | null; notice: string | null; fairness: string; snippets: Array<{ title: string }> }>(
+      `/pincode/${order.pincode}`,
+    );
+    const snippets = body.snippets.map((item) => item.title).filter(Boolean).join(' · ');
+    setPincodeNote((current) => ({
+      ...current,
+      [order.id]: [body.locality || body.region, body.notice, snippets, body.fairness].filter(Boolean).join(' '),
+    }));
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-4xl">Confirmation queue</h1>
+          <p className="mt-2 max-w-2xl text-sm text-ink/70">
+            WhatsApp opens with the text filled in. RTO Shield does not send it. Mark what the buyer said — cancelled and confirmed orders teach the next score.
+          </p>
+        </div>
+        <label className="text-sm">
+          Message
+          <select className="ml-2 rounded-full border border-line bg-white px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as PublicUser['messageLanguage'])}>
+            <option value="hinglish">Hinglish</option>
+            <option value="hindi">Hindi</option>
+            <option value="english">English</option>
+          </select>
+        </label>
+      </div>
+      {error ? <Notice>{error}</Notice> : null}
+      {!orders.length ? <p className="text-sm text-ink/60">No medium or high risk orders. Score a batch, or ship the low-risk ones.</p> : null}
+      <div className="space-y-4">
+        {orders.map((order) => (
+          <article key={order.id} className="rounded-2xl border border-line bg-card p-4 shadow-card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold">{order.buyerName}</h2>
+                  <RiskBadge band={order.riskBand} />
+                  <span className="text-sm tabular-nums">{order.riskScore}</span>
+                </div>
+                <p className="text-sm text-ink/60">
+                  {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType.toUpperCase()} · {order.phoneMasked} · {order.city} {order.pincode}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {waLink(order, textFor(order)) ? (
+                  <a className="rounded-full bg-forest px-4 py-2 text-sm font-semibold text-white" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
+                    Open WhatsApp
+                  </a>
+                ) : null}
+                {order.messages && waLink(order, order.messages.prepaid_nudge) ? (
+                  <a className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold" href={waLink(order, order.messages.prepaid_nudge) || '#'} target="_blank" rel="noreferrer">
+                    Prepaid nudge
+                  </a>
+                ) : null}
+                <Button type="button" tone="ghost" onClick={() => voice(order)}>
+                  Play Hindi script
+                </Button>
+              </div>
+            </div>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+              {order.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm text-ink/80">{order.address}</p>
+            <p className="mt-3 rounded-xl bg-paper p-3 text-sm leading-6">{textFor(order)}</p>
+            {order.messages ? (
+              <p className="mt-2 text-sm text-ink/70">
+                Prepaid nudge: {order.messages.prepaid_nudge}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" onClick={() => outcome(order.id, 'confirmed')}>
+                Confirmed
+              </Button>
+              <Button type="button" tone="danger" onClick={() => outcome(order.id, 'cancelled')}>
+                Cancelled
+              </Button>
+              <Button type="button" tone="ghost" onClick={() => outcome(order.id, 'no_response')}>
+                No response
+              </Button>
+              <Button type="button" tone="ghost" onClick={() => pin(order)}>
+                Pincode context
+              </Button>
+            </div>
+            {pincodeNote[order.id] ? <p className="mt-3 text-xs leading-5 text-ink/70">{pincodeNote[order.id]}</p> : null}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}

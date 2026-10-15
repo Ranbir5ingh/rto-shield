@@ -1,0 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-jwt-secret-test-jwt-secret';
+process.env.ENCRYPTION_KEY = 'ab'.repeat(32);
+process.env.AUTH_RATE_LIMIT_MAX = '1000';
+process.env.COOKIE_SECURE = 'false';
+process.env.COOKIE_SAMESITE = 'lax';
+process.env.WEB_ORIGIN = 'http://localhost:3000';
+process.env.BCRYPT_ROUNDS = '4';
+process.env.SENTRY_DSN = '';

@@ -1,0 +1,4 @@
+order_id,buyer_name,phone,address,city,state,pincode,order_value,payment_type,ordered_at,prior_orders,prior_rtos,outcome,product_name,courier
+A1001,Aarav Sharma,9000000001,"H.No 12, Lane 4, Andheri West",Mumbai,Maharashtra,400058,899,cod,2026-09-01T14:22:00+05:30,0,0,delivered,Cotton kurti,Delhivery
+A1002,Priya Nair,9000000002,near Hanuman mandir,Lucknow,Uttar Pradesh,226010,1499,cod,2026-09-02T23:10:00+05:30,1,1,rto,Daily saree,Shadowfax
+A1003,Imran Khan,9000000003,"44 MG Road",Bengaluru,Karnataka,560001,699,prepaid,2026-09-03T11:05:00+05:30,3,0,delivered,Mobile cover,Delhivery
