@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Notice } from '@/components/ui';
+import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
 
@@ -35,7 +35,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.replace('/');
   }
 
-  if (!user) return <p className="p-8 text-sm text-muted">Opening your shop…</p>;
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-page space-y-4 px-4 py-8" aria-busy="true" aria-label="Opening your shop">
+        <Skeleton className="h-14" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-paper">

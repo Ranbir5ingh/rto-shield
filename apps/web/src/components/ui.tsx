@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import { bandClass } from '@/lib/format';
 
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`skeleton ${className}`} aria-hidden="true" />;
+}
+
 export function RiskBadge({ band }: { band: string | null }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${bandClass(band)}`}>

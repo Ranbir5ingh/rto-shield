@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope, Noto_Sans } from 'next/font/google';
 import Script from 'next/script';
+import { Cursor } from '@/components/Cursor';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
@@ -21,6 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="wake-backends" strategy="beforeInteractive">
           {landingWakeScript()}
         </Script>
+        <div className="grain" aria-hidden="true" />
+        <Cursor />
         <WakeGate>{children}</WakeGate>
       </body>
     </html>

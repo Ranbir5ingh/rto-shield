@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button, Notice, RiskBadge } from '@/components/ui';
+import { Button, Notice, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderDetail, PublicUser } from '@/lib/types';
@@ -12,6 +12,7 @@ export default function QueuePage() {
   const [language, setLanguage] = useState<PublicUser['messageLanguage']>('hinglish');
   const [error, setError] = useState('');
   const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
+  const [ready, setReady] = useState(false);
 
   async function load() {
     const [queue, me] = await Promise.all([
@@ -23,7 +24,9 @@ export default function QueuePage() {
   }
 
   useEffect(() => {
-    load().catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load the queue'));
+    load()
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load the queue'))
+      .finally(() => setReady(true));
   }, []);
 
   function textFor(order: OrderDetail) {
@@ -82,7 +85,7 @@ export default function QueuePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">Confirmation queue</h1>
+          <h1 className="font-medium text-display-2">Confirmation queue</h1>
           <p className="mt-2 max-w-2xl text-sm text-ink/70">
             WhatsApp opens with the text filled in. RTO Shield does not send it. Mark what the buyer said — cancelled and confirmed orders teach the next score.
           </p>
@@ -97,10 +100,11 @@ export default function QueuePage() {
         </label>
       </div>
       {error ? <Notice>{error}</Notice> : null}
-      {!orders.length ? <p className="text-sm text-ink/60">No medium or high risk orders. Score a batch, or ship the low-risk ones.</p> : null}
+      {!ready ? <Skeleton className="h-40" /> : null}
+      {ready && !orders.length ? <p className="text-sm text-ink/60">No medium or high risk orders. Score a batch, or ship the low-risk ones.</p> : null}
       <div className="space-y-4">
         {orders.map((order) => (
-          <article key={order.id} className="rounded-2xl border border-line bg-card p-4 shadow-card">
+          <article key={order.id} className="panel p-5 shadow-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">

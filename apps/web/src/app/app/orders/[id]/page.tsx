@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button, Notice, RiskBadge } from '@/components/ui';
+import { Button, Notice, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
 import type { OrderDetail } from '@/lib/types';
@@ -49,7 +49,15 @@ export default function OrderDetailPage() {
   }
 
   if (error && !order) return <Notice>{error}</Notice>;
-  if (!order) return <p className="text-sm">Opening the order…</p>;
+  if (!order) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4" aria-busy="true" aria-label="Opening the order">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-16" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
 
   const text = order.messages?.hinglish || '';
   const wa = order.waUrl && text ? `${order.waUrl.split('?')[0]}?text=${encodeURIComponent(text)}` : null;

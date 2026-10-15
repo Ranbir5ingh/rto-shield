@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Distribution, TrendChart } from '@/components/Charts';
+import { Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
 import type { DashboardData } from '@/lib/types';
@@ -18,7 +19,19 @@ export default function DashboardPage() {
   }, []);
 
   if (error) return <p className="text-danger">{error}</p>;
-  if (!data) return <p>Loading the shop…</p>;
+  if (!data) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Loading the shop">
+        <Skeleton className="h-12 w-56" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-32" />
+          ))}
+        </div>
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
 
   const cards = [
     ['RTO rate', data.rtoRate === null ? '—' : `${data.rtoRate}%`, `${data.rto} returned · ${data.delivered} delivered`],
@@ -31,18 +44,18 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">Dashboard</h1>
+          <h1 className="font-medium text-display-2">Dashboard</h1>
           <p className="mt-1 text-sm text-ink/70">
             Saved rupees are cancelled Medium and High orders times your cost per RTO. It is an estimate, not a bank balance.
           </p>
         </div>
-        <Link href="/app/history" className="rounded-full bg-saffron px-4 py-2 text-sm font-semibold text-white">
+        <Link href="/app/history" className="pill pill-dark">
           Add history
         </Link>
       </div>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value, hint]) => (
-          <article key={label} className="rounded-2xl border border-line bg-card p-4 shadow-card">
+          <article key={label} className="panel p-5 shadow-card">
             <p className="text-xs uppercase tracking-wider text-ink/50">{label}</p>
             <p className="mt-2 font-display text-4xl tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-ink/60">{hint}</p>
@@ -50,13 +63,13 @@ export default function DashboardPage() {
         ))}
       </section>
       <section className="grid gap-4 lg:grid-cols-5">
-        <article className="rounded-2xl border border-line bg-card p-4 shadow-card lg:col-span-3">
+        <article className="panel p-5 shadow-card lg:col-span-3">
           <h2 className="font-semibold">RTO rate by week</h2>
           <div className="mt-3">
             <TrendChart points={data.trend} />
           </div>
         </article>
-        <article className="rounded-2xl border border-line bg-card p-4 shadow-card lg:col-span-2">
+        <article className="panel p-5 shadow-card lg:col-span-2">
           <h2 className="font-semibold">Pending risk</h2>
           <div className="mt-4">
             <Distribution bands={data.distribution} />
@@ -64,7 +77,7 @@ export default function DashboardPage() {
         </article>
       </section>
       <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-line bg-card p-4 shadow-card">
+        <article className="panel p-5 shadow-card">
           <h2 className="font-semibold">Top reasons</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {data.topReasons.length ? (
@@ -79,7 +92,7 @@ export default function DashboardPage() {
             )}
           </ul>
         </article>
-        <article className="rounded-2xl border border-line bg-card p-4 shadow-card">
+        <article className="panel p-5 shadow-card">
           <h2 className="font-semibold">Latest model check</h2>
           {data.model ? (
             <div className="mt-3 space-y-2 text-sm leading-6">

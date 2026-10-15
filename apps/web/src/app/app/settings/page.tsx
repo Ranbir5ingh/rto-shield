@@ -60,14 +60,14 @@ export default function SettingsPage() {
     }
   }
 
-  if (!user) return <p>Loading settings…</p>;
+  if (!user) return <div className="skeleton h-48" aria-busy="true" aria-label="Loading settings" />;
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="font-display text-4xl">Settings</h1>
+      <h1 className="font-medium text-display-2">Settings</h1>
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
-      <form onSubmit={save} className="space-y-3 rounded-2xl border border-line bg-card p-4">
+      <form onSubmit={save} className="panel space-y-3 p-5 shadow-card">
         <Field label="Your name">
           <input className={inputClass} value={user.name} onChange={(event) => setUser({ ...user, name: event.target.value })} />
         </Field>

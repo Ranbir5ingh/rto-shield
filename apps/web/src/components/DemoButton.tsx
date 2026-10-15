@@ -27,6 +27,7 @@ export function DemoButton({ className = '' }: { className?: string }) {
         type="button"
         onClick={open}
         disabled={pending}
+        data-magnetic
         className={`pill pill-dark disabled:opacity-60 ${className}`}
       >
         {pending ? 'Opening Asha Studio…' : 'Open the demo shop'}

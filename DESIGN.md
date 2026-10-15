@@ -46,13 +46,27 @@ Content width is `72rem`. Desktop padding is about 2.5rem; 360px uses 1.25rem. S
 
 The marketing page is one column of large type, then a white card, then numbered rows, then a footer of text links. The app is the same ground: a white top bar, black pill for the current section, white cards for metrics and lists. There is no dark side rail.
 
-## Motion
+## Motion catalogue (Eloqwnt, measured 15 Oct 2026)
 
-- **Smooth scroll.** Lenis on marketing pages (`lerp` 0.12), driving ScrollTrigger.
-- **Text reveal.** SplitText splits headlines into lines and words and slides the words up from a mask.
-- **Scroll sections.** Blocks with `data-reveal` fade and rise when they enter the viewport.
-- **Ticker.** A CSS marquee under the hero. It pauses when `prefers-reduced-motion` is set.
-- **Page transition.** `template.tsx` fades and lifts the next route with GSAP (about 0.45s).
-- **Preloader.** The wake-up gate is a full-viewport `#e5e9eb` screen: wordmark, status line, thin black progress. It still waits until both health checks return ok.
+Taken from the live page at 1440×900 and 390×844. Their motion is GSAP 3.15 and SplitText, with about 25 ScrollTriggers. There is no Lenis instance and no CSS transition sheet for the entrances. The only CSS keyframes rule is a spin used off the hero. Timings below are what we play, chosen to sit in the same range as that GSAP setup. Their source is not copied.
 
-`prefers-reduced-motion: reduce` skips Lenis, SplitText, scroll reveals, the marquee, the page fade, and chart draw animations. Focus rings stay visible (`2px` ink, offset `3px`).
+| Detail | What the reference does | What we play |
+| --- | --- | --- |
+| Preloader | None. | Wake screen on login, signup, and the app. Full-viewport paper, wordmark, status, hairline progress. It leaves over 0.7s with `cubic-bezier(0.16, 1, 0.3, 1)` once both health checks are ok. |
+| Hero entrance | White fullscreen hero, headline weight 500, 56px / 58.8px, tracking −1.6px. GSAP is on the page. | Masked line reveal, 1.15s, `power4.out`, 0.07s stagger, 0.12s delay. Supporting lines rise 1.05s, `power3.out`. |
+| Text masks | SplitText is loaded. | `SplitText` lines with `mask: 'lines'`, `yPercent: 112`. |
+| Image reveals | Project photos sit in 32px-radius frames, parent `overflow: hidden`, about 640×480. | `clip-path` from `inset(12%)` plus scale 1.12 → 1, 1.35–1.5s, `expo.out`. |
+| Parallax | ScrollTriggers scrub is off on the first triggers; ranges overlap down a ~9600px page. | Media drifts `yPercent: -8` with `scrub: true`. |
+| Pinned story | Sampled triggers were not pins. The work section is one ~2625px stack of large frames. | Desktop “method” pins for 170% scroll and crossfades three product frames. Mobile stacks them. |
+| Horizontal scroll | Not present. Projects stack vertically. | Not used. |
+| Marquee | A thin repeating strip. | 28s linear CSS marquee. |
+| Magnetic control | Not measurable as a CSS transition. | Primary pills ease toward the pointer (`power3.out`, 0.45s), then home. |
+| Cursor | `.cursor` is a 12px black circle, fixed, `pointer-events: none`, z-index 9999. | Same idea on marketing pages: 12px dot, lerp 0.38, scales on links. Hidden for coarse pointers and in the app. |
+| Hover | Pills darken. Rows pick up a light fill. | Pills invert or darken. Numbered rows fill white. Table rows fill `#f3f5f6`. |
+| Nav | `.hide_nav-hero` is fixed. Header over the hero is transparent; the page ground is `#e5e9eb` and the hero is white. | Fixed nav, transparent on the hero, white at 92% opacity after 12px, hides on scroll down, returns on scroll up (0.7s). |
+| Section color | White hero, then the gray field, then white cards. | Same sequence. |
+| Page change | A short fade, header unchanged. | Paper curtain, `scaleY` 1 → 0, 0.9s `expo.inOut`, content fades in over 0.6s. |
+
+Smooth scroll on marketing pages is Lenis (`lerp` 0.085) on the GSAP ticker, with `ScrollTrigger.update` on each Lenis scroll. Chart lines draw in 1.1s. Skeletons shimmer 1.35s.
+
+`prefers-reduced-motion: reduce` skips Lenis, SplitText, scroll reveals, the pin, the cursor, magnetic pull, the marquee, the page curtain, the wake exit, and chart draw. Focus rings stay visible (`2px` ink, offset `3px`).

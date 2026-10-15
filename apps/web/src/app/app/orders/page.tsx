@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
-import { Button, Field, Notice, RiskBadge, inputClass } from '@/components/ui';
+import { Button, Field, Notice, RiskBadge, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderSummary } from '@/lib/types';
@@ -28,6 +28,7 @@ export default function OrdersPage() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [pending, setPending] = useState(false);
+  const [ready, setReady] = useState(false);
 
   async function load() {
     const body = await api<{ orders: OrderSummary[] }>('/orders?stage=pending&limit=100');
@@ -35,7 +36,9 @@ export default function OrdersPage() {
   }
 
   useEffect(() => {
-    load().catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load orders'));
+    load()
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load orders'))
+      .finally(() => setReady(true));
   }, []);
 
   function set<K extends keyof typeof empty>(key: K, value: string) {
@@ -81,7 +84,7 @@ export default function OrdersPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">Score pending orders</h1>
+          <h1 className="font-medium text-display-2">Score pending orders</h1>
           <p className="mt-2 text-sm text-ink/70">Low scores can ship. Medium and High go to the confirmation queue.</p>
         </div>
         <Button type="button" onClick={score} disabled={pending}>
@@ -90,7 +93,7 @@ export default function OrdersPage() {
       </div>
       {info ? <Notice tone="good">{info}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
-      <form onSubmit={createOrder} className="grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-2">
+      <form onSubmit={createOrder} className="panel grid gap-3 p-5 shadow-card md:grid-cols-2">
         <Field label="Buyer name">
           <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
         </Field>
@@ -129,11 +132,12 @@ export default function OrdersPage() {
         </div>
       </form>
       <CsvImporter mode="pending" onImported={() => load()} />
-      <div className="overflow-x-auto rounded-2xl border border-line bg-card">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-line text-xs uppercase tracking-wider text-ink/50">
+      {!ready ? <Skeleton className="h-48" /> : null}
+      <div className="panel overflow-x-auto shadow-card">
+        <table className="data-table">
+          <thead>
             <tr>
-              <th className="px-3 py-3">Order</th>
+              <th>Order</th>
               <th>Buyer</th>
               <th>Value</th>
               <th>Score</th>
@@ -142,8 +146,8 @@ export default function OrdersPage() {
           </thead>
           <tbody>
             {orders.map((order) => (
-              <tr key={order.id} className="border-b border-line/80 align-top">
-                <td className="px-3 py-3">
+              <tr key={order.id}>
+                <td>
                   <Link href={`/app/orders/${order.id}`} className="font-medium underline-offset-2 hover:underline">
                     {order.externalOrderId}
                   </Link>
@@ -161,7 +165,7 @@ export default function OrdersPage() {
                 <td className="py-3 pr-3 text-ink/75">{order.reasons.join(' · ') || 'Not scored'}</td>
               </tr>
             ))}
-            {!orders.length ? (
+            {ready && !orders.length ? (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-ink/60">
                   No pending orders yet.

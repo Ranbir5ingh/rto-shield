@@ -26,7 +26,7 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-4xl">Order history</h1>
+        <h1 className="font-medium text-display-2">Order history</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/70">
           The model learns delivered versus RTO from this shop only. Sample buyers are synthetic Indian names, Hinglish addresses, and planted correlations — safe to click through.
         </p>

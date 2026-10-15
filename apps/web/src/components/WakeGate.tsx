@@ -27,17 +27,19 @@ export function WakeScreen({
   elapsedLabel,
   progress,
   failed,
+  leaving = false,
   onRetry,
 }: {
   message: string;
   elapsedLabel: string;
   progress: number;
   failed: boolean;
+  leaving?: boolean;
   onRetry: () => void;
 }) {
   const percent = Math.round(progress * 100);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-paper px-6">
+    <div className={`wake-screen fixed inset-0 z-[70] flex items-center justify-center bg-paper px-6 ${leaving ? 'is-leaving' : ''}`}>
       <div className="w-full max-w-lg">
         <p className="text-xs uppercase tracking-[0.22em] text-muted">RTO Shield</p>
         <h1 className="mt-4 font-medium text-display-2">Getting the servers ready</h1>
@@ -82,6 +84,8 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
   const [snap, setSnap] = useState<WakeSnapshot>(EMPTY);
   const [elapsed, setElapsed] = useState(0);
   const [armed, setArmed] = useState(false);
+  const [shown, setShown] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,15 +133,43 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
   }, [attempt]);
 
   const block = needsApi && phase !== 'ready' && (phase === 'failed' || armed);
-  if (!block) return children;
 
-  return (
+  useEffect(() => {
+    if (block) {
+      setShown(true);
+      setLeaving(false);
+      return;
+    }
+    if (!shown) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setShown(false);
+      return;
+    }
+    setLeaving(true);
+    const timer = window.setTimeout(() => {
+      setShown(false);
+      setLeaving(false);
+    }, 720);
+    return () => window.clearTimeout(timer);
+  }, [block, shown]);
+
+  const screen = (
     <WakeScreen
       message={wakeMessage(elapsed, snap.api)}
       elapsedLabel={formatElapsed(elapsed)}
       progress={wakeProgress(elapsed, snap)}
       failed={phase === 'failed'}
+      leaving={leaving}
       onRetry={() => setAttempt((value) => value + 1)}
     />
+  );
+
+  if (!shown) return children;
+  if (block && !leaving) return screen;
+  return (
+    <>
+      {children}
+      {screen}
+    </>
   );
 }

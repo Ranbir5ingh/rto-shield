@@ -13,7 +13,7 @@ const links = [
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-30 bg-card/95 backdrop-blur">
+    <header data-nav data-open={open ? 'true' : 'false'} className="site-nav">
       <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-4 sm:px-8">
         <Link href="/" className="text-lg font-medium tracking-tight">
           RTO Shield
@@ -26,7 +26,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/signup" className="pill pill-dark">
+          <Link href="/signup" data-magnetic className="pill pill-dark">
             Start a shop
           </Link>
           <button
