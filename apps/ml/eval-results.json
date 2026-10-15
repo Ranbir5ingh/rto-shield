@@ -1,0 +1,40 @@
+{
+  "model": "sklearn-gradient-boosting",
+  "model_label": "Deterministic fallback (scikit-learn gradient boosting). TabPFN was not used \u2014 set TABPFN_TOKEN for the Prior Labs API, or install the local tabpfn package.",
+  "metrics": {
+    "auc": 0.7931,
+    "precision_at_top_10pct": 1.0,
+    "n_train": 288,
+    "n_test": 72,
+    "positive_rate_test": 0.5972
+  },
+  "pending_bands": {
+    "Low": 5,
+    "Medium": 4,
+    "High": 15
+  },
+  "generator_rates": {
+    "cod_rto_rate": 0.7031802120141343,
+    "prepaid_rto_rate": 0.18181818181818182,
+    "n": 360.0
+  },
+  "warnings": [],
+  "n_history": 360,
+  "n_pending": 24,
+  "feature_columns": [
+    "log_order_value",
+    "is_cod",
+    "hour_sin",
+    "hour_cos",
+    "prior_orders_scaled",
+    "prior_rto_rate",
+    "is_new_buyer",
+    "high_value_cod",
+    "addr_quality",
+    "addr_incomplete",
+    "addr_landmark",
+    "addr_junk",
+    "addr_mismatch",
+    "late_night"
+  ]
+}
