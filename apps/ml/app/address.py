@@ -147,6 +147,7 @@ async def _ollama(prompt: str) -> tuple[str, dict[str, Any]]:
 # Last real call. /health uses this so the shop notice tracks whether Gemma answers,
 # not only whether GEMINI_API_KEY is non-empty.
 gemma_status: dict[str, Any] = {"state": "pending"}
+gemma_failure: dict[str, Any] = {}
 _working_model: str | None = None
 _listed_models: list[str] | None = None
 
@@ -163,6 +164,11 @@ _FALLBACK_MODELS = (
 def note_gemma(state: str, **fields: Any) -> None:
     gemma_status.clear()
     gemma_status.update(state=state, **fields)
+
+
+def note_failure(exc: Exception) -> None:
+    gemma_failure.clear()
+    gemma_failure.update(error=type(exc).__name__, status=_status_of(exc))
 
 
 def gemma_ready() -> bool | None:
@@ -208,11 +214,11 @@ def _quality_from(item: dict[str, Any], origin: str) -> dict[str, Any]:
 async def _post(client: httpx.AsyncClient, url: str, headers: dict[str, str], body: dict[str, Any]) -> httpx.Response:
     """Retry a brief rate limit. A 429 used to drop the rest of a shop's notes."""
     response: httpx.Response | None = None
-    for attempt in range(3):
+    for attempt in range(4):
         response = await client.post(url, headers=headers, json=body)
-        if response.status_code not in (429, 500, 503) or attempt == 2:
+        if response.status_code not in (429, 500, 503) or attempt == 3:
             return response
-        await asyncio.sleep(1.5 * (attempt + 1))
+        await asyncio.sleep(5 * (attempt + 1))
     assert response is not None
     return response
 
@@ -245,10 +251,11 @@ def _model_names() -> list[str]:
 
 
 def _bodies(prompt: str) -> list[dict[str, Any]]:
-    # thinkingConfig keeps Gemma 4 from spending the whole budget on a hidden trace.
-    # Older Gemma builds reject that field, so the next body is the documented plain turn.
+    # The documented plain turn is first. A thinkingConfig body is a second request,
+    # and a shop of notes was burning the rate limit on that extra 400.
     part = {"text": prompt}
     return [
+        {"contents": [{"parts": [part]}]},
         {
             "contents": [{"parts": [part]}],
             "generationConfig": {
@@ -257,7 +264,6 @@ def _bodies(prompt: str) -> list[dict[str, Any]]:
                 "thinkingConfig": {"thinkingLevel": "minimal"},
             },
         },
-        {"contents": [{"parts": [part]}]},
         {"contents": [{"role": "user", "parts": [part]}]},
     ]
 
@@ -374,6 +380,7 @@ async def _llm(prompt: str, purpose: str) -> tuple[str, str]:
         note_gemma("unconfigured")
         raise RuntimeError("no gemma provider")
     except Exception as exc:
+        note_failure(exc)
         # A later batch can still succeed. Don't wipe a good probe, or the unconfigured state.
         if gemma_status.get("state") not in {"ok", "unconfigured"}:
             note_gemma("error", error=type(exc).__name__, status=_status_of(exc))

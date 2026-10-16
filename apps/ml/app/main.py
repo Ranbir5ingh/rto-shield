@@ -12,7 +12,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from app.address import annotate, gemma_ready, gemma_status, probe_gemma
+from app.address import annotate, gemma_failure, gemma_ready, gemma_status, probe_gemma
 from app.config import settings
 from app.messages import generate_messages
 from app.predictors import health_payload, score_orders
@@ -127,6 +127,9 @@ def health() -> dict[str, Any]:
     elif gemma_status.get("state") == "error":
         payload["gemma_error"] = gemma_status.get("error")
         payload["gemma_status"] = gemma_status.get("status")
+    if gemma_failure:
+        payload["gemma_last_error"] = gemma_failure.get("error")
+        payload["gemma_last_status"] = gemma_failure.get("status")
     return payload
 
 
