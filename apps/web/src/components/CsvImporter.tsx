@@ -98,14 +98,14 @@ export function CsvImporter({
             if (file) void onFile(file);
           }}
           className={`mt-2.5 flex cursor-pointer flex-col items-center justify-center gap-3 border border-dashed px-6 py-10 text-center transition ${
-            dragOver ? 'border-go bg-go/5' : 'border-line bg-panel hover:border-white/40'
+            dragOver ? 'border-go bg-lime/5' : 'border-ink/20 bg-white hover:border-white/40'
           }`}
         >
-          <FileUp size={22} className={dragOver ? 'text-go' : 'text-muted'} />
-          <span className="font-mono text-xs uppercase tracking-[0.18em] text-white">
+          <FileUp size={22} className={dragOver ? 'text-green-700' : 'text-inksoft'} />
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-ink">
             {fileName || 'Drop your CSV here or click to browse'}
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">.CSV only · stays in your shop</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-inksoft">.CSV only · stays in your shop</span>
           <input
             ref={fileRef}
             type="file"

@@ -43,16 +43,16 @@ function LoginForm() {
         <Field label="Password">
           <input className={inputClass} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-signal">{error}</p> : null}
+        {error ? <p className="text-sm text-risk">{error}</p> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Checking…' : 'Log in'}
         </Button>
       </form>
-      <div className="mt-8 border-t border-line pt-6">
-        <p className="mb-3 text-sm text-muted">Judging the product? Skip the spreadsheet.</p>
+      <div className="mt-8 border-t border-ink/20 pt-6">
+        <p className="mb-3 text-sm text-inksoft">Judging the product? Skip the spreadsheet.</p>
         <DemoButton />
       </div>
-      <p className="mt-6 text-sm text-muted">
+      <p className="mt-6 text-sm text-inksoft">
         New shop?{' '}
         <Link href="/signup" className="font-medium text-ink underline-offset-4 hover:underline">
           Create an account

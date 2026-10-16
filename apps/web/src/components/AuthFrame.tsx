@@ -14,9 +14,9 @@ export function AuthFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="relative grid min-h-screen bg-black lg:grid-cols-[1.05fr_0.95fr]">
+    <div className="relative grid min-h-screen bg-paper lg:grid-cols-[1.05fr_0.95fr]">
       <OrderRain columns={6} />
-      <aside className="relative hidden border-r border-line lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <aside className="relative hidden border-r border-ink/20 lg:flex lg:flex-col lg:justify-between lg:p-12">
         <Link href="/" className="relative flex items-center gap-3">
           <LogoMark size={30} />
           <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
@@ -24,16 +24,16 @@ export function AuthFrame({
         <div className="relative max-w-md">
           <Eyebrow>/Before the tape gun/</Eyebrow>
           <p className="statement mt-6 text-5xl">
-            Score the order.<br />Confirm the <span className="text-signal">risky</span> ones.<br />Ship the rest.
+            Score the order.<br />Confirm the <span className="text-risk">risky</span> ones.<br />Ship the rest.
           </p>
-          <div className="mt-10 border-t border-line">
+          <div className="mt-10 border-t border-ink/20">
             {[
               ['S1042 · ₹2,458 · COD', 'CLEAR', 'go'],
               ['S1047 · ₹1,299 · COD', 'RTO RISK', 'red'],
               ['S1051 · ₹1,899 · PREPAID', 'WATCH', 'banana'],
             ].map(([id, flag, tone]) => (
               <div key={id} className="datarow">
-                <span className="text-white/70">{id}</span>
+                <span className="text-ink/70">{id}</span>
                 <Flag tone={tone as 'red' | 'banana' | 'go'}>{flag}</Flag>
               </div>
             ))}
@@ -52,7 +52,7 @@ export function AuthFrame({
         <div className="mx-auto w-full max-w-md">
           <Eyebrow>/Enter/</Eyebrow>
           <h1 className="statement mt-4 text-5xl">{title}</h1>
-          <p className="mt-4 leading-7 text-muted">{lede}</p>
+          <p className="mt-4 leading-7 text-inksoft">{lede}</p>
           <div className="mt-8">{children}</div>
         </div>
       </div>

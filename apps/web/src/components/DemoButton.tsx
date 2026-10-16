@@ -26,7 +26,7 @@ export function DemoButton({ className = '', label = 'Open the demo shop' }: { c
       <button type="button" onClick={open} disabled={pending} data-magnetic className={`btn-go disabled:opacity-60 ${className}`}>
         {pending ? 'Opening Asha Studio…' : label}
       </button>
-      {error ? <p className="mt-2 text-sm text-signal">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-risk">{error}</p> : null}
     </div>
   );
 }

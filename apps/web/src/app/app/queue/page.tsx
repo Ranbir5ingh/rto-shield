@@ -147,7 +147,7 @@ export default function QueuePage() {
               ))}
             </ul>
             <p className="mt-3 text-sm text-ink/80">{order.address}</p>
-            <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-line bg-canvas p-3">
+            <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-ink/20 bg-canvas p-3">
               <p className="font-hindi text-sm leading-6">{textFor(order)}</p>
               {textFor(order) ? <CopyButton text={textFor(order)} /> : null}
             </div>

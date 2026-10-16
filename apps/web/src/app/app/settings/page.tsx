@@ -106,7 +106,7 @@ export default function SettingsPage() {
             ['Sentry', status?.sentry ? 'set' : 'missing'],
           ].map(([label, value]) => (
             <div key={label} className="flex items-center justify-between gap-4 py-2.5">
-              <dt className="text-muted">{label}</dt>
+              <dt className="text-inksoft">{label}</dt>
               <dd className="text-right font-mono text-xs">{value}</dd>
             </div>
           ))}

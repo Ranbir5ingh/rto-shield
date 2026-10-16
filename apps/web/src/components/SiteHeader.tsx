@@ -34,21 +34,21 @@ export function SiteHeader() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-[80] transition-colors ${
-          scrolled ? 'border-b border-line bg-black/85 backdrop-blur-md' : 'bg-transparent'
+        className={`fixed inset-x-0 top-0 z-[80] transition-all ${
+          scrolled ? 'border-b-2 border-ink bg-paper/90 shadow-sticker-sm backdrop-blur-md' : 'bg-transparent'
         }`}
       >
         <div className="mx-auto flex max-w-page items-center justify-between px-5 py-4 sm:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label="RTO Shield home">
-            <LogoMark size={30} />
-            <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
+            <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
+            <span className="font-display text-sm font-black uppercase tracking-[0.08em]">RTO Shield</span>
           </Link>
           <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
             {links.map(([href, label]) => (
               <a
                 key={href}
                 href={href}
-                className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted transition hover:text-white"
+                className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-inksoft transition hover:text-ink hover:underline hover:decoration-hl hover:decoration-2 hover:underline-offset-4"
               >
                 {label}
               </a>
@@ -57,7 +57,7 @@ export function SiteHeader() {
           <div className="hidden items-center gap-3 md:flex">
             <Link
               href="/login"
-              className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted transition hover:text-white"
+              className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-inksoft transition hover:text-ink"
             >
               Log in
             </Link>
@@ -67,7 +67,7 @@ export function SiteHeader() {
           </div>
           <button
             type="button"
-            className="grid h-10 w-10 place-items-center text-white md:hidden"
+            className="grid h-10 w-10 place-items-center border-2 border-ink bg-white shadow-sticker-sm md:hidden"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
           >
@@ -77,15 +77,15 @@ export function SiteHeader() {
       </header>
 
       {open && (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-black" role="dialog" aria-label="Menu">
+        <div className="fixed inset-0 z-[100] flex flex-col bg-paper" role="dialog" aria-label="Menu">
           <div className="flex items-center justify-between px-5 py-4">
             <span className="flex items-center gap-3">
-              <LogoMark size={30} />
-              <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
+              <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
+              <span className="font-display text-sm font-black uppercase tracking-[0.08em]">RTO Shield</span>
             </span>
             <button
               type="button"
-              className="grid h-10 w-10 place-items-center text-white"
+              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white shadow-sticker-sm"
               onClick={() => setOpen(false)}
               aria-label="Close menu"
             >
@@ -98,9 +98,9 @@ export function SiteHeader() {
                 key={href}
                 href={href}
                 onClick={() => setOpen(false)}
-                className="statement border-b border-line py-5 text-4xl text-white"
+                className="statement border-b-2 border-dashed border-ink/20 py-5 text-4xl"
               >
-                <span className="mr-4 font-mono text-xs font-medium tracking-[0.2em] text-signal">0{i + 1}</span>
+                <span className="mr-4 bg-risk px-2 py-1 font-mono text-xs font-bold tracking-[0.2em] text-white">0{i + 1}</span>
                 {label}
               </a>
             ))}

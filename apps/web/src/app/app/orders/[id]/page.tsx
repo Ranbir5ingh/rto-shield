@@ -97,7 +97,7 @@ export default function OrderDetailPage() {
       {order.messages ? (
         <article className="panel p-5">
           <h2 className="font-semibold">Confirmation</h2>
-          <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-line bg-canvas p-3">
+          <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-ink/20 bg-canvas p-3">
             <p className="font-hindi text-sm leading-6">{text}</p>
             {text ? <CopyButton text={text} /> : null}
           </div>

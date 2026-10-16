@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter_Tight, JetBrains_Mono, Noto_Sans } from 'next/font/google';
+import { Archivo, Caveat, Inter_Tight, JetBrains_Mono, Noto_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
@@ -9,6 +9,20 @@ const tight = Inter_Tight({
   subsets: ['latin'],
   variable: '--font-tight',
   weight: ['400', '500', '600', '700', '800', '900'],
+  display: 'swap',
+});
+
+const archivo = Archivo({
+  subsets: ['latin'],
+  variable: '--font-archivo',
+  weight: ['500', '600', '700', '800', '900'],
+  display: 'swap',
+});
+
+const caveat = Caveat({
+  subsets: ['latin'],
+  variable: '--font-hand',
+  weight: ['600', '700'],
   display: 'swap',
 });
 
@@ -34,8 +48,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${tight.variable} ${mono.variable} ${noto.variable}`}>
-      <body className="bg-void font-sans text-ink antialiased">
+    <html lang="en" className={`${tight.variable} ${archivo.variable} ${mono.variable} ${caveat.variable} ${noto.variable}`}>
+      <body className="bg-paper font-sans text-ink antialiased">
         <Script id="landing-wake" strategy="afterInteractive">
           {landingWakeScript()}
         </Script>

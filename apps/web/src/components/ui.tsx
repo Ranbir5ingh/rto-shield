@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse bg-white/5 ${className}`} aria-hidden="true" />;
+  return <div className={`animate-pulse bg-ink/10 ${className}`} aria-hidden="true" />;
 }
 
 export function Eyebrow({ children, className = '', ...props }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLParagraphElement>) {
@@ -16,7 +16,7 @@ export function LabelChip({ children, className = '', ...props }: { children: Re
 }
 
 export function Flag({ tone = 'red', children }: { tone?: 'red' | 'banana' | 'go' | 'ghost'; children: ReactNode }) {
-  const cls = tone === 'red' ? 'flag' : tone === 'banana' ? 'flag flag-banana' : tone === 'go' ? 'flag flag-go' : 'flag flag-ghost';
+  const cls = tone === 'red' ? 'flag flag-red' : tone === 'banana' ? 'flag flag-banana' : tone === 'go' ? 'flag flag-go' : 'flag flag-ghost';
   return <span className={cls}>{children}</span>;
 }
 
@@ -33,14 +33,16 @@ export function Button({
   tone,
   className = '',
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'go' | 'ghost' | 'dark'; tone?: 'ghost' | 'danger' }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'go' | 'ghost' | 'dark' | 'pink'; tone?: 'ghost' | 'danger' }) {
   const v = tone === 'ghost' ? 'ghost' : tone === 'danger' ? 'danger' : variant;
   const cls =
     v === 'go'
       ? 'btn-go'
-      : v === 'danger'
-        ? 'btn-ghost !text-signal hover:!border-signal'
-        : 'btn-ghost';
+      : v === 'pink'
+        ? 'btn-pink'
+        : v === 'danger'
+          ? 'btn-ghost !text-risk'
+          : 'btn-ghost';
   return (
     <button type="button" className={`${cls} disabled:opacity-50 ${className}`} {...props}>
       {children}
@@ -49,12 +51,12 @@ export function Button({
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`panel ${className}`}>{children}</div>;
+  return <div className={`sticker ${className}`}>{children}</div>;
 }
 
 export function Notice({ children, tone = 'warn' }: { children: ReactNode; tone?: 'warn' | 'good' }) {
   return (
-    <div className={`panel px-5 py-4 ${tone === 'good' ? 'border-l-2 border-l-go' : 'border-l-2 border-l-signal'}`} role="status">
+    <div className={`sticker-sm px-5 py-4 ${tone === 'good' ? '!bg-lime/30' : '!bg-hl/40'}`} role="status">
       <div className="font-mono text-xs leading-6 text-ink/80">{children}</div>
     </div>
   );
@@ -62,10 +64,10 @@ export function Notice({ children, tone = 'warn' }: { children: ReactNode; tone?
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
-    <div className="panel px-6 py-14 text-center">
+    <div className="sticker px-6 py-14 text-center">
       <p className="eyebrow">EMPTY</p>
-      <p className="mt-4 font-display text-2xl font-extrabold uppercase tracking-tight">{title}</p>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">{body}</p>
+      <p className="mt-4 font-display text-2xl font-black uppercase tracking-tight">{title}</p>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-inksoft">{body}</p>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -73,10 +75,10 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
 
 export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="panel-flat pt-5">
+    <div className="sticker-sm p-5">
       <p className="eyebrow">{label}</p>
-      <p className="mt-3 font-display text-5xl font-extrabold tabular-nums tracking-tight">{value}</p>
-      {hint ? <p className="mt-2 font-mono text-xs leading-5 text-muted">{hint}</p> : null}
+      <p className="mt-3 font-display text-5xl font-black tabular-nums tracking-tight">{value}</p>
+      {hint ? <p className="mt-2 font-mono text-xs leading-5 text-inksoft">{hint}</p> : null}
     </div>
   );
 }
@@ -86,7 +88,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     <label className="block">
       <span className="eyebrow">{label}</span>
       <div className="mt-2.5">{children}</div>
-      {hint ? <span className="mt-2 block font-mono text-xs leading-5 text-muted">{hint}</span> : null}
+      {hint ? <span className="mt-2 block font-mono text-xs leading-5 text-inksoft">{hint}</span> : null}
     </label>
   );
 }
@@ -95,8 +97,7 @@ export function FormGrid({ children }: { children: ReactNode }) {
   return <div className="grid gap-6 sm:grid-cols-2">{children}</div>;
 }
 
-const inputCls =
-  'w-full bg-black border border-line px-4 py-3.5 text-[15px] text-ink placeholder:text-muted/50 outline-none transition focus:border-go';
+const inputCls = 'input-paper';
 
 export const inputClass = inputCls;
 
@@ -165,14 +166,14 @@ export function Dropdown({
         }}
         className={`${inputCls} flex cursor-pointer items-center justify-between gap-3 text-left`}
       >
-        <span className={selected ? 'text-white' : 'text-muted/60'}>{selected?.label ?? placeholder}</span>
-        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className={selected ? 'text-ink' : 'text-ink/40'}>{selected?.label ?? placeholder}</span>
+        <ChevronDown size={15} className={`shrink-0 text-inksoft transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <ul
           role="listbox"
           aria-label={label}
-          className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto border border-line bg-panel py-1 shadow-[0_16px_48px_rgba(0,0,0,0.8)]"
+          className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto border-2 border-ink bg-white py-1 shadow-sticker"
         >
           {options.map((o, i) => {
             const active = o.value === value;
@@ -195,11 +196,11 @@ export function Dropdown({
                     }
                   }}
                   className={`flex w-full items-center justify-between px-4 py-3 text-left font-mono text-xs uppercase tracking-[0.14em] transition ${
-                    i === focusIdx ? 'bg-white/10 text-white' : active ? 'text-go' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                    i === focusIdx ? 'bg-hl/60 text-ink' : active ? 'bg-lime/40 text-ink' : 'text-ink/70 hover:bg-paper'
                   }`}
                 >
                   {o.label}
-                  {active && <Check size={14} className="text-go" />}
+                  {active && <Check size={14} />}
                 </button>
               </li>
             );
@@ -220,7 +221,7 @@ export function TableWrap({ children }: { children: ReactNode }) {
 
 export function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <th className={`whitespace-nowrap px-4 py-3 text-left font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted ${className}`}>
+    <th className={`whitespace-nowrap px-4 py-3 text-left font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-inksoft ${className}`}>
       {children}
     </th>
   );
@@ -231,7 +232,7 @@ export function Td({ children, className = '' }: { children: ReactNode; classNam
 }
 
 export function Tr({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <tr className={`border-t border-line transition hover:bg-white/[0.03] ${className}`}>{children}</tr>;
+  return <tr className={`border-t-2 border-dashed border-ink/15 transition hover:bg-hl/20 ${className}`}>{children}</tr>;
 }
 
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
@@ -245,9 +246,32 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
           window.setTimeout(() => setCopied(false), 1600);
         });
       }}
-      className="font-mono text-[11px] uppercase tracking-[0.18em] text-go transition hover:brightness-125"
+      className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink underline decoration-hl decoration-2 underline-offset-4 transition hover:decoration-ink"
     >
       {copied ? 'Copied' : label}
     </button>
+  );
+}
+
+/* ---------- paper-tear collage primitives ---------- */
+
+export function Tape({ className = '', pink = false, sky = false, lime = false }: { className?: string; pink?: boolean; sky?: boolean; lime?: boolean }) {
+  const tone = pink ? 'tape-pink' : sky ? 'tape-sky' : lime ? 'tape-lime' : '';
+  return <span className={`tape ${tone} ${className}`} aria-hidden="true" />;
+}
+
+export function DoodleStar({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z" />
+    </svg>
+  );
+}
+
+export function DoodleArrow({ className = '', flip = false }: { className?: string; flip?: boolean }) {
+  return (
+    <svg viewBox="0 0 100 40" className={className} aria-hidden="true" style={flip ? { transform: 'scaleX(-1)' } : undefined}>
+      <path d="M4 30 C 30 32, 55 28, 78 12 M78 12 l-9 1 M78 12 l2 9" className="doodle-arrow" />
+    </svg>
   );
 }

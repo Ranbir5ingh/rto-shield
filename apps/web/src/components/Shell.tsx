@@ -37,14 +37,14 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center bg-black/80 px-4 pt-[18vh]"
+      className="fixed inset-0 z-[120] flex items-start justify-center bg-ink/40 px-4 pt-[18vh]"
       onClick={onClose}
       role="dialog"
       aria-label="Command palette"
     >
-      <div className="panel w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <Search size={16} className="text-go" />
+      <div className="sticker w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 border-b-2 border-ink px-5 py-4">
+          <Search size={16} />
           <input
             ref={inputRef}
             value={q}
@@ -54,9 +54,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               if (e.key === 'Enter' && items.length) go(items[0][0]);
             }}
             placeholder="JUMP TO…"
-            className="w-full bg-transparent font-mono text-sm uppercase tracking-[0.14em] text-white outline-none placeholder:text-muted/60"
+            className="w-full bg-transparent font-mono text-sm font-bold uppercase tracking-[0.14em] outline-none placeholder:text-ink/40"
           />
-          <kbd className="border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">ESC</kbd>
+          <kbd className="border border-ink/30 px-1.5 py-0.5 font-mono text-[10px]">ESC</kbd>
         </div>
         <ul className="max-h-72 overflow-y-auto p-2">
           {items.map(([href, label, hint, Icon]) => (
@@ -64,15 +64,15 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 onClick={() => go(href)}
-                className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-white/5"
+                className="flex w-full items-center gap-3 border-2 border-transparent px-3 py-3 text-left transition hover:border-ink hover:bg-hl/40"
               >
-                <Icon size={16} className="text-go" />
-                <span className="font-mono text-xs font-medium uppercase tracking-[0.18em]">{label}</span>
-                <span className="ml-auto font-mono text-[11px] text-muted">{hint}</span>
+                <Icon size={16} />
+                <span className="font-mono text-xs font-bold uppercase tracking-[0.18em]">{label}</span>
+                <span className="ml-auto font-mono text-[11px] text-inksoft">{hint}</span>
               </button>
             </li>
           ))}
-          {!items.length && <li className="px-4 py-6 text-center font-mono text-xs uppercase tracking-[0.2em] text-muted">No match.</li>}
+          {!items.length && <li className="px-4 py-6 text-center font-mono text-xs font-bold uppercase tracking-[0.2em] text-inksoft">No match.</li>}
         </ul>
       </div>
     </div>
@@ -112,12 +112,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-black text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-paper text-ink">
       {/* Sidebar — fixed: bottom dock on mobile, left rail on desktop. Never scrolls. */}
-      <aside className="fixed inset-x-0 bottom-0 z-[70] border-t border-line bg-black lg:inset-y-0 lg:left-0 lg:right-auto lg:w-[76px] lg:border-r lg:border-t-0">
+      <aside className="fixed inset-x-0 bottom-0 z-[70] border-t-2 border-ink bg-paper lg:inset-y-0 lg:left-0 lg:right-auto lg:w-[76px] lg:border-r-2 lg:border-t-0">
         <div className="flex items-center justify-around px-2 py-2 lg:h-full lg:flex-col lg:justify-start lg:gap-1 lg:py-6">
           <Link href="/app" className="mb-0 hidden lg:mb-8 lg:block" aria-label="RTO Shield home">
-            <LogoMark size={36} />
+            <LogoMark size={36} ink="#1B1712" pulse="#FF3B30" />
           </Link>
           {links.map(([href, label, , Icon]) => {
             const active = pathname === href;
@@ -128,15 +128,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 title={label}
                 aria-label={label}
                 aria-current={active ? 'page' : undefined}
-                className={`group relative grid h-12 w-12 place-items-center transition ${
-                  active ? 'bg-white/10 text-white' : 'text-muted hover:bg-white/5 hover:text-white'
+                className={`group relative grid h-12 w-12 place-items-center border-2 transition ${
+                  active ? 'border-ink bg-hl shadow-sticker-sm' : 'border-transparent text-inksoft hover:border-ink hover:bg-white hover:text-ink'
                 }`}
               >
                 <Icon size={19} />
-                <span className="pointer-events-none absolute left-[calc(100%+10px)] hidden whitespace-nowrap border border-line bg-panel px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white opacity-0 transition group-hover:opacity-100 lg:block">
+                <span className="pointer-events-none absolute left-[calc(100%+10px)] hidden whitespace-nowrap border-2 border-ink bg-white px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-ink opacity-0 shadow-sticker-sm transition group-hover:opacity-100 lg:block">
                   {label}
                 </span>
-                {active && <span className="absolute left-0 top-1/2 hidden h-6 w-[3px] -translate-y-1/2 bg-go lg:block" />}
+                {active && <span className="absolute -left-2 top-1/2 hidden h-6 w-[4px] -translate-y-1/2 bg-risk lg:block" />}
               </Link>
             );
           })}
@@ -145,7 +145,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             onClick={logout}
             title="Log out"
             aria-label="Log out"
-            className="grid h-12 w-12 place-items-center text-muted transition hover:bg-white/5 hover:text-signal lg:mt-auto"
+            className="grid h-12 w-12 place-items-center text-inksoft transition hover:bg-risk hover:text-white lg:mt-auto"
           >
             <LogOut size={19} />
           </button>
@@ -154,16 +154,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Right column — fixed viewport. Only <main> scrolls. */}
       <div className="flex min-h-0 flex-1 flex-col pb-[64px] lg:pb-0 lg:pl-[76px]">
-        <header className="z-[60] shrink-0 border-b border-line bg-black">
+        <header className="z-[60] shrink-0 border-b-2 border-ink bg-paper">
           <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <Link href="/app" className="shrink-0 lg:hidden" aria-label="RTO Shield home">
-                <LogoMark size={30} />
+                <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
               </Link>
               {user ? (
                 <div className="min-w-0">
                   <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
-                  <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+                  <p className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-inksoft">
                     <span className="live-dot" /> Systems nominal
                   </p>
                 </div>
@@ -177,18 +177,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setPalette(true)}
-              className="flex shrink-0 items-center gap-2.5 border border-line px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted transition hover:border-white/40 hover:text-white"
+              className="flex shrink-0 items-center gap-2.5 border-2 border-ink bg-white px-4 py-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft shadow-sticker-sm transition hover:text-ink"
             >
               <Search size={13} />
               <span className="hidden sm:inline">Jump to…</span>
-              <kbd className="border border-line px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+              <kbd className="border border-ink/30 bg-paper px-1.5 py-0.5 text-[10px]">⌘K</kbd>
             </button>
           </div>
         </header>
 
         {palette && <CommandPalette onClose={() => setPalette(false)} />}
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-paper">
           <div className="mx-auto max-w-page px-5 sm:px-8">
             <div className="pt-5">
               <StatusStrip status={status} />

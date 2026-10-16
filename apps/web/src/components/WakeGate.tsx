@@ -43,10 +43,10 @@ export function WakeScreen({
   return (
     <div className={`wake-screen fixed inset-0 z-[70] flex items-center justify-center bg-canvas px-6 ${leaving ? 'is-leaving' : ''}`}>
       <div className="w-full max-w-lg">
-        <p className="text-xs uppercase tracking-[0.22em] text-muted">RTO Shield</p>
+        <p className="text-xs uppercase tracking-[0.22em] text-inksoft">RTO Shield</p>
         <h1 className="mt-4 font-display font-medium text-display-2">Getting the servers ready</h1>
         <div className="mt-6" role="status" aria-live="polite" aria-busy={!failed}>
-          <p className="text-base leading-7 text-muted">{failed ? 'The servers did not wake in time.' : message}</p>
+          <p className="text-base leading-7 text-inksoft">{failed ? 'The servers did not wake in time.' : message}</p>
         </div>
         <div
           className="mt-8 h-px bg-line"
@@ -61,7 +61,7 @@ export function WakeScreen({
             style={{ width: `${percent}%` }}
           />
         </div>
-        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-muted">Elapsed {elapsedLabel}</p>
+        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-inksoft">Elapsed {elapsedLabel}</p>
         {failed ? (
           <div className="mt-6">
             <p className="mb-4 text-sm leading-6 text-ink/70">

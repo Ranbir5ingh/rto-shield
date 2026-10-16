@@ -46,12 +46,12 @@ export default function SignupPage() {
         <Field label="Password (8+)">
           <input className={inputClass} type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => set('password', event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-signal">{error}</p> : null}
+        {error ? <p className="text-sm text-risk">{error}</p> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Creating…' : 'Create account'}
         </Button>
       </form>
-      <p className="mt-6 text-sm text-muted">
+      <p className="mt-6 text-sm text-inksoft">
         Already packing?{' '}
         <Link href="/login" className="font-medium text-ink underline-offset-4 hover:underline">
           Log in
