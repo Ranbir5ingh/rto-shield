@@ -16,13 +16,13 @@ export function SiteHeader() {
   return (
     <header className="site-nav">
       <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-3 sm:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 py-2 text-sm font-medium tracking-tight">
-          <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-[11px] font-semibold text-canvas">R</span>
-          RTO Shield
+        <Link href="/" className="inline-flex items-center gap-2.5 py-2">
+          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-electric text-sm font-black text-white shadow-card">R</span>
+          <span className="font-display text-xl">RTO Shield</span>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
+        <nav className="hidden items-center gap-7 text-[15px] font-semibold md:flex">
           {links.map(([href, label]) => (
-            <Link key={href} href={href} className="inline-flex items-center py-2 transition hover:text-ink">
+            <Link key={href} href={href} className="inline-flex items-center py-2 text-ink/70 transition hover:text-electric">
               {label}
             </Link>
           ))}

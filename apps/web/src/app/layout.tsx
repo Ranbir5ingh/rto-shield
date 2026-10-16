@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
 import { GeistMono } from 'geist/font/mono';
 import { GeistSans } from 'geist/font/sans';
-import { Fraunces } from 'next/font/google';
+import { DM_Serif_Display } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
 
-const display = Fraunces({
+const display = DM_Serif_Display({
   subsets: ['latin'],
   variable: '--font-display',
-  weight: ['400', '500', '600'],
+  weight: ['400'],
   display: 'swap',
 });
 

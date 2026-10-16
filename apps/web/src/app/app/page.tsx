@@ -54,11 +54,11 @@ export default function DashboardPage() {
           Add history
         </Link>
       </div>
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value, hint]) => (
-          <article key={label} className="card p-5">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">{label}</p>
-            <p className="mt-3 font-mono text-3xl tracking-tight tabular-nums">{value}</p>
+          <article key={label} className="card spotlight p-6">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
+            <p className="mt-3 font-display text-4xl tabular-nums">{value}</p>
             <p className="mt-2 text-xs leading-5 text-muted">{hint}</p>
           </article>
         ))}

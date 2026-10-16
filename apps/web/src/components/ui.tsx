@@ -9,7 +9,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function RiskBadge({ band }: { band: string | null }) {
   return (
-    <span className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wide ${bandClass(band)}`}>
+    <span className={`risk-pill ${bandClass(band)}`}>
       {band || 'Unscored'}
     </span>
   );
@@ -34,15 +34,16 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export const inputClass =
-  'w-full rounded-lg border border-line bg-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-accent';
+  'w-full rounded-2xl border-2 border-ink/15 bg-white px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-electric';
 
 export function Button({
   children,
   tone = 'primary',
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'ghost' | 'danger' }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'electric' | 'ghost' | 'danger' }) {
   const tones = {
     primary: 'btn-primary',
+    electric: 'btn-electric',
     ghost: 'btn-ghost',
     danger: 'btn-danger',
   };

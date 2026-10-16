@@ -46,25 +46,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="border-b border-line lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 lg:block">
-          <Link href="/app" className="flex items-center gap-2 text-sm font-medium">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-[11px] font-semibold text-canvas">R</span>
-            RTO Shield
+    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[16rem_1fr]">
+      <aside className="border-b-2 border-ink lg:border-b-0 lg:border-r-2">
+        <div className="flex items-center justify-between gap-3 px-5 py-5 lg:block">
+          <Link href="/app" className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-electric text-sm font-black text-white shadow-card">R</span>
+            <span className="font-display text-xl">RTO Shield</span>
           </Link>
-          <p className="truncate text-xs text-muted lg:mt-2">{user.shopName}</p>
+          <p className="truncate text-xs font-semibold text-muted lg:mt-2">{user.shopName}</p>
         </div>
-        <nav className="flex flex-wrap gap-1 px-3 pb-3 lg:block lg:space-y-1 lg:px-3">
+        <nav className="flex flex-wrap gap-2 px-4 pb-4 lg:block lg:space-y-2 lg:px-4">
           {links.map(([href, label, Icon]) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition ${active ? 'bg-raised text-ink shadow-[inset_2px_0_0_#c0392b]' : 'text-muted hover:bg-raised/70 hover:text-ink'}`}
+                className={`flex items-center gap-2.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                  active ? 'bg-electric text-white shadow-card' : 'text-ink/60 hover:bg-ink/5 hover:text-ink'
+                }`}
               >
-                <Icon size={15} />
+                <Icon size={16} />
                 {label}
               </Link>
             );

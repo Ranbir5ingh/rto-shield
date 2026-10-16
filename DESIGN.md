@@ -1,46 +1,49 @@
 # Design language
 
-**2026-10-16 — Kagaz (the modern ledger).** The dark "Signal" direction is retired. RTO Shield is now a warm-paper editorial product: a modernised bahi-khata. Warm paper canvas, ink text, postal-red stamps, ledger rules, tabular figures. The reference lineage is editorial fintech — Mercury's "money set large, numbers are the hero" and Stripe's editorial rhythm — but the language is its own: no dark-SaaS chrome, no phosphor, no kinetic-type marketing.
+**2026-10-16 — Electric Play.** The "Kagaz" warm-ledger direction was rejected by the owner as "a basic website with the basic UI". After reviewing awards-level references, the owner picked the **Arc** reference (electric blue, wavy edges, chunky serif, pastel washes, playful product staging — arc.net). RTO Shield is now a loud, joyful, awards-grade product: electric cobalt `#1e1efa`, chunky DM Serif Display headlines, pastel aurora washes, wavy scalloped section dividers, chunky dark pill buttons, floating stickers, bouncy `back.out` motion.
 
-Studied in Firefox at 1440×900 on 16 Oct 2026 (landing, product section, wake screen, login).
+Studied in Firefox at 1440×900 on 16 Oct 2026 (landing, method band, pricing, login wake screen).
 
 ## Direction
 
-**Kagaz.** A ledger, not a console.
+**Electric Play.** A game you're winning, not a ledger you're filing.
 
-The seller already thinks in ledgers: rupees in, rupees out, entries stamped. The design meets them there — warm paper `#faf6ec`, ink `#1c1814`, one postal red `#c0392b` for the primary action, the score, and focus. Risk stays written: Low, Medium, High — with the score stamped like a rubber stamp, rotated −2°.
+The reference is Arc's product site: a vivid blue field, wavy dividers between sections, one chunky serif for headlines, pastel washes behind the hero, product UI staged in clean white cards with playful pastel stat tiles, dark pill CTAs. The language is its own — not a copy of Arc's illustration style, just its energy: color as joy, type as voice, motion as bounce.
+
+The seller's dashboard keeps every workflow, route, and data contract. Only the chrome changes: sidebar links become blue pills, big figures set in DM Serif, risk stays written (Low, Medium, High) as chunky outlined pills.
 
 ## Tokens
 
 | Token | Value | Role |
 | --- | --- | --- |
-| canvas / paper | `#faf6ec` | Page — warm paper |
-| card | `#ffffff` | Surfaces — white ledger cards |
-| raised | `#f1eada` | Wells, stat cells |
-| line | `#e3d9c2` | 1px ruled lines |
-| ink | `#1c1814` | Text — warm black |
-| muted | `#6e6357` | Secondary |
-| accent | `#c0392b` | Primary, focus, stamps — postal red |
-| accent-deep | `#96281b` | Primary hover |
-| low | `#1e7a4c` | Low band, with the word — ledger green |
-| mid | `#a86f14` | Medium band, with the word — ochre |
-| high | `#c0392b` | High band and destructive actions |
+| canvas / paper | `#fbfaf5` | Page — warm white |
+| card | `#ffffff` | Surfaces — white cards, 24px radius |
+| ink | `#17150f` | Text — warm black; also the chunky dark button |
+| muted | `#6b6257` | Secondary |
+| line | `#e8e4d8` | Soft warm borders |
+| accent / electric | `#1e1efa` | The blue — marquee band, method band, score, focus |
+| accent-deep | `#1212b8` | Blue hover |
+| pastel-pink / sky / butter / mint | `#ffd9e8` `#d9e6ff` `#ffeba8` `#d8f5e3` | Aurora washes, stat tiles |
+| low | `#16a34a` | Low band, with the word |
+| mid | `#d97706` | Medium band, with the word |
+| high | `#e11d48` | High band and destructive actions — vivid rose |
 
-Type is **Fraunces** (display serif, via `next/font/google`), **Geist** (UI), and **Geist Mono** (figures, labels — always tabular numerals). Hindi confirmation copy uses **Noto Sans** Devanagari. Display tracking is about `-0.015em`. Labels are 11px mono, uppercase, `0.16–0.22em`.
+Type is **DM Serif Display** (chunky display serif, via `next/font/google`), **Geist** (UI), and **Geist Mono** (figures, labels — always tabular numerals). Hindi confirmation copy uses **Noto Sans** Devanagari. Display size is `clamp(2.9rem, 7vw, 5.75rem)` at line-height 0.98. Labels are 11px, bold, uppercase, `0.16–0.22em`.
 
-Radius: 8px controls, 16px cards, 6px status chips. Spacing steps are 4, 8, 12, 16, 24, 32, 48, 80. Icons are Lucide, 15–16px, stroke 1.5.
+Radius: pill buttons, 24px cards, 16px stat tiles. Elevation is a soft layered shadow; hover lifts cards with a slight `-0.4deg` tilt and a blue-tinted shadow. Grain is a fixed overlay (overlay blend, low opacity) — the blue has visible tooth, like the reference.
 
-Elevation is a border plus a soft warm shadow. Grain is a fixed paper-fibre overlay (multiply, low opacity). Ledger rules sit behind the hero. The score stamp is a 2px currentColor border, rotated −2°.
+Signature moves: the tilted electric-blue marquee band; the full-bleed blue method band with wavy SVG dividers top and bottom; the floating rotated "HIGH RISK" sticker on the hero product frame; pastel stat tiles; bouncy reveals.
 
 ## Motion
 
-Unchanged architecture: Lenis on the marketing page (`lerp` 0.1) drives ScrollTrigger. The hero rises in 0.8s. Sections reveal on enter. Example-day figures tick once. Primary controls ease toward the pointer. Buttons scale to 0.98 on press. Charts draw in. Routes fade 0.35s.
+Unchanged architecture: Lenis on the marketing page (`lerp` 0.1) drives ScrollTrigger. Hero items and section reveals now use `back.out(1.3–1.4)` — a springy pop instead of a polite rise. Example-day figures tick once. Buttons squash to 0.94 on press and lift on hover. Charts draw in. Routes fade 0.35s.
 
-`prefers-reduced-motion` skips Lenis, the reveals, the tickers, the marquee, and the chart draw. Focus is a 2px postal-red ring.
+`prefers-reduced-motion` skips Lenis, the reveals, the tickers, the marquee, and the chart draw. Focus is a 3px electric-blue ring.
 
 ## Retired
 
-- The dark "Signal" system (2026-10-16): near-black `#07080a`, phosphor `#d6ff4a`, Geist display. Replaced by Kagaz above.
+- The "Kagaz" warm-ledger system (2026-10-16): warm paper `#faf6ec`, postal red `#c0392b`, Fraunces. Replaced by Electric Play above after owner rejection.
+- The dark "Signal" system (2026-10-16): near-black `#07080a`, phosphor `#d6ff4a`, Geist display.
 - The "Eloqwnt" imitation: retired earlier.
 - A separate Heron-referenced marketing redesign was built on `main` by mistake and reverted; `main` is back to the initial commit. All product work lives on this branch.
 

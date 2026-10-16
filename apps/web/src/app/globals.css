@@ -7,97 +7,96 @@
 }
 
 html {
-  background: #faf6ec;
+  background: #fbfaf5;
 }
 
 body {
-  background: #faf6ec;
-  color: #1c1814;
+  background: #fbfaf5;
+  color: #17150f;
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: #c0392b;
-  color: #faf6ec;
+  background: #1e1efa;
+  color: #ffffff;
 }
 
 :focus-visible {
-  outline: 2px solid #c0392b;
+  outline: 3px solid #1e1efa;
   outline-offset: 2px;
+  border-radius: 0.5rem;
 }
 
-/* Paper fibre — a fixed, barely-there tooth over the page. */
+/* Film grain over everything — the Arc blue has visible tooth. */
 .grain {
   pointer-events: none;
   position: fixed;
   inset: 0;
   z-index: 40;
-  opacity: 0.35;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.05'/></svg>");
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.06'/></svg>");
 }
+
+/* Pastel aurora wash for the hero. */
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora > span {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+.aurora-pink { background: #ffd9e8; }
+.aurora-sky { background: #d9e6ff; }
+.aurora-butter { background: #ffeba8; }
+.aurora-mint { background: #d8f5e3; }
 
 .panel,
 .card {
   background: #ffffff;
-  border: 1px solid #e3d9c2;
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgba(28, 24, 20, 0.05), 0 16px 40px -16px rgba(28, 24, 20, 0.14);
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Ledger rules behind the hero — horizontal rules like a bahi-khata page. */
-.ledger-rules {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 71px,
-    rgba(28, 24, 20, 0.055) 71px,
-    rgba(28, 24, 20, 0.055) 72px
-  );
-  mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 75%);
-}
-
-/* Rubber-stamp treatment for the big score figures. */
-.stamp {
-  display: inline-block;
-  border: 2px solid currentColor;
-  border-radius: 0.35rem;
-  padding: 0.08em 0.32em;
-  transform: rotate(-2deg);
-  box-shadow: inset 0 0 0 1px rgba(250, 246, 236, 0.35);
+  border: 1px solid #e8e4d8;
+  border-radius: 1.5rem;
+  box-shadow: 0 2px 6px rgba(23, 21, 15, 0.06), 0 24px 48px -20px rgba(23, 21, 15, 0.18);
+  transition: border-color 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
 }
 
 input[type='file']::file-selector-button {
   margin-right: 0.75rem;
-  border: 1px solid #e3d9c2;
-  border-radius: 0.4rem;
-  background: #f1eada;
-  color: #1c1814;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.75rem;
+  border: 2px solid #17150f;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #17150f;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .spotlight:hover {
-  border-color: rgba(192, 57, 43, 0.45);
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(28, 24, 20, 0.06), 0 20px 48px -16px rgba(28, 24, 20, 0.18);
+  border-color: rgba(30, 30, 250, 0.5);
+  transform: translateY(-4px) rotate(-0.4deg);
+  box-shadow: 0 4px 10px rgba(23, 21, 15, 0.08), 0 32px 64px -20px rgba(30, 30, 250, 0.25);
 }
 
+/* Chunky pill buttons — Arc's "Try Dia" energy. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  border-radius: 0.55rem;
-  padding: 0.65rem 0.95rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
-  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.94);
 }
 
 .btn:disabled {
@@ -105,31 +104,49 @@ input[type='file']::file-selector-button {
 }
 
 .btn-primary {
-  background: #c0392b;
-  color: #faf6ec;
+  background: #17150f;
+  color: #fbfaf5;
+  box-shadow: 0 10px 24px -10px rgba(23, 21, 15, 0.5);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #96281b;
+  background: #000000;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -10px rgba(23, 21, 15, 0.55);
+}
+
+.btn-electric {
+  background: #1e1efa;
+  color: #ffffff;
+  box-shadow: 0 10px 24px -10px rgba(30, 30, 250, 0.6);
+}
+
+.btn-electric:hover:not(:disabled) {
+  background: #1212b8;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -10px rgba(30, 30, 250, 0.65);
 }
 
 .btn-ghost {
-  background: transparent;
-  color: #1c1814;
-  border: 1px solid rgba(28, 24, 20, 0.22);
+  background: #ffffff;
+  color: #17150f;
+  border: 2px solid #17150f;
 }
 
 .btn-ghost:hover:not(:disabled) {
-  border-color: #1c1814;
+  background: #17150f;
+  color: #fbfaf5;
+  transform: translateY(-2px);
 }
 
 .btn-danger {
-  background: #c0392b;
-  color: #faf6ec;
+  background: #e11d48;
+  color: #ffffff;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #96281b;
+  background: #be123c;
+  transform: translateY(-2px);
 }
 
 .pill,
@@ -138,59 +155,78 @@ input[type='file']::file-selector-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.55rem;
-  padding: 0.65rem 0.95rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  background: #c0392b;
-  color: #faf6ec;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: #17150f;
+  color: #fbfaf5;
+  box-shadow: 0 10px 24px -10px rgba(23, 21, 15, 0.5);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.18s ease;
 }
 
 .pill:hover,
 .pill-dark:hover,
 .pill-light:hover {
-  background: #96281b;
+  background: #000000;
+  transform: translateY(-2px);
 }
 
 .pill-light {
-  background: transparent;
-  color: #1c1814;
-  border: 1px solid rgba(28, 24, 20, 0.22);
+  background: #ffffff;
+  color: #17150f;
+  border: 2px solid #17150f;
+  box-shadow: none;
 }
 
 .pill-light:hover {
-  border-color: #1c1814;
-  background: transparent;
-  color: #1c1814;
+  background: #17150f;
+  color: #fbfaf5;
+}
+
+/* Chunky risk pills. */
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 2px solid currentColor;
 }
 
 .site-nav {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: rgba(250, 246, 236, 0.86);
+  background: rgba(251, 250, 245, 0.85);
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid #e3d9c2;
+  border-bottom: 2px solid #17150f;
 }
 
+/* Electric blue marquee band. */
 .marquee {
   display: flex;
   overflow: hidden;
-  border-block: 1px solid #e3d9c2;
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  background: #1e1efa;
+  color: #ffffff;
+  transform: rotate(-1deg) scale(1.02);
+  border-block: 2px solid #17150f;
 }
 
 .marquee-track {
   display: flex;
   min-width: max-content;
   gap: 2.5rem;
-  padding-block: 0.85rem;
-  animation: marquee 32s linear infinite;
-  font-size: 0.75rem;
+  padding-block: 0.9rem;
+  animation: marquee 28s linear infinite;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #6e6357;
 }
 
 @keyframes marquee {
@@ -206,15 +242,15 @@ input[type='file']::file-selector-button {
 
 .bar-fill {
   transform-origin: left center;
-  animation: grow-bar 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: grow-bar 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes draw-line { to { stroke-dashoffset: 0; } }
 @keyframes grow-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .skeleton {
-  border-radius: 0.75rem;
-  background: linear-gradient(90deg, #ece4d0 0%, #f7f2e4 45%, #ece4d0 100%);
+  border-radius: 1.25rem;
+  background: linear-gradient(90deg, #efece1 0%, #fbfaf5 45%, #efece1 100%);
   background-size: 200% 100%;
   animation: shimmer 1.35s ease-in-out infinite;
 }
@@ -227,7 +263,8 @@ input[type='file']::file-selector-button {
 .data-table {
   width: 100%;
   min-width: 720px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
   font-size: 0.875rem;
 }
@@ -235,25 +272,39 @@ input[type='file']::file-selector-button {
 .data-table th {
   padding: 0.75rem 1rem;
   font-size: 0.68rem;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6e6357;
-  border-bottom: 1px solid #e3d9c2;
+  color: #6b6257;
+  border-bottom: 2px solid #17150f;
 }
 
 .data-table td {
-  padding: 0.85rem 1rem;
-  vertical-align: top;
-  border-bottom: 1px solid rgba(227, 217, 194, 0.9);
+  padding: 0.9rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #e8e4d8;
 }
 
 .data-table tbody tr {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .data-table tbody tr:hover {
-  background: rgba(28, 24, 20, 0.025);
+  background: rgba(30, 30, 250, 0.04);
+}
+
+/* Bouncy float for playful stickers/dots. */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+.floaty {
+  animation: floaty 5s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
 
 .wake-screen {
@@ -272,7 +323,9 @@ input[type='file']::file-selector-button {
   .bar-fill,
   .marquee-track,
   .skeleton,
+  .floaty,
   .btn,
+  .pill,
   .panel,
   .card,
   .data-table tbody tr,

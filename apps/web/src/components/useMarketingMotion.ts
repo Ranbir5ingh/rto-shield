@@ -26,18 +26,18 @@ export function useMarketingMotion(enabled: boolean) {
       gsap.ticker.lagSmoothing(0);
 
       gsap.from('[data-hero-item]', {
-        y: 16,
-        duration: 0.7,
-        stagger: 0.05,
-        ease: 'power3.out',
+        y: 28,
+        duration: 0.9,
+        stagger: 0.08,
+        ease: 'back.out(1.4)',
       });
 
       document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((node) => {
         gsap.from(node, {
-          y: 24,
+          y: 36,
           autoAlpha: 0,
-          duration: 0.7,
-          ease: 'power3.out',
+          duration: 0.8,
+          ease: 'back.out(1.3)',
           scrollTrigger: { trigger: node, start: 'top 88%' },
         });
       });
