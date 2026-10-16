@@ -41,7 +41,7 @@ export function WakeScreen({
 }) {
   const percent = Math.round(progress * 100);
   return (
-    <div className={`wake-screen fixed inset-0 z-[70] flex items-center justify-center bg-paper px-6 ${leaving ? 'is-leaving' : ''}`}>
+    <div className={`wake-screen fixed inset-0 z-[70] flex items-center justify-center bg-canvas px-6 ${leaving ? 'is-leaving' : ''}`}>
       <div className="w-full max-w-lg">
         <p className="text-xs uppercase tracking-[0.22em] text-muted">RTO Shield</p>
         <h1 className="mt-4 font-medium text-display-2">Getting the servers ready</h1>
@@ -49,7 +49,7 @@ export function WakeScreen({
           <p className="text-base leading-7 text-muted">{failed ? 'The servers did not wake in time.' : message}</p>
         </div>
         <div
-          className="mt-8 h-px bg-ink/15"
+          className="mt-8 h-px bg-line"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -57,7 +57,7 @@ export function WakeScreen({
           aria-label="Server wake-up"
         >
           <div
-            className="h-px bg-ink motion-reduce:transition-none transition-[width] duration-500"
+            className="h-px bg-accent motion-reduce:transition-none transition-[width] duration-500"
             style={{ width: `${percent}%` }}
           />
         </div>

@@ -86,19 +86,26 @@ export default function SettingsPage() {
         </Field>
         <Button type="submit">Save</Button>
       </form>
-      <section className="space-y-2 text-sm">
-        <h2 className="font-semibold">Integrations</h2>
-        <ul className="space-y-1 text-ink/75">
-          <li>Encryption: {status?.encryption}</li>
-          <li>Database: {status?.mongodb}</li>
-          <li>Scoring service: {status?.ml.reachable ? status.ml.activePredictor : 'unreachable'}</li>
-          <li>TabPFN token: {status?.ml.tabpfnToken ? 'set' : 'missing'}</li>
-          <li>Gemma via AI Studio: {status?.ml.gemini ? 'set' : 'missing'}</li>
-          <li>Ollama (local Gemma): {status?.ml.ollama ? 'set' : 'missing'}</li>
-          <li>ElevenLabs voice: {status?.elevenlabs ? 'set' : 'missing — script only'}</li>
-          <li>SerpApi pincode search: {status?.serpapi ? 'set' : 'missing — embedded localities only'}</li>
-          <li>Sentry: {status?.sentry ? 'set' : 'missing'}</li>
-        </ul>
+      <section className="card p-5 text-sm">
+        <h2 className="font-medium">Integrations</h2>
+        <dl className="mt-4 divide-y divide-line">
+          {[
+            ['Encryption', status?.encryption],
+            ['Database', status?.mongodb],
+            ['Scoring service', status?.ml.reachable ? status.ml.activePredictor : 'unreachable'],
+            ['TabPFN token', status?.ml.tabpfnToken ? 'set' : 'missing'],
+            ['Gemma via AI Studio', status?.ml.gemini ? 'set' : 'missing'],
+            ['Ollama (local Gemma)', status?.ml.ollama ? 'set' : 'missing'],
+            ['ElevenLabs voice', status?.elevenlabs ? 'set' : 'missing — script only'],
+            ['SerpApi pincode search', status?.serpapi ? 'set' : 'missing — embedded localities only'],
+            ['Sentry', status?.sentry ? 'set' : 'missing'],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between gap-4 py-2.5">
+              <dt className="text-muted">{label}</dt>
+              <dd className="text-right font-mono text-xs">{value}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
       <div className="flex flex-wrap gap-3">
         <Button type="button" tone="ghost" onClick={() => downloadExport().catch(() => setError('Export failed'))}>

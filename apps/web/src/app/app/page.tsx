@@ -44,8 +44,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-medium text-display-2">Dashboard</h1>
-          <p className="mt-1 text-sm text-ink/70">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Shop</p>
+          <h1 className="mt-2 font-medium text-display-2">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted">
             Saved rupees are cancelled Medium and High orders times your cost per RTO. It is an estimate, not a bank balance.
           </p>
         </div>
@@ -55,10 +56,10 @@ export default function DashboardPage() {
       </div>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value, hint]) => (
-          <article key={label} className="panel p-5 shadow-card">
-            <p className="text-xs uppercase tracking-wider text-ink/50">{label}</p>
-            <p className="mt-2 font-display text-4xl tabular-nums">{value}</p>
-            <p className="mt-1 text-xs text-ink/60">{hint}</p>
+          <article key={label} className="card p-5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">{label}</p>
+            <p className="mt-3 font-mono text-3xl tracking-tight tabular-nums">{value}</p>
+            <p className="mt-2 text-xs leading-5 text-muted">{hint}</p>
           </article>
         ))}
       </section>

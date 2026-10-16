@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button, Notice, RiskBadge, Skeleton } from '@/components/ui';
+import { Button, CopyButton, Notice, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
 import type { OrderDetail } from '@/lib/types';
@@ -97,11 +97,14 @@ export default function OrderDetailPage() {
       {order.messages ? (
         <article className="panel p-5">
           <h2 className="font-semibold">Confirmation</h2>
-          <p className="mt-3 font-hindi text-sm leading-6">{text}</p>
+          <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-line bg-canvas p-3">
+            <p className="font-hindi text-sm leading-6">{text}</p>
+            {text ? <CopyButton text={text} /> : null}
+          </div>
           <p className="mt-2 text-sm text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {wa ? (
-              <a className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white" href={wa} target="_blank" rel="noreferrer">
+              <a className="btn btn-primary" href={wa} target="_blank" rel="noreferrer">
                 Open WhatsApp
               </a>
             ) : null}

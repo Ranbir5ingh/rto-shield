@@ -1,12 +1,12 @@
-import Link from 'next/link';
+import { SiteHeader } from '@/components/SiteHeader';
 
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto max-w-3xl px-5 py-12">
-      <Link href="/" className="text-sm font-medium underline">
-        RTO Shield
-      </Link>
-      <h1 className="mt-8 font-medium text-display-2">Privacy</h1>
+    <div>
+      <SiteHeader />
+      <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
+      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Privacy</p>
+      <h1 className="mt-3 font-medium text-display-2">What leaves the shop</h1>
       <div className="mt-8 space-y-5 text-base leading-7 text-ink/80">
         <p>
           Buyer phone numbers and street addresses are encrypted at rest with AES-GCM. The key comes from
@@ -33,6 +33,7 @@ export default function PrivacyPage() {
           scoring path.
         </p>
         <p>Uploads are capped (about 5 MB, 5,000 rows). CSV export prefixes cells that start with =, +, -, or @ so a spreadsheet does not treat them as formulas.</p>
+      </div>
       </div>
     </div>
   );

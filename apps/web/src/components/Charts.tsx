@@ -18,15 +18,18 @@ export function TrendChart({
     return { x, y, label: point.week.slice(5) };
   });
   const d = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const labelEvery = coords.length > 8 ? Math.ceil(coords.length / 6) : 1;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Weekly RTO rate">
-      <path className="chart-line" d={d} fill="none" stroke="#111111" strokeWidth="2" />
-      {coords.map((point) => (
+      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#d6ff4a" strokeWidth="2" />
+      {coords.map((point, index) => (
         <g key={point.label + point.x}>
-          <circle cx={point.x} cy={point.y} r="3.5" fill="#111111" />
-          <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#6b6b6b">
-            {point.label}
-          </text>
+          <circle cx={point.x} cy={point.y} r="3.5" fill="#d6ff4a" />
+          {index % labelEvery === 0 ? (
+            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#9a9aa3">
+              {point.label}
+            </text>
+          ) : null}
         </g>
       ))}
     </svg>
@@ -36,9 +39,9 @@ export function TrendChart({
 export function Distribution({ bands }: { bands: { Low: number; Medium: number; High: number } }) {
   const total = bands.Low + bands.Medium + bands.High || 1;
   const rows = [
-    ['Low', bands.Low, 'bg-forest'],
-    ['Medium', bands.Medium, 'bg-warn'],
-    ['High', bands.High, 'bg-danger'],
+    ['Low', bands.Low, 'bg-low'],
+    ['Medium', bands.Medium, 'bg-mid'],
+    ['High', bands.High, 'bg-high'],
   ] as const;
   return (
     <div className="space-y-3">

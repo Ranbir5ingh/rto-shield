@@ -35,7 +35,7 @@ export default function HistoryPage() {
         <Button type="button" onClick={sample} disabled={pending}>
           {pending ? 'Building sample…' : 'Try with sample data'}
         </Button>
-        <a className="inline-flex items-center rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold" href="/samples/generic-template.csv">
+        <a className="btn btn-ghost" href="/samples/generic-template.csv">
           Download generic template
         </a>
       </div>

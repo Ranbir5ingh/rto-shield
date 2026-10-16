@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { AuthFrame } from '@/components/AuthFrame';
 import { Button, Field, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
@@ -31,13 +32,8 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="panel mx-auto my-10 flex min-h-[70vh] max-w-md flex-col justify-center px-6 py-12 sm:px-10">
-      <Link href="/" className="text-lg font-medium">
-        RTO Shield
-      </Link>
-      <h1 className="mt-6 font-medium text-display-2">Open your shop</h1>
-      <p className="mt-2 text-sm text-ink/70">Email and password. You can score sample orders before any real buyer data.</p>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <AuthFrame title="Open your shop" lede="Email and password. Score sample orders before any real buyer data.">
+      <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Your name">
           <input className={inputClass} value={form.name} onChange={(event) => set('name', event.target.value)} required />
         </Field>
@@ -50,14 +46,17 @@ export default function SignupPage() {
         <Field label="Password (8+)">
           <input className={inputClass} type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => set('password', event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {error ? <p className="text-sm text-high">{error}</p> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Creating…' : 'Create account'}
         </Button>
       </form>
-      <p className="mt-4 text-sm">
-        Already packing? <Link href="/login" className="font-medium underline">Log in</Link>
+      <p className="mt-6 text-sm text-muted">
+        Already packing?{' '}
+        <Link href="/login" className="font-medium text-ink underline-offset-4 hover:underline">
+          Log in
+        </Link>
       </p>
-    </div>
+    </AuthFrame>
   );
 }

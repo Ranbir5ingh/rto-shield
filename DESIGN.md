@@ -1,72 +1,57 @@
 # Design language
 
-RTO Shield follows the rendered interface of [Eloqwnt](https://www.eloqwnt.com), studied in Chrome at 1440×900 and 390×844 on 15 Oct 2026. Hindi and Hinglish confirmation copy stays in the product. The chrome around it is the same Latin grotesque as the rest of the UI.
+The Eloqwnt imitation is retired. RTO Shield is a dark operational product: a packing desk that puts the score and the rupees in front of everything else.
 
-Screens from that study live in the pull request: desktop hero, mid-page cards, mobile hero, and a scroll recording.
+Studied in Chrome at 1440×900 on 16 Oct 2026. Screenshots live in `docs/references/`.
 
-## What the reference actually does
+## References
 
-Measured from the live page, not from a mood board.
+| | Site | What makes it feel premium |
+| --- | --- | --- |
+| 1 | [Linear](https://linear.app/) | Near-black field, one quiet accent, huge tight headline, product UI as the hero, almost no decoration. ![Linear](docs/references/linear.jpg) |
+| 2 | [Vercel](https://vercel.com/) | Geist, pure black, white type, the product is a dark frame with a single luminous edge. ![Vercel](docs/references/vercel.jpg) |
+| 3 | [Resend](https://resend.com/) | Monochrome, code-sized labels, one green, generous empty space, no stock photography. ![Resend](docs/references/resend.jpg) |
+| 4 | [Raycast](https://www.raycast.com/) | Dark glass, a shortcut as the product shot, color used as light rather than fill. ![Raycast](docs/references/raycast.jpg) |
+| 5 | [Supabase](https://supabase.com/) | Dark canvas, one brand green, technical labels, the product grid is the argument. ![Supabase](docs/references/supabase.jpg) |
+| 6 | [Clerk](https://clerk.com/) | Auth treated as a product surface: one card, clear hierarchy, no marketing chrome inside the form. ![Clerk](docs/references/clerk.jpg) |
+| 7 | [Cal.com](https://cal.com/) | Open-source SaaS that still feels finished: tight nav, real UI, restrained color. ![Cal.com](docs/references/cal.jpg) |
+| 8 | [Attio](https://attio.com/) | Data density without clutter. Tables and records are the visual, not illustrations of tables. ![Attio](docs/references/attio.jpg) |
+| 9 | [Mercury](https://mercury.com/) | Money set in a large grotesque, calm contrast, numbers are the hero. ![Mercury](docs/references/mercury.jpg) |
+| 10 | [Ramp](https://ramp.com/) | Fintech that stays sharp: black, white, one accent, product frames instead of abstract blobs. ![Ramp](docs/references/ramp.jpg) |
+| 11 | [Stripe](https://stripe.com/) | Editorial rhythm, long measure, gradients that sit behind type instead of on it. ![Stripe](docs/references/stripe.jpg) |
+| 12 | [Framer](https://www.framer.com/) | Oversized type, motion that is the layout, not a decoration on a static page. ![Framer](docs/references/framer.jpg) |
+| 13 | [Godly](https://godly.website/) | A grid of current marketing sites. The ones that hold up are type-led and show the product. ![Godly](docs/references/godly.jpg) |
+| 14 | [Awwwards SOTD](https://www.awwwards.com/websites/sites_of_the_day/) | Recent winners earn the award with pacing and craft, not with a second typeface and a gradient mesh. ![Awwwards](docs/references/awwwards.jpg) |
 
-| Property | Observed |
-| --- | --- |
-| Page ground | `rgb(229, 233, 235)` → `#e5e9eb` |
-| Header over the hero | `#ffffff` |
-| Cards | `#ffffff`, large radius, sitting on the gray field |
-| Text | Near-black. Muted labels around `#6b6b6b`–`#8b8b8b` |
-| Display type | Mazzard, weight 500, 56px / 58.8px on desktop, about 35px / 39px at 390px |
-| Body type | Same family, regular weight |
-| Cursor | The system cursor. Pointer on links and buttons. No custom follower. |
-| Hover | Pills darken. List rows pick up a light fill. No image zoom. |
-| Scroll | Long, eased, momentum-like. Header stays put. |
-| Preloader | None on the reference. Our wake-up screen uses the same full-viewport gray field as a quiet preloader. |
-| Page change | A short fade, header unchanged. |
-| Mobile | Hamburger, stacked cards, headline wraps to three lines, same gray ground. |
+## Direction
 
-Mazzard is a licensed face. We use **Manrope** (Google Fonts, weights 400–700), a geometric grotesque with a similar medium headline weight and tight leading. Hindi product strings use **Noto Sans** Devanagari so the letters render, in the same size as the surrounding UI.
+**Signal.** A dark instrument, not a gray brochure.
+
+Borrowed from Linear and Resend: hairline borders, small radius, mono labels, one accent. Borrowed from Mercury: the number is the headline. The accent is phosphor `#d6ff4a` on near-black, used for the primary action, the score, and focus. Risk stays written: Low, Medium, High.
 
 ## Tokens
 
-| Token | Hex | Role |
+| Token | Value | Role |
 | --- | --- | --- |
-| paper | `#e5e9eb` | Page ground |
-| card | `#ffffff` | Cards, header, inputs |
-| ink | `#111111` | Text, primary pills, progress |
-| muted | `#6b6b6b` | Secondary copy |
-| line | `#d5dadd` | Hairline rules |
-| low | `#1f6b45` | Low band, written out |
-| mid | `#8a5a12` | Medium band, written out |
-| high | `#9b1c1c` | High band and destructive actions |
+| canvas | `#07080a` | Page |
+| card | `#121318` | Surfaces |
+| raised | `#1a1b20` | Active nav, nested wells |
+| line | `#2a2c33` | 1px borders |
+| ink | `#f4f4f5` | Text |
+| muted | `#9a9aa3` | Secondary |
+| accent | `#d6ff4a` | Primary, focus, score |
+| low | `#3dd68c` | Low band, with the word |
+| mid | `#f5c16c` | Medium band, with the word |
+| high | `#ff6b6b` | High band and destructive actions |
 
-Risk is never color alone. Bands stay written: Low, Medium, High.
+Type is **Geist** and **Geist Mono** (Vercel, OFL). Hindi confirmation copy uses **Noto Sans** Devanagari. Display tracking is about `-0.045em`. Labels are 11px mono, uppercase, `0.16–0.22em`.
 
-## Layout
+Radius: 8px controls, 16px cards, 6px status chips. Spacing steps are 4, 8, 12, 16, 24, 32, 48, 80. Icons are Lucide, 15–16px, stroke 1.5.
 
-Content width is `72rem`. Desktop padding is about 2.5rem; 360px uses 1.25rem. Sections stack with 5–7rem of vertical air. Cards use a 1.75rem radius. Buttons and nav items are full pills.
+Elevation is a border plus, on the hero frame only, a soft phosphor glow. Grain is a fixed overlay at low opacity.
 
-The marketing page is one column of large type, then a white card, then numbered rows, then a footer of text links. The app is the same ground: a white top bar, black pill for the current section, white cards for metrics and lists. There is no dark side rail.
+## Motion
 
-## Motion catalogue (Eloqwnt, measured 15 Oct 2026)
+Lenis on the marketing page (`lerp` 0.1) drives ScrollTrigger. The hero rises in 0.8s. Sections reveal on enter. Example-day figures tick once. Primary controls ease toward the pointer. Buttons scale to 0.98 on press. Charts draw in. Routes fade 0.35s.
 
-Taken from the live page at 1440×900 and 390×844. Their motion is GSAP 3.15 and SplitText, with about 25 ScrollTriggers. There is no Lenis instance and no CSS transition sheet for the entrances. The only CSS keyframes rule is a spin used off the hero. Timings below are what we play, chosen to sit in the same range as that GSAP setup. Their source is not copied.
-
-| Detail | What the reference does | What we play |
-| --- | --- | --- |
-| Preloader | None. | Wake screen on the production host and on login, signup, and the app. It leaves over 0.7s once both health checks are ok. |
-| Hero entrance | White fullscreen hero, headline weight 500, 56px / 58.8px, tracking −1.6px. GSAP is on the page. | Masked line reveal, 1.15s, `power4.out`, 0.07s stagger, 0.12s delay. Supporting lines rise 1.05s, `power3.out`. |
-| Text masks | SplitText is loaded. | `SplitText` lines with `mask: 'lines'`, `yPercent: 112`. |
-| Image reveals | Project photos sit in 32px-radius frames, parent `overflow: hidden`, about 640×480. | `clip-path` from `inset(12%)` plus scale 1.12 → 1, 1.35–1.5s, `expo.out`. |
-| Parallax | ScrollTriggers scrub is off on the first triggers; ranges overlap down a ~9600px page. | Media drifts `yPercent: -8` with `scrub: true`. |
-| Pinned story | Sampled triggers were not pins. The work section is one ~2625px stack of large frames. | Desktop “method” pins for 170% scroll and crossfades three product frames. Mobile stacks them. |
-| Horizontal scroll | Not present. Projects stack vertically. | Not used. |
-| Marquee | A thin repeating strip. | 28s linear CSS marquee. |
-| Magnetic control | Not measurable as a CSS transition. | Primary pills ease toward the pointer (`power3.out`, 0.45s), then home. |
-| Cursor | `.cursor` is a 12px black circle, fixed, `pointer-events: none`, z-index 9999. | Same idea on marketing pages: 12px dot, lerp 0.38, scales on links. Hidden for coarse pointers and in the app. |
-| Hover | Pills darken. Rows pick up a light fill. | Pills invert or darken. Numbered rows fill white. Table rows fill `#f3f5f6`. |
-| Nav | `.hide_nav-hero` is fixed. Header over the hero is transparent; the page ground is `#e5e9eb` and the hero is white. | Fixed nav, transparent on the hero, white at 92% opacity after 12px, hides on scroll down, returns on scroll up (0.7s). |
-| Section color | White hero, then the gray field, then white cards. | Same sequence. |
-| Page change | A short fade, header unchanged. | Paper curtain, `scaleY` 1 → 0, 0.9s `expo.inOut`, content fades in over 0.6s. |
-
-Smooth scroll on marketing pages is Lenis (`lerp` 0.085) on the GSAP ticker, with `ScrollTrigger.update` on each Lenis scroll. Chart lines draw in 1.1s. Skeletons shimmer 1.35s.
-
-`prefers-reduced-motion: reduce` skips Lenis, SplitText, scroll reveals, the pin, the cursor, magnetic pull, the marquee, the page curtain, the wake exit, and chart draw. Focus rings stay visible (`2px` ink, offset `3px`).
+`prefers-reduced-motion` skips Lenis, the reveals, the tickers, the marquee, and the chart draw. Focus is a 2px phosphor ring.

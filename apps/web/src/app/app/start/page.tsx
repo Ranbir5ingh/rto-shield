@@ -43,7 +43,7 @@ export default function StartPage() {
         <article className="panel p-5">
           <h2 className="font-display text-2xl">Your sheet</h2>
           <p className="mt-2 text-sm leading-6 text-ink/70">Shopify export, a Meesho-style file, or the generic template.</p>
-          <Link href="/app/history" className="mt-4 inline-flex rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold">
+          <Link href="/app/history" className="btn btn-ghost mt-4">
             Upload history
           </Link>
         </article>

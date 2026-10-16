@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import { useState, type ReactNode } from 'react';
 import { bandClass } from '@/lib/format';
 
 export function Skeleton({ className = '' }: { className?: string }) {
@@ -7,7 +9,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function RiskBadge({ band }: { band: string | null }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${bandClass(band)}`}>
+    <span className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wide ${bandClass(band)}`}>
       {band || 'Unscored'}
     </span>
   );
@@ -15,30 +17,24 @@ export function RiskBadge({ band }: { band: string | null }) {
 
 export function Notice({ tone = 'warn', children }: { tone?: 'warn' | 'info' | 'good'; children: ReactNode }) {
   const tones = {
-    warn: 'bg-white text-ink',
-    info: 'bg-white text-ink',
-    good: 'bg-white text-ink',
+    warn: 'border-mid/40 text-mid',
+    info: 'border-line text-muted',
+    good: 'border-low/40 text-low',
   };
-  return <div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${tones[tone]}`}>{children}</div>;
+  return <div className={`rounded-lg border bg-card px-4 py-3 text-sm leading-6 ${tones[tone]}`}>{children}</div>;
 }
 
-export function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1.5 block font-medium text-ink/80">{label}</span>
+      <span className="mb-1.5 block text-[0.75rem] font-medium uppercase tracking-[0.12em] text-muted">{label}</span>
       {children}
     </label>
   );
 }
 
 export const inputClass =
-  'w-full rounded-2xl border border-line bg-white px-3 py-3 text-sm outline-none focus:border-ink';
+  'w-full rounded-lg border border-line bg-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-accent';
 
 export function Button({
   children,
@@ -46,16 +42,39 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'ghost' | 'danger' }) {
   const tones = {
-    primary: 'bg-ink text-white hover:bg-[#2a2a2a]',
-    ghost: 'bg-white text-ink hover:bg-ink hover:text-white',
-    danger: 'bg-high text-white hover:bg-[#7a1616]',
+    primary: 'btn-primary',
+    ghost: 'btn-ghost',
+    danger: 'btn-danger',
   };
   return (
-    <button
-      {...props}
-      className={`inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50 ${tones[tone]} ${props.className || ''}`}
-    >
+    <button {...props} className={`btn ${tones[tone]} ${props.className || ''}`}>
       {children}
+    </button>
+  );
+}
+
+export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <article className={`card spotlight p-5 ${className}`}>{children}</article>;
+}
+
+export function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost px-2.5 py-1 text-xs"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone(true);
+          window.setTimeout(() => setDone(false), 1600);
+        } catch {
+          setDone(false);
+        }
+      }}
+    >
+      {done ? 'Copied' : 'Copy'}
     </button>
   );
 }

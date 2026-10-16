@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiError, api } from '@/lib/api';
 
-export function DemoButton({ className = '' }: { className?: string }) {
+export function DemoButton({ className = '', label = 'Open the demo shop' }: { className?: string; label?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -23,16 +23,10 @@ export function DemoButton({ className = '' }: { className?: string }) {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={open}
-        disabled={pending}
-        data-magnetic
-        className={`pill pill-dark disabled:opacity-60 ${className}`}
-      >
-        {pending ? 'Opening Asha Studio…' : 'Open the demo shop'}
+      <button type="button" onClick={open} disabled={pending} data-magnetic className={`btn btn-primary disabled:opacity-60 ${className}`}>
+        {pending ? 'Opening Asha Studio…' : label}
       </button>
-      {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-high">{error}</p> : null}
     </div>
   );
 }

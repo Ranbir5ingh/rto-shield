@@ -3,17 +3,18 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Settings } from 'lucide-react';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
-  ['/app', 'Dashboard'],
-  ['/app/history', 'History'],
-  ['/app/orders', 'Score'],
-  ['/app/queue', 'Queue'],
-  ['/app/settings', 'Settings'],
-];
+  ['/app', 'Dashboard', LayoutDashboard],
+  ['/app/history', 'History', History],
+  ['/app/orders', 'Score', ScanLine],
+  ['/app/queue', 'Queue', ListChecks],
+  ['/app/settings', 'Settings', Settings],
+] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -45,55 +46,70 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-paper">
-      <header className="sticky top-0 z-20 bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div>
-            <Link href="/app" className="text-lg font-medium tracking-tight">
-              RTO Shield
-            </Link>
-            <p className="text-sm text-muted">{user.shopName}</p>
-          </div>
-          <button type="button" onClick={logout} className="text-sm text-muted hover:text-ink">
+    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[15rem_1fr]">
+      <aside className="border-b border-line lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 lg:block">
+          <Link href="/app" className="flex items-center gap-2 text-sm font-medium">
+            <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-[11px] font-semibold text-canvas">R</span>
+            RTO Shield
+          </Link>
+          <p className="truncate text-xs text-muted lg:mt-2">{user.shopName}</p>
+        </div>
+        <nav className="flex flex-wrap gap-1 px-3 pb-3 lg:block lg:space-y-1 lg:px-3">
+          {links.map(([href, label, Icon]) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition ${active ? 'bg-raised text-ink shadow-[inset_2px_0_0_#d6ff4a]' : 'text-muted hover:bg-raised/70 hover:text-ink'}`}
+              >
+                <Icon size={15} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+        <button type="button" onClick={logout} className="m-3 hidden items-center gap-2 text-sm text-muted hover:text-ink lg:flex">
+          <LogOut size={15} /> Log out
+        </button>
+      </aside>
+      <div>
+        <div className="flex justify-end px-4 pt-3 lg:hidden">
+          <button type="button" onClick={logout} className="text-sm text-muted">
             Log out
           </button>
         </div>
-        <nav className="mx-auto flex max-w-page gap-2 overflow-x-auto px-4 pb-3 text-sm sm:px-6">
-          {links.map(([href, label]) => (
-            <Link
-              key={href}
-              href={href}
-              className={`whitespace-nowrap rounded-full px-4 py-2 ${pathname === href ? 'bg-ink text-white' : 'bg-paper hover:bg-white'}`}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-      </header>
-      <div>
-      <div className="mx-auto max-w-page space-y-3 px-4 py-4 sm:px-6">
-        {status?.encryption === 'development-fallback' ? (
-          <Notice>Encryption key is not set. This process is using a development key. Set ENCRYPTION_KEY before real buyer data.</Notice>
-        ) : null}
-        {status?.mongodb === 'memory' ? (
-          <Notice>MongoDB URI is not set, so orders live in memory and disappear on restart.</Notice>
-        ) : null}
-        {status && !status.ml.reachable ? (
-          <Notice>The scoring service is not reachable. Uploads still save. Start the ML service to score.</Notice>
-        ) : null}
-        {status?.ml.reachable && status.ml.activePredictor?.includes('sklearn') ? (
-          <Notice tone="info">
-            Scores use the scikit-learn fallback. Set TABPFN_TOKEN to train TabPFN in-context on this shop, or install the local tabpfn package.
-          </Notice>
-        ) : null}
-        {status?.ml.reachable && !status.ml.gemini && !status.ml.ollama ? (
-          <Notice tone="info">
-            Address notes and confirmation drafts use local rules and templates. OLLAMA_BASE_URL is the privacy-max Gemma path. GEMINI_API_KEY uses Gemma on AI Studio.
-          </Notice>
-        ) : null}
-      </div>
-      <main className="mx-auto max-w-page px-4 pb-16 sm:px-6">{children}</main>
+        <div className="mx-auto max-w-page px-4 pt-4 sm:px-6">
+          <StatusStrip status={status} />
+        </div>
+        <main className="mx-auto max-w-page px-4 pb-16 sm:px-6">{children}</main>
       </div>
     </div>
+  );
+}
+
+function StatusStrip({ status }: { status: Integrations | null }) {
+  if (!status) return null;
+  const notes = [
+    status.encryption === 'development-fallback' ? 'Encryption key is unset. Set ENCRYPTION_KEY before real buyer data.' : null,
+    status.mongodb === 'memory' ? 'Orders are in memory and disappear on restart.' : null,
+    !status.ml.reachable ? 'The scoring service is not reachable. Uploads still save.' : null,
+    status.ml.reachable && status.ml.activePredictor?.includes('sklearn')
+      ? 'Scores use the scikit-learn fallback until TABPFN_TOKEN is set.'
+      : null,
+    status.ml.reachable && !status.ml.gemini && !status.ml.ollama
+      ? 'Address notes and drafts use local templates until Gemma is configured.'
+      : null,
+  ].filter(Boolean);
+  if (!notes.length) return null;
+  return (
+    <Notice>
+      <ul className="space-y-1">
+        {notes.map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ul>
+    </Notice>
   );
 }

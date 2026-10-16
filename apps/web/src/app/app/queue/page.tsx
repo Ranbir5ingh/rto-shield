@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button, Notice, RiskBadge, Skeleton } from '@/components/ui';
+import { Button, CopyButton, Notice, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderDetail, PublicUser } from '@/lib/types';
@@ -92,7 +92,7 @@ export default function QueuePage() {
         </div>
         <label className="text-sm">
           Message
-          <select className="ml-2 rounded-full border border-line bg-white px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as PublicUser['messageLanguage'])}>
+          <select className="ml-2 rounded-lg border border-line bg-canvas px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as PublicUser['messageLanguage'])}>
             <option value="hinglish">Hinglish</option>
             <option value="hindi">Hindi</option>
             <option value="english">English</option>
@@ -122,12 +122,12 @@ export default function QueuePage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {waLink(order, textFor(order)) ? (
-                  <a className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
+                  <a className="btn btn-primary" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
                     Open WhatsApp
                   </a>
                 ) : null}
                 {order.messages && waLink(order, order.messages.prepaid_nudge) ? (
-                  <a className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold" href={waLink(order, order.messages.prepaid_nudge) || '#'} target="_blank" rel="noreferrer">
+                  <a className="btn btn-ghost" href={waLink(order, order.messages.prepaid_nudge) || '#'} target="_blank" rel="noreferrer">
                     Prepaid nudge
                   </a>
                 ) : null}
@@ -142,7 +142,10 @@ export default function QueuePage() {
               ))}
             </ul>
             <p className="mt-3 text-sm text-ink/80">{order.address}</p>
-            <p className="mt-3 rounded-2xl bg-paper p-3 font-hindi text-sm leading-6">{textFor(order)}</p>
+            <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-line bg-canvas p-3">
+              <p className="font-hindi text-sm leading-6">{textFor(order)}</p>
+              {textFor(order) ? <CopyButton text={textFor(order)} /> : null}
+            </div>
             {order.messages ? (
               <p className="mt-2 text-sm text-ink/70">
                 Prepaid nudge: {order.messages.prepaid_nudge}

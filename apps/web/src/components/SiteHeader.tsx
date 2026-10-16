@@ -2,41 +2,47 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Menu, X } from 'lucide-react';
 
 const links = [
+  ['/#product', 'Product'],
   ['/#method', 'Method'],
-  ['/#privacy-note', 'Privacy'],
-  ['/privacy', 'Policy'],
-  ['/login', 'Log in'],
+  ['/#pricing', 'Pricing'],
+  ['/privacy', 'Privacy'],
 ];
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   return (
-    <header data-nav data-open={open ? 'true' : 'false'} className="site-nav">
-      <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-4 sm:px-8">
-        <Link href="/" className="text-lg font-medium tracking-tight">
+    <header className="site-nav">
+      <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-3 sm:px-8">
+        <Link href="/" className="inline-flex items-center gap-2 py-2 text-sm font-medium tracking-tight">
+          <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-[11px] font-semibold text-canvas">R</span>
           RTO Shield
         </Link>
-        <nav className="hidden items-center gap-6 text-sm md:flex">
+        <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
           {links.map(([href, label]) => (
-            <Link key={href} href={href} className="hover:opacity-60">
+            <Link key={href} href={href} className="inline-flex items-center py-2 transition hover:text-ink">
               {label}
             </Link>
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/signup" data-magnetic className="pill pill-dark">
+          <Link href="/login" className="hidden text-sm text-muted hover:text-ink sm:inline">
+            Log in
+          </Link>
+          <Link href="/signup" data-magnetic className="btn btn-primary hidden sm:inline-flex">
             Start a shop
           </Link>
           <button
             type="button"
-            className="pill pill-light md:hidden"
+            className="btn btn-ghost px-2 md:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             onClick={() => setOpen((value) => !value)}
           >
-            Menu
+            {open ? <X size={16} /> : <Menu size={16} />}
+            <span className="sr-only">Menu</span>
           </button>
         </div>
       </div>
@@ -47,6 +53,12 @@ export function SiteHeader() {
               {label}
             </Link>
           ))}
+          <Link href="/login" onClick={() => setOpen(false)}>
+            Log in
+          </Link>
+          <Link href="/signup" className="btn btn-primary w-fit" onClick={() => setOpen(false)}>
+            Start a shop
+          </Link>
         </nav>
       ) : null}
     </header>

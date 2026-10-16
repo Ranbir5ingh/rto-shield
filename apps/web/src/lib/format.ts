@@ -7,10 +7,10 @@ export function inr(value: number) {
 }
 
 export function bandClass(band: string | null) {
-  if (band === 'High') return 'bg-danger/10 text-danger';
-  if (band === 'Medium') return 'bg-warn/10 text-warn';
-  if (band === 'Low') return 'bg-forest/10 text-forest';
-  return 'bg-line text-ink/70';
+  if (band === 'High') return 'bg-high/15 text-high';
+  if (band === 'Medium') return 'bg-mid/15 text-mid';
+  if (band === 'Low') return 'bg-low/15 text-low';
+  return 'bg-raised text-muted';
 }
 
 export function predictorLabel(name: string | null | undefined) {

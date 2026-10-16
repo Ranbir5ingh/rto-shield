@@ -108,7 +108,7 @@ export function CsvImporter({
         . History rows need a delivered or RTO outcome. Empty payment is treated as COD. Shopify “pending” is treated as COD; “paid” as prepaid.
       </p>
       {preview && mapping ? (
-        <div className="rounded-2xl border border-line bg-white p-4">
+        <div className="card p-4">
           <p className="text-sm">
             {preview.rowCount} rows · detected <strong>{preview.preset}</strong>
           </p>
