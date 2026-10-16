@@ -7,6 +7,7 @@ import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Search, Setting
 import { LogoMark } from '@/components/Logo';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { nextMlReachability } from '@/lib/ml-status';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
@@ -90,9 +91,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
     api<{ user: PublicUser }>('/auth/me')
       .then((body) => setUser(body.user))
       .catch(() => router.replace('/login'));
-    api<Integrations>('/integrations')
-      .then(setStatus)
-      .catch(() => undefined);
+    let cancelled = false;
+    let failures = 0;
+    let timer = 0;
+    const checkMl = () => {
+      api<Integrations>('/integrations')
+        .then((next) => {
+          if (cancelled) return;
+          const step = nextMlReachability(failures, next.ml.reachable);
+          failures = step.failures;
+          if (step.publish) setStatus(next);
+          timer = window.setTimeout(checkMl, step.retryMs);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          timer = window.setTimeout(checkMl, 2_500);
+        });
+    };
+    checkMl();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [router]);
 
   useEffect(() => {

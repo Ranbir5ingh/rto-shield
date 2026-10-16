@@ -42,19 +42,15 @@ export class AuthController {
   @Public()
   @Post('demo')
   async demo(@Res({ passthrough: true }) res: Response) {
-    const { session, user } = await this.auth.createDemo();
-    let scored = false;
-    let notice: string | null = null;
-    try {
-      await this.orders.loadSample(user);
-      const result = await this.orders.score(user, { fast: true });
-      scored = result.scored > 0;
-      if (!scored) notice = 'Sample orders are in the shop. Score them once the model is awake.';
-    } catch {
-      notice = 'Sample orders are loaded. Scoring will finish when the model wakes. Open Score and try again.';
-    }
+    const [{ session, user }, prepared] = await Promise.all([this.auth.createDemo(), this.orders.prepareDemo()]);
+    const result = await this.orders.persistDemo(user, prepared);
     this.auth.writeSession(res, session);
-    return { user: session.user, csrfToken: session.csrf, scored, notice };
+    return {
+      user: session.user,
+      csrfToken: session.csrf,
+      scored: result.scored > 0,
+      notice: result.notice,
+    };
   }
 
   @Public()

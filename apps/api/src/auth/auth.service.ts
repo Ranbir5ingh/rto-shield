@@ -79,7 +79,9 @@ export class AuthService implements OnModuleInit {
 
   async createDemo() {
     const email = `demo+${randomBytes(4).toString('hex')}@demo.rtoshield.tech`;
-    const passwordHash = await bcrypt.hash(randomBytes(18).toString('base64url'), this.rounds());
+    // The password is random and never shown. Cost 12 of pure-JS bcrypt
+    // occupies a free-tier CPU for many seconds, which was most of the demo wait.
+    const passwordHash = await bcrypt.hash(randomBytes(18).toString('base64url'), 6);
     const user = await this.users.create({
       email,
       passwordHash,

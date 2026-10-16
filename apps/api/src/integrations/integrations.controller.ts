@@ -24,7 +24,7 @@ export class IntegrationsController {
 
   @Get('integrations')
   async status() {
-    const ml = await this.ml.health();
+    const ml = await this.ml.health(4_000);
     return {
       encryption: this.crypto.mode,
       mongodb: process.env.MONGODB_MODE === 'memory' ? 'memory' : 'configured',

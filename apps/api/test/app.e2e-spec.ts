@@ -7,7 +7,11 @@ import { configureApp } from '../src/configure-app';
 import { MlService } from '../src/ml/ml.service';
 
 const fakeMl = {
-  predict: jest.fn(async (history: Array<{ id: string }>, pending: Array<{ id: string; address?: string; pincode?: string }>) => {
+  predict: jest.fn(async (
+    history: Array<{ id: string }>,
+    pending: Array<{ id: string; address?: string; pincode?: string }>,
+    _options: { speed?: string; timeoutMs?: number } = {},
+  ) => {
     expect(JSON.stringify({ history, pending })).not.toMatch(/phone|buyer_name|buyerName/);
     return {
       model: 'sklearn-gradient-boosting',
@@ -230,8 +234,13 @@ describe('RTO Shield API', () => {
     expect(opened.body.user.email).toMatch(/@demo\.rtoshield\.tech$/);
     expect(opened.body.scored).toBe(true);
     const demoCall = fakeMl.predict.mock.calls.at(-1);
-    expect(demoCall?.[2]).toEqual(expect.objectContaining({ speed: 'fast', timeoutMs: 12_000 }));
-    const orders = await agent.get('/api/orders?limit=5').expect(200);
+    expect(demoCall?.[2]).toEqual(expect.objectContaining({ speed: 'fast', timeoutMs: 3_000 }));
+    const orders = await agent.get('/api/orders?stage=pending&limit=50').expect(200);
+    expect(orders.body.orders.length).toBeGreaterThan(0);
+    expect(orders.body.orders.every((order: { riskScore: number | null; riskBand: string | null }) => order.riskScore !== null && order.riskBand)).toBe(true);
+    const dashboard = await agent.get('/api/dashboard').expect(200);
+    expect(dashboard.body.model).toBeTruthy();
+    expect(dashboard.body.distribution.High + dashboard.body.distribution.Medium + dashboard.body.distribution.Low).toBeGreaterThan(0);
     expect(orders.body.total).toBeGreaterThan(20);
     const stranger = request.agent(app.getHttpServer());
     const strangerToken = await csrf(stranger);
@@ -242,6 +251,26 @@ describe('RTO Shield API', () => {
       .expect(201);
     const theirs = await stranger.get('/api/orders?limit=5').expect(200);
     expect(theirs.body.total).toBe(0);
+  });
+
+  it('still opens a scored demo shop when the model service is down', async () => {
+    fakeMl.predict.mockRejectedValueOnce(new Error('cold'));
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const opened = await agent.post('/api/auth/demo').set('x-csrf-token', token).expect(201);
+    expect(opened.body.scored).toBe(true);
+    const orders = await agent.get('/api/orders?stage=pending&limit=50').expect(200);
+    expect(orders.body.orders.length).toBe(24);
+    expect(
+      orders.body.orders.every(
+        (order: { riskScore: number | null; riskBand: string | null }) =>
+          typeof order.riskScore === 'number' && ['Low', 'Medium', 'High'].includes(order.riskBand || ''),
+      ),
+    ).toBe(true);
+    const dashboard = await agent.get('/api/dashboard').expect(200);
+    expect(dashboard.body.model.model).toBe('rules-prior');
+    const queue = await agent.get('/api/queue').expect(200);
+    expect(queue.body.orders.length).toBeGreaterThan(0);
   });
 
   it('rejects a bad login with the same message', async () => {

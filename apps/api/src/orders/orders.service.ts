@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -26,9 +26,17 @@ import { Order, type OrderDocument } from '../database/order.schema';
 import type { UserDocument } from '../database/user.schema';
 import { MlService } from '../ml/ml.service';
 import { toMlOrder } from '../ml/payload';
+import type { PredictResponse, Prediction } from '../ml/ml.types';
+import {
+  DEMO_FAST_TIMEOUT_MS,
+  scoreWithRules,
+  type PreparedSampleOrder,
+} from './rules-score';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     @InjectModel(ModelRun.name) private readonly runs: Model<ModelRun>,
@@ -126,6 +134,70 @@ export class OrdersService {
       history,
       pending,
       notice: 'Synthetic buyers only. Delete them from Settings before you upload real orders.',
+    };
+  }
+
+  /**
+   * Score the canonical demo set before it is written. The fast model gets a
+   * short budget. If it is cold or slow, local rules still fill every pending
+   * order so the shop never opens empty.
+   */
+  async prepareDemo(): Promise<{ orders: PreparedSampleOrder[]; score: PredictResponse }> {
+    const orders = generateSample().map((order) => ({ ...order, hour: hourInKolkata(order.orderedAt) }));
+    const history = orders.filter((order) => order.stage === 'history');
+    const pending = orders.filter((order) => order.stage === 'pending');
+    const toPayload = (order: PreparedSampleOrder) =>
+      toMlOrder({
+        id: order.externalOrderId,
+        orderValue: order.orderValue,
+        paymentType: order.paymentType,
+        hour: order.hour,
+        priorOrders: order.priorOrders,
+        priorRtos: order.priorRtos,
+        address: order.address,
+        city: order.city,
+        state: order.state,
+        pincode: order.pincode,
+        outcome: order.outcome,
+      });
+    try {
+      const score = await this.ml.predict(history.map(toPayload), pending.map(toPayload), {
+        speed: 'fast',
+        timeoutMs: DEMO_FAST_TIMEOUT_MS,
+      });
+      if (score.predictions.length < pending.length) throw new Error('incomplete demo score');
+      return { orders, score };
+    } catch (error) {
+      this.logger.warn(`Demo fast score missed: ${error instanceof Error ? error.name : 'error'}`);
+      return { orders, score: scoreWithRules(orders) };
+    }
+  }
+
+  async persistDemo(user: UserDocument, prepared: { orders: PreparedSampleOrder[]; score: PredictResponse }) {
+    await this.orders.deleteMany({ sellerId: user._id, source: 'sample' });
+    const byId = new Map(prepared.score.predictions.map((row) => [row.id, row]));
+    const docs = prepared.orders.map((order) => {
+      const base = this.encryptFields(user, { ...order, source: 'sample' });
+      if (order.stage !== 'pending') return base;
+      const prediction = byId.get(order.externalOrderId);
+      if (!prediction) return base;
+      return { ...base, ...this.scoredFields(user, order, prediction, prepared.score.model) };
+    });
+    if (docs.length) await this.orders.insertMany(docs);
+    await this.runs.create({
+      sellerId: user._id,
+      model: prepared.score.model,
+      modelLabel: prepared.score.model_label,
+      metrics: prepared.score.metrics,
+      addressSource: prepared.score.address_source,
+      warnings: prepared.score.warnings,
+    });
+    const scored = docs.filter((doc) => doc.riskScore !== null && doc.stage === 'pending').length;
+    return {
+      history: prepared.orders.filter((order) => order.stage === 'history').length,
+      pending: prepared.orders.length - prepared.orders.filter((order) => order.stage === 'history').length,
+      scored,
+      notice: scored ? null : 'Sample orders are in the shop. Score them once the model is awake.',
     };
   }
 
@@ -383,6 +455,27 @@ export class OrdersService {
         outcome: mode === 'history' ? outcome : null,
         source,
       }),
+    };
+  }
+
+  private scoredFields(
+    user: UserDocument,
+    order: PreparedSampleOrder,
+    prediction: Prediction,
+    model: string,
+  ) {
+    const risky = prediction.band === 'High' || prediction.band === 'Medium';
+    const draft = risky
+      ? templateMessage(user.shopName, order.buyerName.split(/\s+/)[0] || 'ji', order.orderValue, order.productName)
+      : null;
+    if (draft) draft.voice_script_hi = assertSafeVoiceScript(draft.voice_script_hi, user.shopName, order.orderValue);
+    return {
+      riskScore: prediction.score,
+      riskBand: prediction.band,
+      reasons: prediction.reasons,
+      addressQuality: prediction.address_quality as unknown as Record<string, unknown>,
+      messages: draft,
+      predictor: model,
     };
   }
 
