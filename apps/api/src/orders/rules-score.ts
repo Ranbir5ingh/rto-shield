@@ -31,8 +31,15 @@ export const RULES_LABEL =
 
 /** How long demo opening waits for the fast model before scoring locally. */
 export const DEMO_FAST_TIMEOUT_MS = 1_500;
-/** Recent labelled rows are enough for a demo fit. The full 360 still land in the shop. */
+/** Recent labelled rows are enough for a demo fit. */
 export const DEMO_FAST_HISTORY = 90;
+/**
+ * The shop still shows a full week-by-week history. 180 rows write in about
+ * half the time of the 360-row training sample, which keeps demo open under
+ * the budget on the free-tier database.
+ */
+export const DEMO_HISTORY_ROWS = 180;
+export const DEMO_PENDING_ROWS = 24;
 
 function heuristicAddress(address: string, pincode: string, city: string, state: string): AddressQuality {
   const text = (address || '').trim();

@@ -30,6 +30,8 @@ import type { PredictResponse, Prediction } from '../ml/ml.types';
 import {
   DEMO_FAST_HISTORY,
   DEMO_FAST_TIMEOUT_MS,
+  DEMO_HISTORY_ROWS,
+  DEMO_PENDING_ROWS,
   scoreWithRules,
   type PreparedSampleOrder,
 } from './rules-score';
@@ -151,7 +153,10 @@ export class OrdersService {
     mlMs: number;
     encryptMs: number;
   }> {
-    const orders = generateSample().map((order) => ({ ...order, hour: hourInKolkata(order.orderedAt) }));
+    const orders = generateSample(42, DEMO_HISTORY_ROWS, DEMO_PENDING_ROWS).map((order) => ({
+      ...order,
+      hour: hourInKolkata(order.orderedAt),
+    }));
     const mlStarted = Date.now();
     const scorePromise = this.demoScore(orders);
     const encryptStarted = Date.now();
