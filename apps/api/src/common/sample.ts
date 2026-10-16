@@ -39,14 +39,14 @@ const COURIERS = ['Delhivery', 'Shadowfax', 'Xpressbees', 'Ecom Express'];
 // first late-night order as Low and a junk order as High, so Medium has to
 // look like this or the shop shows only two bands.
 const MEDIUM_PROFILES: Array<{ priorOrders: number; priorRtos: number; orderValue: number; hour: number; address: string }> = [
-  { priorOrders: 6, priorRtos: 2, orderValue: 2499, hour: 18, address: 'H.No 8, Gali 2' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 2499, hour: 14, address: 'Sector 7 market' },
-  { priorOrders: 6, priorRtos: 2, orderValue: 1599, hour: 14, address: 'H.No 18, Lane 9' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 14, address: 'H.No 9, Gali 3' },
-  { priorOrders: 6, priorRtos: 2, orderValue: 1599, hour: 14, address: 'Sector 4 market' },
-  { priorOrders: 6, priorRtos: 2, orderValue: 2499, hour: 21, address: 'H.No 15, Lane 6' },
-  { priorOrders: 6, priorRtos: 2, orderValue: 1899, hour: 18, address: 'H.No 7, Gali 6' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 2499, hour: 14, address: 'H.No 11, Lane 5' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 16, address: 'H.No 8, Gali 2' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 21, address: 'Sector 7 market' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 18, address: 'H.No 18, Lane 9' },
+  { priorOrders: 5, priorRtos: 1, orderValue: 1899, hour: 16, address: 'H.No 9, Gali 3' },
+  { priorOrders: 5, priorRtos: 1, orderValue: 2499, hour: 18, address: 'Sector 4 market' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 18, address: 'H.No 15, Lane 6' },
+  { priorOrders: 5, priorRtos: 1, orderValue: 2499, hour: 21, address: 'H.No 7, Gali 6' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 16, address: 'H.No 11, Lane 5' },
 ];
 const HIGH_ADDRESSES = ['asdf', 'test', 'xxx', 'qwerty', 'fake', 'null'];
 
@@ -114,7 +114,8 @@ export function generateSample(seed = 42, historyCount = 360, pendingCount = 24)
   const rand = mulberry32(seed);
   const pick = <T>(items: T[]): T => items[Math.floor(rand() * items.length)]!;
   const total = historyCount + pendingCount;
-  const start = Date.now() - 56 * 24 * 60 * 60 * 1000;
+  // Fixed clock so the trained demo model does not change with the time of day.
+  const start = Date.UTC(2026, 5, 1);
   const orders: SampleOrder[] = [];
 
   for (let i = 0; i < total; i += 1) {

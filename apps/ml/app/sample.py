@@ -122,14 +122,14 @@ def generate(n_history: int = 360, n_pending: int = 24, seed: int = 42) -> dict[
 # trained model files a clean repeat as Low and junk as High, and files these
 # in the middle. Keep the text short: a full street line leaves the band.
 _MEDIUM_PROFILES = (
-    (6, 2, 2499, 18, "H.No 8, Gali 2"),
-    (4, 1, 2499, 14, "Sector 7 market"),
-    (6, 2, 1599, 14, "H.No 18, Lane 9"),
-    (4, 1, 1899, 14, "H.No 9, Gali 3"),
-    (6, 2, 1599, 14, "Sector 4 market"),
-    (6, 2, 2499, 21, "H.No 15, Lane 6"),
-    (6, 2, 1899, 18, "H.No 7, Gali 6"),
-    (4, 1, 2499, 14, "H.No 11, Lane 5"),
+    (4, 1, 1599, 16, "H.No 8, Gali 2"),
+    (4, 1, 1899, 21, "Sector 7 market"),
+    (4, 1, 1899, 18, "H.No 18, Lane 9"),
+    (5, 1, 1899, 16, "H.No 9, Gali 3"),
+    (5, 1, 2499, 18, "Sector 4 market"),
+    (4, 1, 1599, 18, "H.No 15, Lane 6"),
+    (5, 1, 2499, 21, "H.No 7, Gali 6"),
+    (4, 1, 1599, 16, "H.No 11, Lane 5"),
 )
 _HIGH_ADDRESSES = ("asdf", "test", "xxx", "qwerty", "fake", "null")
 

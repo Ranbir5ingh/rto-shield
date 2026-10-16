@@ -15,8 +15,9 @@ describe('encryption and phone masking', () => {
     expect(crypto.decrypt(cipher)).toBe('मकान नं 12, गली 4');
     expect(crypto.encrypt('same')).not.toBe(crypto.encrypt('same'));
     const [version, iv, tag, data] = cipher.split('.');
-    const flipped = data!.slice(0, -1) + (data!.endsWith('a') ? 'b' : 'a');
-    expect(() => crypto.decrypt(`${version}.${iv}.${tag}.${flipped}`)).toThrow();
+    const tagBuf = Buffer.from(tag!, 'base64url');
+    tagBuf[0] = (tagBuf[0] ?? 0) ^ 0xff;
+    expect(() => crypto.decrypt(`${version}.${iv}.${tagBuf.toString('base64url')}.${data}`)).toThrow();
   });
 
   it('masks phones and builds wa.me numbers', () => {
