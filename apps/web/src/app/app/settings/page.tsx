@@ -99,7 +99,7 @@ export default function SettingsPage() {
             ['Database', status?.mongodb],
             ['Scoring service', status?.ml.reachable ? status.ml.activePredictor : 'unreachable'],
             ['TabPFN token', status?.ml.tabpfnToken ? 'set' : 'missing'],
-            ['Gemma via AI Studio', status?.ml.gemini ? 'set' : 'missing'],
+            ['Gemma via AI Studio', status?.ml.gemmaReady ? 'answering' : status?.ml.gemini ? 'set' : 'missing'],
             ['Ollama (local Gemma)', status?.ml.ollama ? 'set' : 'missing'],
             ['ElevenLabs voice', status?.elevenlabs ? 'set' : 'missing — script only'],
             ['SerpApi pincode search', status?.serpapi ? 'set' : 'missing — embedded localities only'],

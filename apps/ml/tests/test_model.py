@@ -269,6 +269,8 @@ def test_health_reports_tabpfn_when_the_token_is_present(monkeypatch):
     assert health["tabpfn_client_installed"] is True
     assert health["tabpfn_local_installed"] is False
     assert health["active_predictor"] == "tabpfn-client"
+    if not settings.gemini_api_key and not settings.ollama_base_url:
+        assert health["gemma_ready"] is False
 
     calls: list[tuple[str, object]] = []
     monkeypatch.setenv("TABPFN_TOKEN", "present")

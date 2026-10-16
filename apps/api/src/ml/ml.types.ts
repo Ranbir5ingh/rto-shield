@@ -66,6 +66,8 @@ export interface MlHealth {
   tabpfn_client_installed: boolean;
   tabpfn_local_installed: boolean;
   gemini: boolean;
+  /** True when a Gemma call answered, false when it cannot, null while the probe is in flight. */
+  gemma_ready?: boolean | null;
   ollama_configured: boolean;
   sentry: boolean;
   active_predictor: string;

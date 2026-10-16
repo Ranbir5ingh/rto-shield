@@ -110,6 +110,8 @@ export interface Integrations {
     activePredictor: string | null;
     tabpfnToken: boolean;
     gemini: boolean;
+    /** True when Gemma answered, false when it cannot, null or absent while unknown. */
+    gemmaReady?: boolean | null;
     ollama: boolean;
     tabpfnClientInstalled: boolean;
     tabpfnLocalInstalled: boolean;

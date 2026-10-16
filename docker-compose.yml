@@ -18,7 +18,7 @@ services:
     environment:
       TABPFN_TOKEN: ${TABPFN_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMMA_MODEL: ${GEMMA_MODEL:-gemma-3-27b-it}
+      GEMMA_MODEL: ${GEMMA_MODEL:-gemma-4-26b-a4b-it}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       SENTRY_DSN: ${SENTRY_DSN:-}

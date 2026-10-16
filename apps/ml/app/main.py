@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from app.address import annotate
+from app.address import annotate, gemma_ready, gemma_status, probe_gemma
 from app.config import settings
 from app.messages import generate_messages
 from app.predictors import health_payload, score_orders
@@ -38,7 +39,17 @@ def cors_origins() -> list[str]:
     return seen
 
 
-app = FastAPI(title="RTO Shield ML", version="1.0.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Don't block /health. Render's health check must answer while this probe runs.
+    task = asyncio.create_task(probe_gemma())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+app = FastAPI(title="RTO Shield ML", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins(),
@@ -106,7 +117,17 @@ def _guard(token: str | None) -> None:
 def health() -> dict[str, Any]:
     # Public and unauthenticated, even when ML_INTERNAL_TOKEN is set.
     # health_payload only checks whether optional packages exist. It does not import or fit a model.
-    return health_payload()
+    payload = health_payload()
+    # gemini stays "a key is set". gemma_ready is whether a call actually answered.
+    ready = gemma_ready()
+    payload["gemma_ready"] = ready
+    model = gemma_status.get("model")
+    if ready is True and isinstance(model, str):
+        payload["gemma_model"] = model
+    elif gemma_status.get("state") == "error":
+        payload["gemma_error"] = gemma_status.get("error")
+        payload["gemma_status"] = gemma_status.get("status")
+    return payload
 
 
 @app.post("/v1/predict")

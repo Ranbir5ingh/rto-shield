@@ -76,49 +76,57 @@ async def generate_messages(shop: str, orders: list[dict[str, Any]]) -> tuple[li
         )
         return [_with_id(oid, msg) for oid, msg in templates.items()], "template", warnings
 
-    prompt = (
-        "Write short WhatsApp messages for an Indian seller confirming cash-on-delivery. "
-        "Return ONLY a JSON array of objects with keys id, hindi, hinglish, english, prepaid_nudge. "
-        "Each message under 320 characters. Ask for YES to accept or NO to cancel. "
-        "Do not include phone numbers or street addresses. No markdown.\n"
-        f"Shop: {shop}\n"
-        f"Orders: {json.dumps([{k: o.get(k) for k in ('id', 'first_name', 'order_value', 'product_name', 'payment_type')} for o in orders], ensure_ascii=False)}"
-    )
-    try:
-        text, origin = await _llm(prompt, "confirmation_messages")
-        parsed = _parse_json(text)
-        if isinstance(parsed, dict):
-            parsed = parsed.get("messages") or parsed.get("orders") or []
-        merged: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for item in parsed:
-            if not isinstance(item, dict) or "id" not in item:
-                continue
-            oid = str(item["id"])
-            base = templates.get(oid)
-            if base is None:
-                continue
-            seen.add(oid)
-            amount = int(round(float(next(o["order_value"] for o in orders if str(o["id"]) == oid))))
-            merged.append(
-                {
-                    "id": oid,
-                    "hindi": _scrub(str(item.get("hindi") or ""), base["hindi"]),
-                    "hinglish": _scrub(str(item.get("hinglish") or ""), base["hinglish"]),
-                    "english": _scrub(str(item.get("english") or ""), base["english"]),
-                    "prepaid_nudge": _scrub(str(item.get("prepaid_nudge") or ""), base["prepaid_nudge"]),
-                    "voice_script_hi": safe_voice_script(shop, amount),
-                    "source": origin,
-                }
-            )
-        for oid, base in templates.items():
-            if oid not in seen:
-                merged.append(_with_id(oid, base))
-        return merged, origin, warnings
-    except Exception as exc:  # noqa: BLE001
-        log.warning("message_llm_failed %s", type(exc).__name__)
-        warnings.append(f"Gemma message draft failed ({type(exc).__name__}); used templates.")
-        return [_with_id(oid, msg) for oid, msg in templates.items()], "template", warnings
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    source = "template"
+    # Small batches so a long completion is not cut off mid-JSON.
+    for start in range(0, len(orders), 6):
+        chunk = orders[start : start + 6]
+        rows = [
+            {k: order.get(k) for k in ("id", "first_name", "order_value", "product_name", "payment_type")}
+            for order in chunk
+        ]
+        prompt = (
+            "Write short WhatsApp messages for an Indian seller confirming cash-on-delivery. "
+            "Return ONLY a JSON array of objects with keys id, hindi, hinglish, english, prepaid_nudge. "
+            "Each message under 320 characters. Ask for YES to accept or NO to cancel. "
+            "Do not include phone numbers or street addresses. No markdown.\n"
+            f"Shop: {shop}\n"
+            f"Orders: {json.dumps(rows, ensure_ascii=False)}"
+        )
+        try:
+            text, origin = await _llm(prompt, "confirmation_messages")
+            parsed = _parse_json(text)
+            if isinstance(parsed, dict):
+                parsed = parsed.get("messages") or parsed.get("orders") or []
+            for item in parsed:
+                if not isinstance(item, dict) or "id" not in item:
+                    continue
+                oid = str(item["id"])
+                base = templates.get(oid)
+                if base is None:
+                    continue
+                amount = int(round(float(next(order["order_value"] for order in orders if str(order["id"]) == oid))))
+                seen.add(oid)
+                source = origin
+                merged.append(
+                    {
+                        "id": oid,
+                        "hindi": _scrub(str(item.get("hindi") or ""), base["hindi"]),
+                        "hinglish": _scrub(str(item.get("hinglish") or ""), base["hinglish"]),
+                        "english": _scrub(str(item.get("english") or ""), base["english"]),
+                        "prepaid_nudge": _scrub(str(item.get("prepaid_nudge") or ""), base["prepaid_nudge"]),
+                        "voice_script_hi": safe_voice_script(shop, amount),
+                        "source": origin,
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("message_llm_failed %s", type(exc).__name__)
+            warnings.append(f"Gemma message draft failed ({type(exc).__name__}); used templates.")
+    for oid, base in templates.items():
+        if oid not in seen:
+            merged.append(_with_id(oid, base))
+    return merged, source, warnings
 
 
 def _with_id(oid: str, msg: dict[str, str]) -> dict[str, Any]:

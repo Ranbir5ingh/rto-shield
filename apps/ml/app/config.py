@@ -21,7 +21,7 @@ class Settings:
             tabpfn_token=os.getenv("TABPFN_TOKEN", "").strip(),
             tabpfn_max_rows=int(os.getenv("TABPFN_MAX_ROWS", "500")),
             gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
-            gemma_model=os.getenv("GEMMA_MODEL", "gemma-3-27b-it").strip(),
+            gemma_model=os.getenv("GEMMA_MODEL", "gemma-4-26b-a4b-it").strip(),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/"),
             ollama_model=os.getenv("OLLAMA_MODEL", "gemma3:4b").strip(),
             sentry_dsn=os.getenv("SENTRY_DSN", "").strip(),

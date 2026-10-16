@@ -234,7 +234,7 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `TABPFN_TOKEN` | ML | Optional Prior Labs TabPFN. |
 | `TABPFN_MAX_ROWS` | ML | Default 500 in-context rows. |
 | `GEMINI_API_KEY` | ML | Optional Gemma via AI Studio. |
-| `GEMMA_MODEL` | ML | Default `gemma-3-27b-it`. |
+| `GEMMA_MODEL` | ML | Default `gemma-4-26b-a4b-it`. A 404 tries the other hosted Gemma ids. |
 | `OLLAMA_BASE_URL` | ML | Optional. If set, preferred over AI Studio. |
 | `OLLAMA_MODEL` | ML | Default `gemma3:4b`. |
 | `MIN_TRAIN_ROWS` | ML | Default 30 labelled rows before a trained model. Below that, a rules prior. |

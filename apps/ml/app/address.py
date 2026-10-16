@@ -143,56 +143,239 @@ async def _ollama(prompt: str) -> tuple[str, dict[str, Any]]:
     return text, tokens
 
 
-async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
-    model = settings.gemma_model or "gemma-3-27b-it"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    # Gemma on AI Studio accepts a plain user turn. generationConfig is optional and
-    # some Gemma builds reject it, so a 400 retries without it.
-    bodies = [
-        {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
-        },
-        {"contents": [{"parts": [{"text": prompt}]}]},
-    ]
-    headers = {"x-goog-api-key": settings.gemini_api_key}
-    async with httpx.AsyncClient(timeout=45) as client:
-        response = None
-        for body in bodies:
-            response = await client.post(url, params={"key": settings.gemini_api_key}, headers=headers, json=body)
-            if response.status_code == 404 and model != "gemma-3-27b-it":
-                model = "gemma-3-27b-it"
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                response = await client.post(url, params={"key": settings.gemini_api_key}, headers=headers, json=body)
-            if response.status_code != 400:
-                break
-        assert response is not None
-        response.raise_for_status()
-        data = response.json()
-    parts = data["candidates"][0]["content"]["parts"]
-    text = "".join(part.get("text", "") for part in parts)
-    usage = data.get("usageMetadata") or {}
-    tokens = {
-        "gen_ai.usage.input_tokens": usage.get("promptTokenCount"),
-        "gen_ai.usage.output_tokens": usage.get("candidatesTokenCount"),
-        "gen_ai.request.model": model,
-        "gen_ai.system": "google-ai-studio",
+# Last real call. /health uses this so the shop notice tracks whether Gemma answers,
+# not only whether GEMINI_API_KEY is non-empty.
+gemma_status: dict[str, Any] = {"state": "pending"}
+_working_model: str | None = None
+_listed_models: list[str] | None = None
+
+# Gemini API hosts Gemma 4 under these ids. gemma-3-27b-it 404s on current keys,
+# which used to leave every note on the local template.
+_FALLBACK_MODELS = (
+    "gemma-4-26b-a4b-it",
+    "gemma-4-31b-it",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+)
+
+
+def note_gemma(state: str, **fields: Any) -> None:
+    gemma_status.clear()
+    gemma_status.update(state=state, **fields)
+
+
+def gemma_ready() -> bool | None:
+    """True after a call answered, False when Gemma cannot, None while the probe is in flight."""
+    if not (settings.gemini_api_key or settings.ollama_base_url):
+        return False
+    state = gemma_status.get("state")
+    if state == "ok":
+        return True
+    if state == "error":
+        return False
+    return None
+
+
+def _status_of(exc: Exception) -> int | None:
+    response = getattr(exc, "response", None)
+    code = getattr(response, "status_code", None)
+    return code if isinstance(code, int) else None
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
+
+
+def _quality_from(item: dict[str, Any], origin: str) -> dict[str, Any]:
+    try:
+        score = float(item.get("quality_score", 0.5))
+    except (TypeError, ValueError):
+        score = 0.5
+    return {
+        "quality_score": score,
+        "incomplete": _as_bool(item.get("incomplete")),
+        "landmark_only": _as_bool(item.get("landmark_only")),
+        "junk": _as_bool(item.get("junk")),
+        "pincode_mismatch": _as_bool(item.get("pincode_mismatch")),
+        "notes": str(item.get("notes") or "")[:180],
+        "source": origin,
     }
-    return text, tokens
+
+
+def _model_missing(response: httpx.Response) -> bool:
+    if response.status_code == 404:
+        return True
+    if response.status_code != 400:
+        return False
+    try:
+        error = response.json().get("error") or {}
+    except Exception:  # noqa: BLE001 — a non-JSON 400 is a bad request, not a missing model
+        return False
+    blob = f"{error.get('status', '')} {error.get('message', '')}".lower()
+    return "not found" in blob or "not supported" in blob
+
+
+def _model_names() -> list[str]:
+    preferred = (settings.gemma_model or "").split("/")[-1].strip()
+    pool = [preferred]
+    if _working_model:
+        pool.insert(0, _working_model)
+    pool.extend(_listed_models or [])
+    pool.extend(_FALLBACK_MODELS)
+    names: list[str] = []
+    for name in pool:
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _bodies(prompt: str) -> list[dict[str, Any]]:
+    # thinkingConfig keeps Gemma 4 from spending the whole budget on a hidden trace.
+    # Older Gemma builds reject that field, so the next body is the documented plain turn.
+    part = {"text": prompt}
+    return [
+        {
+            "contents": [{"parts": [part]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 4096,
+                "thinkingConfig": {"thinkingLevel": "minimal"},
+            },
+        },
+        {"contents": [{"parts": [part]}]},
+        {"contents": [{"role": "user", "parts": [part]}]},
+    ]
+
+
+def _text_from(data: dict[str, Any]) -> str:
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError("empty gemma response")
+    parts = ((candidates[0].get("content") or {}).get("parts")) or []
+    visible = [part.get("text", "") for part in parts if part.get("text") and not part.get("thought")]
+    text = "".join(visible).strip() or "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise RuntimeError("empty gemma response")
+    return text
+
+
+async def _list_gemma_models(client: httpx.AsyncClient) -> list[str]:
+    """Models this key can call. Gemini Flash is ignored — address text stays on Gemma."""
+    global _listed_models
+    if _listed_models is not None:
+        return _listed_models
+    found: list[str] = []
+    page: str | None = None
+    try:
+        for _ in range(4):
+            params: dict[str, str] = {"pageSize": "100"}
+            if page:
+                params["pageToken"] = page
+            response = await client.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                headers={"x-goog-api-key": settings.gemini_api_key},
+                params=params,
+            )
+            if response.status_code != 200:
+                break
+            data = response.json()
+            for model in data.get("models") or []:
+                short = str(model.get("name") or "").split("/")[-1]
+                methods = model.get("supportedGenerationMethods") or []
+                if "gemma" not in short.lower():
+                    continue
+                if methods and "generateContent" not in methods:
+                    continue
+                if short not in found:
+                    found.append(short)
+            page = data.get("nextPageToken")
+            if not page:
+                break
+    except Exception as exc:  # noqa: BLE001 — listing is a hint, the fallbacks still run
+        log.warning("gemma_list_failed %s", type(exc).__name__)
+    _listed_models = found
+    return found
+
+
+async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
+    global _working_model
+    headers = {"x-goog-api-key": settings.gemini_api_key}
+    bodies = _bodies(prompt)
+    last: httpx.Response | None = None
+    async with httpx.AsyncClient(timeout=45) as client:
+        tried_list = _listed_models is not None
+        names = _model_names()
+        index = 0
+        while index < len(names):
+            model = names[index]
+            index += 1
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            for body in bodies:
+                response = await client.post(url, headers=headers, json=body)
+                last = response
+                if response.status_code == 400:
+                    continue
+                break
+            assert last is not None
+            if _model_missing(last):
+                if not tried_list:
+                    tried_list = True
+                    for name in await _list_gemma_models(client):
+                        if name not in names:
+                            names.append(name)
+                continue
+            if last.status_code != 200:
+                last.raise_for_status()
+            data = last.json()
+            text = _text_from(data)
+            _working_model = model
+            usage = data.get("usageMetadata") or {}
+            tokens = {
+                "gen_ai.usage.input_tokens": usage.get("promptTokenCount"),
+                "gen_ai.usage.output_tokens": usage.get("candidatesTokenCount"),
+                "gen_ai.request.model": model,
+                "gen_ai.system": "google-ai-studio",
+            }
+            return text, tokens
+    if last is not None:
+        last.raise_for_status()
+    raise RuntimeError("no gemma model")
 
 
 async def _llm(prompt: str, purpose: str) -> tuple[str, str]:
-    if settings.ollama_base_url:
-        with traced("gen_ai.chat", f"gemma.{purpose}", provider="ollama") as box:
-            text, tokens = await _ollama(prompt)
-            box.update(tokens)
-        return text, "ollama"
-    if settings.gemini_api_key:
-        with traced("gen_ai.chat", f"gemma.{purpose}", provider="google-ai-studio") as box:
-            text, tokens = await _gemini(prompt)
-            box.update(tokens)
-        return text, "gemini"
-    raise RuntimeError("no gemma provider")
+    try:
+        if settings.ollama_base_url:
+            with traced("gen_ai.chat", f"gemma.{purpose}", provider="ollama") as box:
+                text, tokens = await _ollama(prompt)
+                box.update(tokens)
+            note_gemma("ok", origin="ollama", model=settings.ollama_model)
+            return text, "ollama"
+        if settings.gemini_api_key:
+            with traced("gen_ai.chat", f"gemma.{purpose}", provider="google-ai-studio") as box:
+                text, tokens = await _gemini(prompt)
+                box.update(tokens)
+            note_gemma("ok", origin="gemini", model=tokens.get("gen_ai.request.model"))
+            return text, "gemini"
+        note_gemma("unconfigured")
+        raise RuntimeError("no gemma provider")
+    except Exception as exc:
+        # A later batch can still succeed. Don't wipe a good probe, or the unconfigured state.
+        if gemma_status.get("state") not in {"ok", "unconfigured"}:
+            note_gemma("error", error=type(exc).__name__, status=_status_of(exc))
+        raise
+
+
+async def probe_gemma() -> None:
+    """One cheap call so /health can say whether Gemma answers."""
+    if not (settings.gemini_api_key or settings.ollama_base_url):
+        note_gemma("unconfigured")
+        return
+    try:
+        await _llm("Reply with the single word ok.", "probe")
+    except Exception as exc:  # noqa: BLE001 — the status is the point of the probe
+        log.warning("gemma_probe_failed %s status=%s", type(exc).__name__, _status_of(exc))
 
 
 def _address_prompt(rows: list[dict[str, Any]]) -> str:
@@ -250,29 +433,30 @@ async def annotate(
         return done, "heuristic", [note]
 
     by_id: dict[str, dict[str, Any]] = {}
-    source = "ollama" if settings.ollama_base_url else "gemini"
-    batch_size = 12
+    source = "heuristic"
+    batch_size = 8
     for start in range(0, len(orders), batch_size):
         chunk = orders[start : start + batch_size]
         try:
             text, origin = await _llm(_address_prompt(chunk), "address_quality")
-            source = origin
             parsed = _parse_json(text)
             if isinstance(parsed, dict):
                 parsed = parsed.get("addresses") or parsed.get("results") or [parsed]
-            for item in parsed:
-                if isinstance(item, dict) and "id" in item:
-                    by_id[str(item["id"])] = {
-                        "quality_score": float(item.get("quality_score", 0.5)),
-                        "incomplete": bool(item.get("incomplete")),
-                        "landmark_only": bool(item.get("landmark_only")),
-                        "junk": bool(item.get("junk")),
-                        "pincode_mismatch": bool(item.get("pincode_mismatch")),
-                        "notes": str(item.get("notes") or "")[:180],
-                        "source": origin,
-                    }
+            items = [item for item in parsed if isinstance(item, dict)]
+            ids = {str(order["id"]) for order in chunk}
+            matched: dict[str, dict[str, Any]] = {}
+            for item in items:
+                if "id" in item and str(item["id"]) in ids:
+                    matched[str(item["id"])] = _quality_from(item, origin)
+            # Some completions rewrite the id. Same length still lines up with the batch.
+            if not matched and len(items) == len(chunk):
+                for order, item in zip(chunk, items, strict=True):
+                    matched[str(order["id"])] = _quality_from(item, origin)
+            if matched:
+                source = origin
+                by_id.update(matched)
         except Exception as exc:  # noqa: BLE001 — degrade per batch
-            log.warning("address_llm_failed %s", type(exc).__name__)
+            log.warning("address_llm_failed %s status=%s", type(exc).__name__, _status_of(exc))
             warnings.append(f"Gemma address scoring failed ({type(exc).__name__}); used local rules for a batch.")
 
     done = []

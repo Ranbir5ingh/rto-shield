@@ -7,7 +7,7 @@ import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Search, Setting
 import { LogoMark } from '@/components/Logo';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
-import { nextMlReachability } from '@/lib/ml-status';
+import { gemmaNotice, nextMlReachability } from '@/lib/ml-status';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
@@ -242,7 +242,7 @@ function StatusStrip({ status }: { status: Integrations | null }) {
     status.ml.reachable && status.ml.activePredictor?.includes('sklearn')
       ? 'Scores use the scikit-learn fallback until TABPFN_TOKEN is set.'
       : null,
-    status.ml.reachable && !status.ml.gemini && !status.ml.ollama
+    gemmaNotice(status.ml)
       ? 'Address notes and drafts use local templates until Gemma is configured.'
       : null,
   ].filter(Boolean);
