@@ -46,7 +46,7 @@ export class MlService {
     warnings: string[];
     addresses: Array<{ id: string; address_quality: AddressQuality }>;
   }> {
-    return this.post('/v1/address', { orders }, 40_000);
+    return this.post('/v1/address', { orders }, 90_000);
   }
 
   async messages(shopName: string, orders: Array<Record<string, unknown>>): Promise<{
@@ -59,7 +59,7 @@ export class MlService {
       'gen_ai.system': 'gemma',
       'gen_ai.request.model': 'gemma',
       rows: orders.length,
-    }, () => this.post('/v1/messages', { shop_name: shopName, orders }, 20_000));
+    }, () => this.post('/v1/messages', { shop_name: shopName, orders }, 40_000));
   }
 
   async health(timeoutMs = 3000): Promise<MlHealth | null> {

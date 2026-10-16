@@ -122,14 +122,14 @@ def generate(n_history: int = 360, n_pending: int = 24, seed: int = 42) -> dict[
 # trained model files a clean repeat as Low and junk as High, and files these
 # in the middle. Keep the text short: a full street line leaves the band.
 _MEDIUM_PROFILES = (
-    (4, 1, 1599, 16, "H.No 8, Gali 2"),
-    (4, 1, 1899, 21, "Sector 7 market"),
-    (4, 1, 1899, 18, "H.No 18, Lane 9"),
-    (5, 1, 1899, 16, "H.No 9, Gali 3"),
-    (5, 1, 2499, 18, "Sector 4 market"),
-    (4, 1, 1599, 18, "H.No 15, Lane 6"),
-    (5, 1, 2499, 21, "H.No 7, Gali 6"),
-    (4, 1, 1599, 16, "H.No 11, Lane 5"),
+    (4, 1, 1299, 23, "near red gate"),
+    (5, 0, 1599, 23, "H.No 8, Gali 2"),
+    (0, 0, 2499, 11, "Sector 7 market"),
+    (2, 1, 799, 0, "H.No 18, Lane 9"),
+    (1, 1, 999, 14, "H.No 40, Lane 4, Shastri Nagar, {city}"),
+    (0, 0, 1899, 11, "H.No 9, Gali 3"),
+    (2, 0, 1599, 23, "Sector 4 market"),
+    (3, 0, 1599, 23, "H.No 15, Lane 6"),
 )
 _HIGH_ADDRESSES = ("asdf", "test", "xxx", "qwerty", "fake", "null")
 
@@ -166,7 +166,7 @@ def _apply_pending_profile(order: dict[str, Any], slot: int) -> None:
             prior_rtos=prior_rtos,
             order_value=value,
             hour=hour,
-            address=template,
+            address=template.format(city=order["city"]) if "{city}" in template else template,
             addr_quality=0.65,
             addr_incomplete=1,
             addr_landmark=0,

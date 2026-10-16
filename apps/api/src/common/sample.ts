@@ -39,14 +39,14 @@ const COURIERS = ['Delhivery', 'Shadowfax', 'Xpressbees', 'Ecom Express'];
 // first late-night order as Low and a junk order as High, so Medium has to
 // look like this or the shop shows only two bands.
 const MEDIUM_PROFILES: Array<{ priorOrders: number; priorRtos: number; orderValue: number; hour: number; address: string }> = [
-  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 16, address: 'H.No 8, Gali 2' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 21, address: 'Sector 7 market' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 18, address: 'H.No 18, Lane 9' },
-  { priorOrders: 5, priorRtos: 1, orderValue: 1899, hour: 16, address: 'H.No 9, Gali 3' },
-  { priorOrders: 5, priorRtos: 1, orderValue: 2499, hour: 18, address: 'Sector 4 market' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 18, address: 'H.No 15, Lane 6' },
-  { priorOrders: 5, priorRtos: 1, orderValue: 2499, hour: 21, address: 'H.No 7, Gali 6' },
-  { priorOrders: 4, priorRtos: 1, orderValue: 1599, hour: 16, address: 'H.No 11, Lane 5' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1299, hour: 23, address: 'near red gate' },
+  { priorOrders: 5, priorRtos: 0, orderValue: 1599, hour: 23, address: 'H.No 8, Gali 2' },
+  { priorOrders: 0, priorRtos: 0, orderValue: 2499, hour: 11, address: 'Sector 7 market' },
+  { priorOrders: 2, priorRtos: 1, orderValue: 799, hour: 0, address: 'H.No 18, Lane 9' },
+  { priorOrders: 1, priorRtos: 1, orderValue: 999, hour: 14, address: 'H.No 40, Lane 4, Shastri Nagar, {city}' },
+  { priorOrders: 0, priorRtos: 0, orderValue: 1899, hour: 11, address: 'H.No 9, Gali 3' },
+  { priorOrders: 2, priorRtos: 0, orderValue: 1599, hour: 23, address: 'Sector 4 market' },
+  { priorOrders: 3, priorRtos: 0, orderValue: 1599, hour: 23, address: 'H.No 15, Lane 6' },
 ];
 const HIGH_ADDRESSES = ['asdf', 'test', 'xxx', 'qwerty', 'fake', 'null'];
 
@@ -71,7 +71,7 @@ function pendingProfile(slot: number, city: string) {
   if (slot < 18) {
     const profile = MEDIUM_PROFILES[slot - 10]!;
     return {
-      address: profile.address,
+      address: profile.address.replace(/\{city\}/g, city),
       paymentType: 'cod' as const,
       priorOrders: profile.priorOrders,
       priorRtos: profile.priorRtos,

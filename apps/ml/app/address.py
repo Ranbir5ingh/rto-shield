@@ -160,6 +160,10 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
         response = None
         for body in bodies:
             response = await client.post(url, params={"key": settings.gemini_api_key}, headers=headers, json=body)
+            if response.status_code == 404 and model != "gemma-3-27b-it":
+                model = "gemma-3-27b-it"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                response = await client.post(url, params={"key": settings.gemini_api_key}, headers=headers, json=body)
             if response.status_code != 400:
                 break
         assert response is not None
