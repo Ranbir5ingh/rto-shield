@@ -30,9 +30,9 @@ export const RULES_LABEL =
   'Local rules score for this demo open. It uses cash on delivery, buyer history, and address checks. Press Score to run the full model.';
 
 /** How long demo opening waits for the fast model before scoring locally. */
-export const DEMO_FAST_TIMEOUT_MS = 1_500;
-/** Recent labelled rows are enough for a demo fit. */
-export const DEMO_FAST_HISTORY = 90;
+export const DEMO_FAST_TIMEOUT_MS = 1_200;
+/** A short history keeps the fast fit inside the demo budget on a small CPU. */
+export const DEMO_FAST_HISTORY = 40;
 /**
  * The shop still shows a full week-by-week history. 180 rows write in about
  * half the time of the 360-row training sample, which keeps demo open under

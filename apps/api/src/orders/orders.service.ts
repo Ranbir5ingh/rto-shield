@@ -211,7 +211,13 @@ export class OrdersService {
       if (!prediction) return base;
       return { ...base, ...this.scoredFields(user, order, prediction, staged.score.model) };
     });
-    if (docs.length) await this.orders.insertMany(docs, { ordered: false });
+    if (docs.length) {
+      const now = new Date();
+      await this.orders.collection.insertMany(
+        docs.map((doc) => ({ ...doc, createdAt: now, updatedAt: now })),
+        { ordered: false },
+      );
+    }
     await this.runs.create({
       sellerId: user._id,
       model: staged.score.model,
