@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield, MessageCircle, ScanLine, Lock, ArrowRight, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ShieldCheck, ScanLine, MessageCircle, PiggyBank, ChevronDown } from 'lucide-react';
 import { DemoButton } from './DemoButton';
 import { SiteHeader } from './SiteHeader';
+import { RiskArcade } from './RiskArcade';
 import { useMarketingMotion } from './useMarketingMotion';
 
-const ticker = ['₹150 default return cost', 'Score 0–100', 'Low · Medium · High', 'Phone stays in the shop', '₹499 / month', 'No card checkout'];
+const ticker = ['SCORE 0–100', 'LOW · MED · HIGH', 'PHONE STAYS IN THE SHOP', '₹499 / MONTH', 'NO CARD CHECKOUT', 'CONFIRM ON WHATSAPP'];
 
 const faqs = [
   ['Does this charge ₹499?', 'The price is a suggestion for a hosted shop. This open-source build does not take a card.'],
@@ -14,237 +16,271 @@ const faqs = [
   ['What if I have no model key?', 'Scoring still runs. The dashboard says when the result is scikit-learn or a rules prior.'],
 ];
 
-function Wave({ fill, className = '' }: { fill: string; className?: string }) {
-  return (
-    <svg viewBox="0 0 1440 70" preserveAspectRatio="none" className={`block h-[36px] w-full sm:h-[64px] ${className}`} aria-hidden="true">
-      <path d="M0,38 C180,66 360,10 540,28 C720,46 900,8 1080,30 C1260,52 1350,24 1440,36 L1440,70 L0,70 Z" fill={fill} />
-    </svg>
-  );
-}
-
 export function Landing() {
   useMarketingMotion(true);
+  const [booted, setBooted] = useState(false);
   const loop = [...ticker, ...ticker];
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setBooted(true), 1100);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-canvas">
-      <SiteHeader />
-      <main>
-        <section className="relative overflow-hidden">
-          <div className="aurora" aria-hidden="true">
-            <span className="aurora-pink left-[-10%] top-[-10%] h-[34rem] w-[34rem] opacity-70" />
-            <span className="aurora-sky right-[-8%] top-[10%] h-[30rem] w-[30rem] opacity-70" />
-            <span className="aurora-butter left-[30%] top-[45%] h-[22rem] w-[26rem] opacity-60" />
+    <div className="min-h-screen bg-void text-ink">
+      {!booted && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-6 bg-void">
+          <p className="font-display text-2xl font-bold text-lime">RTO▲SHIELD</p>
+          <div className="h-4 w-64 border-2 border-lime">
+            <div className="boot-bar h-full bg-lime" />
           </div>
-          <div className="relative mx-auto grid max-w-page items-center gap-12 px-5 pb-20 pt-16 sm:px-8 sm:pt-24 lg:grid-cols-[1.02fr_0.98fr] lg:pt-28">
-            <div>
-              <p data-hero-item>
-                <span className="inline-flex items-center gap-2 rounded-full bg-electric px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white">
-                  <Sparkles size={13} /> Cash on delivery · before the tape gun
-                </span>
-              </p>
-              <h1 data-hero-item className="mt-6 max-w-xl font-display text-display-1">
-                Stop paying ₹150 for orders that come back.
-              </h1>
-              <p data-hero-item className="mt-6 max-w-md text-lg leading-8 text-ink/70">
-                Score every pending COD order from 0 to 100. Confirm the risky ones in Hindi, Hinglish, or English. Built for shops doing about 20 to 500 orders a day.
-              </p>
-              <div data-hero-item className="mt-9 flex flex-wrap items-center gap-4">
-                <DemoButton />
-                <Link href="/signup" className="btn btn-ghost">
-                  Create a login <ArrowRight size={16} />
-                </Link>
-              </div>
+          <p className="px-blink font-mono text-xs tracking-widest text-muted">LOADING…</p>
+        </div>
+      )}
+
+      <SiteHeader />
+
+      <main>
+        {/* HERO */}
+        <section className="relative flex min-h-svh items-center overflow-hidden">
+          <div className="absolute inset-0" data-hero-bg aria-hidden="true">
+            <img
+              src="/assets/pixel/hero-market.webp"
+              alt=""
+              className="h-[115%] w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-void/70 via-void/35 to-void" />
+          </div>
+
+          <div className="relative mx-auto w-full max-w-page px-4 pb-24 pt-32 sm:px-6">
+            <p data-hero-item className="mb-6 inline-block border-2 border-lime bg-void/80 px-4 py-2 font-mono text-xs font-bold tracking-[0.2em] text-lime">
+              A BOSS FIGHT FOR COD SELLERS
+            </p>
+            <h1 className="font-display font-bold text-display-1">
+              <span data-hero-item className="block">EVERY RETURN</span>
+              <span data-hero-item className="block text-lime">STEALS ₹150.</span>
+            </h1>
+            <p data-hero-item className="mt-6 max-w-xl text-lg leading-8 text-ink/80">
+              RTO Shield scores every cash-on-delivery order 0–100 before you ship.
+              Confirm the risky ones on WhatsApp. Keep the rupees.
+            </p>
+            <div data-hero-item className="mt-10 flex flex-wrap items-center gap-5">
+              <DemoButton />
+              <Link href="#level-3" className="btn btn-ghost">
+                HOW IT PLAYS
+              </Link>
             </div>
-            <ProductFrame />
+            <div data-hero-item className="mt-14 flex items-center gap-3 font-mono text-xs tracking-widest text-muted">
+              <ChevronDown size={16} className="animate-bounce text-lime" />
+              <span className="px-blink">SCROLL TO PLAY</span>
+            </div>
           </div>
         </section>
 
-        <div className="marquee" aria-hidden="true">
+        {/* MARQUEE */}
+        <div className="marquee -rotate-1 scale-[1.02]" aria-hidden="true">
           <div className="marquee-track">
-            {loop.map((item, index) => (
-              <span key={`${item}-${index}`}>{item}</span>
+            {loop.map((item, i) => (
+              <span key={`${item}-${i}`}>★ {item}</span>
             ))}
           </div>
         </div>
 
-        <section id="product" className="mx-auto max-w-page px-5 py-24 sm:px-8">
-          <div className="mb-10" data-reveal>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-electric">Product</p>
-            <h2 className="mt-3 max-w-2xl font-display text-display-2">A desk that shows the risk before the parcel leaves.</h2>
-          </div>
-          <div className="grid gap-5 md:grid-cols-6">
-            <article className="card spotlight p-6 md:col-span-4" data-reveal>
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Live score</p>
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-electric/10">
-                  <ScanLine size={18} className="text-electric" />
-                </span>
-              </div>
-              <p className="mt-4 font-display text-7xl text-electric">78</p>
-              <p className="mt-3 text-sm font-semibold">S1042 · ₹1,599 COD · <span className="text-high">High</span></p>
-              <ul className="mt-6 space-y-2.5 text-[15px] text-ink/70">
-                <li className="flex gap-2"><span className="text-electric">●</span> First-time buyer, cash on delivery</li>
-                <li className="flex gap-2"><span className="text-electric">●</span> Address is a landmark, with no house number</li>
-                <li className="flex gap-2"><span className="text-electric">●</span> Placed late, when buyers confirm less often</li>
-              </ul>
-            </article>
-            <article className="card spotlight flex flex-col justify-between bg-ink p-6 text-paper md:col-span-2" data-reveal>
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10">
-                <MessageCircle size={18} className="text-pastel-butter" />
-              </span>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-paper/60">You send it</p>
-                <p className="mt-3 font-hindi text-[15px] leading-7">Namaste, aapka order confirm karna tha — ₹1,599 cash on delivery. Ghar pe honge kya?</p>
-              </div>
-            </article>
-            <article className="card spotlight p-6 md:col-span-2" data-reveal>
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-low/10">
-                <Shield size={18} className="text-low" />
-              </span>
-              <h3 className="mt-5 font-display text-2xl">Three bands, written out</h3>
-              <p className="mt-2 text-[15px] leading-7 text-ink/70">Low can ship. Medium and High wait in the queue. Colour is never the only signal.</p>
-            </article>
-            <article className="card spotlight p-6 md:col-span-2" data-reveal>
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-electric/10">
-                <Lock size={18} className="text-electric" />
-              </span>
-              <h3 className="mt-5 font-display text-2xl">The phone stays</h3>
-              <p className="mt-2 text-[15px] leading-7 text-ink/70">Encrypted at rest, masked in lists, never sent to TabPFN, Gemma, SerpApi, or ElevenLabs.</p>
-            </article>
-            <article className="card spotlight p-6 md:col-span-2" data-reveal>
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Fairness</p>
-              <h3 className="mt-5 font-display text-2xl">A pincode is not a verdict</h3>
-              <p className="mt-2 text-[15px] leading-7 text-ink/70">Courier notes can sit beside an order. They are not a model feature, and the product will not tell you to refuse a region.</p>
-            </article>
-          </div>
-        </section>
-
-        <Wave fill="#1e1efa" />
-        <section id="method" className="bg-electric text-white">
-          <div className="mx-auto grid max-w-page gap-10 px-5 py-20 sm:px-8 lg:grid-cols-3">
-            {[
-              ['01', 'Teach it this shop', 'Upload delivered and returned orders, or open the demo shop. TabPFN trains in context on that history. A cold shop uses a rules prior, then scikit-learn, and the screen names which one ran.'],
-              ['02', 'Score before it ships', 'Each pending order gets 0–100, a Low, Medium, or High band, and a plain sentence. Address quality is a feature. The pincode is courier context.'],
-              ['03', 'You send the message', 'Risky orders wait with a WhatsApp link and a draft in Hindi, Hinglish, or English. Confirmed teaches accepted. Cancelled teaches refused. Silence stays out of the next score.'],
-            ].map(([n, title, body]) => (
-              <article key={n} data-reveal className="rounded-3xl border-2 border-white/25 bg-white/10 p-6 backdrop-blur-sm">
-                <p className="font-mono text-sm font-bold text-pastel-butter">{n}</p>
-                <h3 className="mt-3 font-display text-3xl">{title}</h3>
-                <p className="mt-3 text-[15px] leading-7 text-white/85">{body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-        <Wave fill="#1e1efa" className="rotate-180" />
-
-        <section className="mx-auto max-w-page px-5 py-24 sm:px-8">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-electric">Example day</p>
-          <h2 className="mt-3 max-w-xl font-display text-display-2">40 COD orders. 8 come back.</h2>
-          <div className="mt-10 grid gap-5 sm:grid-cols-3">
-            {[
-              ['40', '', 'Packed', 'bg-pastel-mint'],
-              ['8', '', 'Returned', 'bg-pastel-pink'],
-              ['1200', '₹', 'Lost at ₹150 each', 'bg-pastel-butter'],
-            ].map(([value, prefix, label, bg]) => (
-              <article key={label} className={`card ${bg} p-6`} data-reveal>
-                <p className="font-display text-6xl" data-tick={value} data-prefix={prefix}>
-                  {prefix}
-                  {Number(value).toLocaleString('en-IN')}
-                </p>
-                <p className="mt-3 text-sm font-semibold text-ink/70">{label}</p>
-              </article>
-            ))}
-          </div>
-          <p className="mt-8 max-w-xl text-[15px] leading-8 text-ink/70">
-            At ₹150 reverse shipping, that is ₹1,200 before lunch. Stopping a handful covers a ₹499 month. Your dashboard uses the cost you set.
-          </p>
-        </section>
-
-        <section id="pricing" className="mx-auto max-w-page px-5 pb-24 sm:px-8">
-          <div className="card flex flex-col items-start justify-between gap-8 overflow-hidden p-8 sm:flex-row sm:items-center sm:p-12" data-reveal>
+        {/* LEVEL 01 */}
+        <section id="level-1" className="px-grid relative py-28 sm:py-36">
+          <div className="mx-auto grid max-w-page items-center gap-12 px-4 sm:px-6 lg:grid-cols-2">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-electric">Suggested price</p>
-              <h2 className="mt-3 font-display text-display-1">₹499<span className="font-sans text-2xl font-semibold text-muted">/mo</span></h2>
-              <p className="mt-4 max-w-md text-[15px] leading-8 text-ink/70">
-                Scoring, the confirmation queue, export, and delete. TabPFN, Gemma, ElevenLabs, and SerpApi keys are yours if you want them. This build does not take a card.
+              <p data-reveal className="font-mono text-sm font-bold tracking-[0.25em] text-pink">LEVEL 01</p>
+              <h2 data-reveal className="mt-4 font-display font-bold text-display-2">
+                MEET THE BOSS:<br />THE COMEBACK PARCEL
+              </h2>
+              <p data-reveal className="mt-6 max-w-md text-lg leading-8 text-ink/75">
+                A customer ghosts. The courier rides back. You pay both ways and
+                the stock gathers dust. An average day looks like this:
+              </p>
+              <div className="mt-10 grid grid-cols-3 gap-4">
+                {[
+                  ['40', '', 'packed', 'text-ink'],
+                  ['8', '', 'come back', 'text-danger'],
+                  ['1200', '₹', 'lost', 'text-lime'],
+                ].map(([v, pre, label, color]) => (
+                  <div key={label} data-reveal className="px-cut border-2 border-line bg-panel p-4 text-center shadow-px sm:p-6">
+                    <p className={`font-display text-4xl font-bold tabular-nums sm:text-5xl ${color}`}>
+                      <span data-count={v} data-prefix={pre}>{pre}0</span>
+                    </p>
+                    <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <p data-reveal className="mt-8 max-w-md leading-7 text-ink/70">
+                ₹1,200 gone before lunch — at ₹150 reverse shipping a pop. Stopping
+                a handful of bad ships covers the whole month.
               </p>
             </div>
-            <div className="shrink-0">
-              <DemoButton label="Try the demo shop" />
+            <div data-reveal className="relative">
+              <img
+                src="/assets/pixel/mascot-keeper.webp"
+                alt="Your shopkeeper, ready to fight returns"
+                className="floaty mx-auto w-full max-w-sm"
+              />
+              <p className="mt-4 text-center font-mono text-xs tracking-widest text-muted">
+                YOUR SHOPKEEPER · LVL 99 · EQUIPPED
+              </p>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-page px-5 pb-24 sm:px-8">
-          <h2 className="font-display text-display-2">Questions</h2>
-          <div className="mt-8 divide-y-2 divide-ink/10 border-y-2 border-ink">
-            {faqs.map(([q, a]) => (
-              <details key={q} className="group py-6">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-semibold">
-                  {q}
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-electric text-xl text-white transition group-open:rotate-45" aria-hidden="true">+</span>
-                </summary>
-                <p className="mt-3 max-w-2xl text-[15px] leading-8 text-ink/70">{a}</p>
-              </details>
-            ))}
+        {/* LEVEL 02 */}
+        <section id="level-2" className="relative border-y-2 border-line bg-panel/40 py-28 sm:py-36">
+          <div className="mx-auto max-w-page px-4 sm:px-6">
+            <p data-reveal className="font-mono text-sm font-bold tracking-[0.25em] text-cyan">LEVEL 02</p>
+            <h2 data-reveal className="mt-4 max-w-3xl font-display font-bold text-display-2">
+              THE SCANNER DECIDES<br />BEFORE THE TAPE GUN
+            </h2>
+            <p data-reveal className="mt-6 max-w-xl text-lg leading-8 text-ink/75">
+              Drag the levers. This is the same 0–100 logic your dashboard runs —
+              value, payment mode, pincode, buyer history. Try to break it:
+            </p>
+            <div data-reveal className="mt-12 grid items-start gap-10 lg:grid-cols-[1fr_360px]">
+              <RiskArcade />
+              <div>
+                <img
+                  src="/assets/pixel/arcade-scanner.webp"
+                  alt="The RTO Shield risk scanner arcade cabinet"
+                  className="w-full"
+                />
+                <p className="mt-4 text-center font-mono text-xs tracking-widest text-muted">
+                  INSERT COIN TO CONTINUE
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* LEVEL 03 — horizontal */}
+        <section id="level-3" className="relative overflow-hidden">
+          <div id="level-3-pin" className="flex min-h-svh flex-col justify-center py-24">
+            <div className="mx-auto w-full max-w-page px-4 sm:px-6">
+              <p className="font-mono text-sm font-bold tracking-[0.25em] text-yellow">LEVEL 03</p>
+              <h2 className="mt-4 font-display font-bold text-display-2">HOW IT PLAYS</h2>
+            </div>
+            <div id="level-3-track" className="mt-12 flex gap-6 px-4 sm:px-6">
+              {(
+                [
+                  [ScanLine, 'DETECT', 'text-lime', 'border-lime', 'Your history teaches the machine. Upload delivered + returned orders — TabPFN learns this shop\u2019s patterns in context. No history? A rules prior holds the fort.'],
+                  [ShieldCheck, 'SCORE', 'text-cyan', 'border-cyan', 'Every pending order gets 0–100, a LOW / MED / HIGH band, and one plain sentence. Address quality is a feature. The pincode is courier context, never a verdict.'],
+                  [MessageCircle, 'ACT', 'text-pink', 'border-pink', 'Risky orders wait in the queue with a WhatsApp draft in Hindi, Hinglish, or English. You press send — one tap, your words.'],
+                  [PiggyBank, 'SAVE', 'text-yellow', 'border-yellow', 'Confirmed teaches accepted. Cancelled teaches refused. Every outcome sharpens the next score. The dashboard counts the rupees you kept.'],
+                ] as [typeof ScanLine, string, string, string, string][]
+              ).map(([Icon, title, color, border, body], i) => {
+                return (
+                  <article key={title} className={`px-cut w-[82vw] shrink-0 border-2 bg-panel p-8 shadow-px sm:w-[420px] ${border}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`font-mono text-sm font-bold ${color}`}>0{i + 1}</span>
+                      <Icon size={28} className={color} />
+                    </div>
+                    <h3 className="mt-8 font-display text-3xl font-bold">{title}</h3>
+                    <p className="mt-4 leading-7 text-ink/75">{body}</p>
+                  </article>
+                );
+              })}
+            </div>
+            <p className="mx-auto mt-10 w-full max-w-page px-4 font-mono text-xs tracking-widest text-muted sm:px-6">
+              KEEP SCROLLING — THE CARDS SLIDE <span className="text-lime">→</span>
+            </p>
+          </div>
+        </section>
+
+        {/* LEVEL 04 */}
+        <section className="border-t-2 border-line bg-panel/40 py-28 sm:py-36">
+          <div className="mx-auto grid max-w-page items-center gap-12 px-4 sm:px-6 lg:grid-cols-2">
+            <div>
+              <p data-reveal className="font-mono text-sm font-bold tracking-[0.25em] text-pink">LEVEL 04</p>
+              <h2 data-reveal className="mt-4 font-display font-bold text-display-2">
+                YOU SEND THE<br />TRANSMISSION
+              </h2>
+              <p data-reveal className="mt-6 max-w-md text-lg leading-8 text-ink/75">
+                Every risky order waits with a draft in your buyer's language.
+                Fairness is built in: a pincode is never a verdict, and the phone
+                number never leaves your shop.
+              </p>
+              <div data-reveal className="mt-8 flex flex-wrap gap-4">
+                <Link href="/signup" className="btn btn-primary">▶ OPEN A SHOP</Link>
+              </div>
+            </div>
+            <div data-reveal className="px-cut mx-auto w-full max-w-md border-2 border-pink bg-void p-6 shadow-px">
+              <p className="font-mono text-xs font-bold tracking-widest text-pink">WHATSAPP DRAFT · AUTO-READY</p>
+              <p className="mt-4 border-l-4 border-lime bg-panel p-4 font-hindi text-lg leading-8">
+                Namaste, aapka order confirm karna tha — ₹1,599 cash on delivery. Ghar pe honge kya?
+              </p>
+              <div className="mt-4 flex gap-3">
+                <span className="risk-pill text-lime">Hindi</span>
+                <span className="risk-pill text-cyan">Hinglish</span>
+                <span className="risk-pill text-yellow">English</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FINAL BOSS */}
+        <section id="final" className="px-grid relative py-28 sm:py-36">
+          <div className="mx-auto max-w-page px-4 text-center sm:px-6">
+            <p data-reveal className="font-mono text-sm font-bold tracking-[0.25em] text-danger">FINAL BOSS</p>
+            <h2 data-reveal className="mx-auto mt-4 max-w-3xl font-display font-bold text-display-1">
+              INSERT COIN
+            </h2>
+            <div data-reveal className="px-cut mx-auto mt-12 max-w-lg border-2 border-yellow bg-panel p-10 shadow-px">
+              <p className="font-mono text-xs font-bold tracking-widest text-muted">SUGGESTED PRICE</p>
+              <p className="mt-4 font-display text-7xl font-bold text-yellow">₹499<span className="font-sans text-2xl text-muted">/mo</span></p>
+              <p className="mx-auto mt-6 max-w-sm leading-7 text-ink/70">
+                Scoring, the confirmation queue, export, delete. Your TabPFN,
+                Gemma, ElevenLabs, SerpApi keys if you want them. This build
+                does not take a card.
+              </p>
+              <div className="mt-8">
+                <DemoButton label="▶ TRY THE DEMO SHOP" />
+              </div>
+            </div>
+
+            <div className="mx-auto mt-20 max-w-3xl text-left">
+              <h3 data-reveal className="font-display text-2xl font-bold">QUESTIONS FROM THE CROWD</h3>
+              <div className="mt-6 border-t-2 border-line">
+                {faqs.map(([q, a]) => (
+                  <details key={q} data-reveal className="group border-b-2 border-line py-5">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-xl font-bold">
+                      {q}
+                      <span className="px-cut-sm grid h-9 w-9 shrink-0 place-items-center border-2 border-lime text-lg text-lime transition group-open:rotate-45" aria-hidden="true">+</span>
+                    </summary>
+                    <p className="mt-3 max-w-2xl leading-7 text-ink/70">{a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       </main>
-      <footer className="border-t-2 border-ink bg-ink px-5 py-10 text-sm text-paper/70 sm:px-8">
-        <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-4">
-          <p className="font-semibold text-paper">RTO Shield. MIT licensed.</p>
-          <div className="flex gap-6 font-semibold">
-            <Link href="/privacy" className="hover:text-white">Privacy</Link>
-            <Link href="/login" className="hover:text-white">Log in</Link>
-            <a href="#product" className="hover:text-white">Back to top</a>
+
+      <footer className="border-t-2 border-lime bg-panel px-4 py-16 sm:px-6">
+        <div className="mx-auto max-w-page">
+          <p className="font-display text-5xl font-bold sm:text-7xl">
+            GAME OVER<span className="text-lime">?</span>
+          </p>
+          <p className="mt-4 max-w-md text-lg text-ink/70">Nah. Thanks for playing — now go save some rupees.</p>
+          <div className="mt-8">
+            <Link href="/signup" className="btn btn-primary !text-lg">▶ PRESS START</Link>
+          </div>
+          <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t-2 border-line pt-8 font-mono text-sm text-muted">
+            <p>RTO SHIELD · MIT LICENSED</p>
+            <div className="flex gap-6">
+              <Link href="/privacy" className="transition hover:text-lime">PRIVACY</Link>
+              <Link href="/login" className="transition hover:text-lime">LOG IN</Link>
+              <a href="#level-1" className="transition hover:text-lime">BACK TO TOP ↑</a>
+            </div>
           </div>
         </div>
       </footer>
-    </div>
-  );
-}
 
-function ProductFrame() {
-  return (
-    <div data-hero-item className="relative">
-      <div className="floaty absolute -right-3 -top-5 z-10 rotate-6 rounded-2xl bg-high px-4 py-2 text-sm font-bold text-white shadow-card" aria-hidden="true">
-        HIGH RISK
-      </div>
-      <div className="card relative overflow-hidden p-5 sm:p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Asha Studio · Today</span>
-          <span className="rounded-full bg-low/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-low">Model · TabPFN</span>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            ['RTO', '18%', 'bg-pastel-pink'],
-            ['Saved', '₹12.4k', 'bg-pastel-mint'],
-            ['Queue', '7', 'bg-pastel-butter'],
-          ].map(([label, value, bg]) => (
-            <div key={label} className={`rounded-2xl ${bg} p-4`}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink/60">{label}</p>
-              <p className="mt-1 font-display text-2xl">{value}</p>
-            </div>
-          ))}
-        </div>
-        <svg viewBox="0 0 320 90" className="mt-5 h-24 w-full" role="img" aria-label="Weekly RTO rate trending down">
-          <path d="M8 20 L70 38 L130 30 L190 55 L250 46 L312 68" fill="none" stroke="#1e1efa" strokeWidth="3" strokeLinecap="round" pathLength="1" className="chart-line" />
-        </svg>
-        <div className="mt-3 space-y-2">
-          {[
-            ['S1042', 'High', '78', 'text-high'],
-            ['S1048', 'Low', '22', 'text-low'],
-            ['S1051', 'Medium', '51', 'text-mid'],
-          ].map(([id, band, score, color]) => (
-            <div key={id} className="flex items-center justify-between rounded-2xl bg-canvas px-4 py-3 text-sm">
-              <span className="font-mono text-xs font-semibold text-muted">{id}</span>
-              <span className={`font-bold ${color}`}>{band}</span>
-              <span className="font-display text-xl">{score}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <style>{`.boot-bar { animation: boot 1s steps(10) forwards; } @keyframes boot { from { width: 0; } to { width: 100%; } }`}</style>
     </div>
   );
 }

@@ -1,52 +1,56 @@
 # Design language
 
-**2026-10-16 — Electric Play.** The "Kagaz" warm-ledger direction was rejected by the owner as "a basic website with the basic UI". After reviewing awards-level references, the owner picked the **Arc** reference (electric blue, wavy edges, chunky serif, pastel washes, playful product staging — arc.net). RTO Shield is now a loud, joyful, awards-grade product: electric cobalt `#1e1efa`, chunky DM Serif Display headlines, pastel aurora washes, wavy scalloped section dividers, chunky dark pill buttons, floating stickers, bouncy `back.out` motion.
+**2026-10-16 — PIXEL/NEO.** The "Electric Play" direction was rejected by the owner as dated ("structure is back from 2020, 2016"). New brief, in his words: like lusion.co's modern scroll craft, but a **pixel-art design language** — self-generated pixel assets, bright Gen Z colors and typography, modern layouts, sweet scroll animations, rebuilt from scratch. UI only; no backend/logic changes.
 
-Studied in Firefox at 1440×900 on 16 Oct 2026 (landing, method band, pricing, login wake screen).
+RTO Shield is now a neon arcade boss-fight: deep void `#0b0b14`, electric lime `#b4ff39`, hot pink `#ff4ad8`, cyan `#4ae3ff`, yellow `#ffd94a`. Pixelify Sans display type, Space Grotesk body, Space Mono labels. Signature 8-bit chamfered corners (`px-cut`), 2px borders, hard offset shadows, CRT scanlines, pixel-grid backdrops. Four self-generated pixel assets in `apps/web/public/assets/pixel/`: neon night-market hero, RISK SCANNER arcade cabinet, shopkeeper mascot, sprite icon sheet.
+
+Marketing is a scroll-driven game: boot loader → floating HUD nav + fullscreen overlay menu → parallax pixel hero → lime marquee → LEVEL 01 (boss stats with count-ups + mascot) → LEVEL 02 (interactive RiskArcade demo console + cabinet art) → LEVEL 03 (pinned horizontal scroll: DETECT/SCORE/ACT/SAVE) → LEVEL 04 (WhatsApp draft transmission) → FINAL BOSS (INSERT COIN pricing) → GAME OVER footer. Lenis smooth scroll drives GSAP ScrollTrigger throughout.
+
+The app keeps every route, form, and data contract; only the chrome is pixel: HUD sidebar with lime active states, pixel-cut cards with colored borders, pixel risk chips, lime charts on dark.
+
+Studied in Firefox at 1440×900 on 16 Oct 2026 (hero, level 1, arcade console, horizontal scroll, final boss). Zero JS errors.
 
 ## Direction
 
-**Electric Play.** A game you're winning, not a ledger you're filing.
+**PIXEL/NEO.** A boss fight, not a brochure.
 
-The reference is Arc's product site: a vivid blue field, wavy dividers between sections, one chunky serif for headlines, pastel washes behind the hero, product UI staged in clean white cards with playful pastel stat tiles, dark pill CTAs. The language is its own — not a copy of Arc's illustration style, just its energy: color as joy, type as voice, motion as bounce.
-
-The seller's dashboard keeps every workflow, route, and data contract. Only the chrome changes: sidebar links become blue pills, big figures set in DM Serif, risk stays written (Low, Medium, High) as chunky outlined pills.
+The reference lineage is lusion.co's scroll craft (pinned narratives, parallax, buttery motion) crossed with the awards-level pixel-art language (Awwwards-recognized: 1-bit pixel portfolios, Pixel Melbourne HM 2026). The language is its own — original generated assets, game-level metaphors (the product IS a score: 0–100, bands, INSERT COIN), Gen Z brights on dark.
 
 ## Tokens
 
 | Token | Value | Role |
 | --- | --- | --- |
-| canvas / paper | `#fbfaf5` | Page — warm white |
-| card | `#ffffff` | Surfaces — white cards, 24px radius |
-| ink | `#17150f` | Text — warm black; also the chunky dark button |
-| muted | `#6b6257` | Secondary |
-| line | `#e8e4d8` | Soft warm borders |
-| accent / electric | `#1e1efa` | The blue — marquee band, method band, score, focus |
-| accent-deep | `#1212b8` | Blue hover |
-| pastel-pink / sky / butter / mint | `#ffd9e8` `#d9e6ff` `#ffeba8` `#d8f5e3` | Aurora washes, stat tiles |
-| low | `#16a34a` | Low band, with the word |
-| mid | `#d97706` | Medium band, with the word |
-| high | `#e11d48` | High band and destructive actions — vivid rose |
+| void | `#0b0b14` | Page — deep blue-black |
+| panel / panel2 | `#14141f` / `#1b1b2b` | Surfaces |
+| ink | `#f2f2ea` | Text — off-white |
+| muted | `#8b8b9e` | Secondary |
+| line | `#2a2a3d` | Borders |
+| lime | `#b4ff39` | Primary — CTAs, score, focus, marquee |
+| pink | `#ff4ad8` | Secondary — accents, level 04 |
+| cyan | `#4ae3ff` | Tertiary — level 02 |
+| yellow | `#ffd94a` | Highlights — pricing, save |
+| danger | `#ff4a5e` | High band and destructive |
+| warn | `#ffd94a` | Medium band |
 
-Type is **DM Serif Display** (chunky display serif, via `next/font/google`), **Geist** (UI), and **Geist Mono** (figures, labels — always tabular numerals). Hindi confirmation copy uses **Noto Sans** Devanagari. Display size is `clamp(2.9rem, 7vw, 5.75rem)` at line-height 0.98. Labels are 11px, bold, uppercase, `0.16–0.22em`.
+Type is **Pixelify Sans** (display, via `next/font/google`), **Space Grotesk** (UI), **Space Mono** (labels/figures), **Noto Sans** Devanagari for Hindi copy. Display size `clamp(2.4rem, 7.5vw, 6rem)`.
 
-Radius: pill buttons, 24px cards, 16px stat tiles. Elevation is a soft layered shadow; hover lifts cards with a slight `-0.4deg` tilt and a blue-tinted shadow. Grain is a fixed overlay (overlay blend, low opacity) — the blue has visible tooth, like the reference.
-
-Signature moves: the tilted electric-blue marquee band; the full-bleed blue method band with wavy SVG dividers top and bottom; the floating rotated "HIGH RISK" sticker on the hero product frame; pastel stat tiles; bouncy reveals.
+Radius: none — chamfered pixel corners via `clip-path` instead. Elevation is `6px 6px 0 #000` hard shadows; buttons press to `translate(4px,4px)`. Grain is CRT scanlines (fixed overlay). The boot bar fills in `steps(10)`.
 
 ## Motion
 
-Unchanged architecture: Lenis on the marketing page (`lerp` 0.1) drives ScrollTrigger. Hero items and section reveals now use `back.out(1.3–1.4)` — a springy pop instead of a polite rise. Example-day figures tick once. Buttons squash to 0.94 on press and lift on hover. Charts draw in. Routes fade 0.35s.
+Lenis (`lerp` 0.09) drives ScrollTrigger. Hero staggers in after the boot overlay; hero bg parallax scrubs; reveals are `power3/4.out`; counters tick with `power2.out`; Level 03 pins and rides horizontally with `scrub: 1`; marquee loops; `px-blink` pulses arcade prompts.
 
-`prefers-reduced-motion` skips Lenis, the reveals, the tickers, the marquee, and the chart draw. Focus is a 3px electric-blue ring.
+`prefers-reduced-motion` skips Lenis, reveals, counters, the horizontal pin, marquee, and blink. Focus is a 3px lime ring.
 
 ## Retired
 
-- The "Kagaz" warm-ledger system (2026-10-16): warm paper `#faf6ec`, postal red `#c0392b`, Fraunces. Replaced by Electric Play above after owner rejection.
+- The "Electric Play" Arc-referenced system (2026-10-16): electric blue `#1e1efa`, DM Serif Display, wavy dividers. Replaced by PIXEL/NEO above after owner rejection.
+- The "Kagaz" warm-ledger system (2026-10-16): warm paper `#faf6ec`, postal red `#c0392b`, Fraunces.
 - The dark "Signal" system (2026-10-16): near-black `#07080a`, phosphor `#d6ff4a`, Geist display.
 - The "Eloqwnt" imitation: retired earlier.
 - A separate Heron-referenced marketing redesign was built on `main` by mistake and reverted; `main` is back to the initial commit. All product work lives on this branch.
 
+Studied in Firefox at 1440×900 on 16 Oct 2026 (landing, method band, pricing, login wake screen).
 ## References
 
 | | Site | What makes it feel premium |
@@ -65,36 +69,3 @@ Unchanged architecture: Lenis on the marketing page (`lerp` 0.1) drives ScrollTr
 | 12 | [Framer](https://www.framer.com/) | Oversized type, motion that is the layout, not a decoration on a static page. ![Framer](docs/references/framer.jpg) |
 | 13 | [Godly](https://godly.website/) | A grid of current marketing sites. The ones that hold up are type-led and show the product. ![Godly](docs/references/godly.jpg) |
 | 14 | [Awwwards SOTD](https://www.awwwards.com/websites/sites_of_the_day/) | Recent winners earn the award with pacing and craft, not with a second typeface and a gradient mesh. ![Awwwards](docs/references/awwwards.jpg) |
-
-## Direction
-
-**Signal.** A dark instrument, not a gray brochure.
-
-Borrowed from Linear and Resend: hairline borders, small radius, mono labels, one accent. Borrowed from Mercury: the number is the headline. The accent is phosphor `#d6ff4a` on near-black, used for the primary action, the score, and focus. Risk stays written: Low, Medium, High.
-
-## Tokens
-
-| Token | Value | Role |
-| --- | --- | --- |
-| canvas | `#07080a` | Page |
-| card | `#121318` | Surfaces |
-| raised | `#1a1b20` | Active nav, nested wells |
-| line | `#2a2c33` | 1px borders |
-| ink | `#f4f4f5` | Text |
-| muted | `#9a9aa3` | Secondary |
-| accent | `#d6ff4a` | Primary, focus, score |
-| low | `#3dd68c` | Low band, with the word |
-| mid | `#f5c16c` | Medium band, with the word |
-| high | `#ff6b6b` | High band and destructive actions |
-
-Type is **Geist** and **Geist Mono** (Vercel, OFL). Hindi confirmation copy uses **Noto Sans** Devanagari. Display tracking is about `-0.045em`. Labels are 11px mono, uppercase, `0.16–0.22em`.
-
-Radius: 8px controls, 16px cards, 6px status chips. Spacing steps are 4, 8, 12, 16, 24, 32, 48, 80. Icons are Lucide, 15–16px, stroke 1.5.
-
-Elevation is a border plus, on the hero frame only, a soft phosphor glow. Grain is a fixed overlay at low opacity.
-
-## Motion
-
-Lenis on the marketing page (`lerp` 0.1) drives ScrollTrigger. The hero rises in 0.8s. Sections reveal on enter. Example-day figures tick once. Primary controls ease toward the pointer. Buttons scale to 0.98 on press. Charts draw in. Routes fade 0.35s.
-
-`prefers-reduced-motion` skips Lenis, the reveals, the tickers, the marquee, and the chart draw. Focus is a 2px phosphor ring.

@@ -17,24 +17,24 @@ export function RiskBadge({ band }: { band: string | null }) {
 
 export function Notice({ tone = 'warn', children }: { tone?: 'warn' | 'info' | 'good'; children: ReactNode }) {
   const tones = {
-    warn: 'border-mid/40 text-mid',
-    info: 'border-line text-muted',
-    good: 'border-low/40 text-low',
+    warn: 'border-warn text-warn',
+    info: 'border-cyan text-cyan',
+    good: 'border-lime text-lime',
   };
-  return <div className={`rounded-lg border bg-card px-4 py-3 text-sm leading-6 ${tones[tone]}`}>{children}</div>;
+  return <div className={`border-2 bg-panel px-4 py-3 font-mono text-sm leading-6 ${tones[tone]}`}>{children}</div>;
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1.5 block text-[0.75rem] font-medium uppercase tracking-[0.12em] text-muted">{label}</span>
+      <span className="mb-1.5 block font-mono text-[0.72rem] font-bold uppercase tracking-[0.14em] text-lime">{label}</span>
       {children}
     </label>
   );
 }
 
 export const inputClass =
-  'w-full rounded-2xl border-2 border-ink/15 bg-white px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-electric';
+  'w-full border-2 border-line bg-void px-4 py-3 font-mono text-sm text-ink outline-none transition placeholder:text-muted/60 focus:border-lime';
 
 export function Button({
   children,

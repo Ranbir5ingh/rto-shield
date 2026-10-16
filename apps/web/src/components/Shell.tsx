@@ -9,11 +9,11 @@ import { api } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
-  ['/app', 'Dashboard', LayoutDashboard],
-  ['/app/history', 'History', History],
-  ['/app/orders', 'Score', ScanLine],
-  ['/app/queue', 'Queue', ListChecks],
-  ['/app/settings', 'Settings', Settings],
+  ['/app', 'DASHBOARD', LayoutDashboard],
+  ['/app/history', 'HISTORY', History],
+  ['/app/orders', 'SCANNER', ScanLine],
+  ['/app/queue', 'QUEUE', ListChecks],
+  ['/app/settings', 'SETTINGS', Settings],
 ] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -46,40 +46,45 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[16rem_1fr]">
-      <aside className="border-b-2 border-ink lg:border-b-0 lg:border-r-2">
-        <div className="flex items-center justify-between gap-3 px-5 py-5 lg:block">
-          <Link href="/app" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-electric text-sm font-black text-white shadow-card">R</span>
-            <span className="font-display text-xl">RTO Shield</span>
+    <div className="px-grid min-h-screen bg-void lg:grid lg:grid-cols-[15rem_1fr]">
+      <aside className="border-b-2 border-lime lg:border-b-0 lg:border-r-2">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 lg:block">
+          <Link href="/app" className="flex items-center gap-2">
+            <span className="font-display text-lg font-bold text-lime">RTO▲SHIELD</span>
           </Link>
-          <p className="truncate text-xs font-semibold text-muted lg:mt-2">{user.shopName}</p>
+          <p className="truncate font-mono text-xs text-muted lg:mt-2">{user.shopName}</p>
         </div>
-        <nav className="flex flex-wrap gap-2 px-4 pb-4 lg:block lg:space-y-2 lg:px-4">
+        <nav className="flex flex-wrap gap-2 px-3 pb-3 lg:block lg:space-y-2 lg:px-3">
           {links.map(([href, label, Icon]) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-2.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                  active ? 'bg-electric text-white shadow-card' : 'text-ink/60 hover:bg-ink/5 hover:text-ink'
+                className={`px-cut-sm flex items-center gap-2.5 whitespace-nowrap border-2 px-3 py-2.5 font-mono text-xs font-bold tracking-wider transition ${
+                  active
+                    ? 'border-lime bg-lime text-void shadow-px'
+                    : 'border-transparent text-muted hover:border-line hover:text-ink'
                 }`}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 {label}
               </Link>
             );
           })}
         </nav>
-        <button type="button" onClick={logout} className="m-3 hidden items-center gap-2 text-sm text-muted hover:text-ink lg:flex">
-          <LogOut size={15} /> Log out
+        <button
+          type="button"
+          onClick={logout}
+          className="m-3 hidden items-center gap-2 font-mono text-xs text-muted transition hover:text-danger lg:flex"
+        >
+          <LogOut size={14} /> LOG OUT
         </button>
       </aside>
       <div>
         <div className="flex justify-end px-4 pt-3 lg:hidden">
-          <button type="button" onClick={logout} className="text-sm text-muted">
-            Log out
+          <button type="button" onClick={logout} className="font-mono text-xs text-muted">
+            LOG OUT
           </button>
         </div>
         <div className="mx-auto max-w-page px-4 pt-4 sm:px-6">
@@ -109,7 +114,7 @@ function StatusStrip({ status }: { status: Integrations | null }) {
     <Notice>
       <ul className="space-y-1">
         {notes.map((note) => (
-          <li key={note}>{note}</li>
+          <li key={note}>⚠ {note}</li>
         ))}
       </ul>
     </Notice>

@@ -1,16 +1,35 @@
 import type { Metadata } from 'next';
-import { GeistMono } from 'geist/font/mono';
-import { GeistSans } from 'geist/font/sans';
-import { DM_Serif_Display } from 'next/font/google';
+import { Pixelify_Sans, Space_Grotesk, Space_Mono, Noto_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
 
-const display = DM_Serif_Display({
+const pixel = Pixelify_Sans({
   subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['400'],
+  variable: '--font-pixel',
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
+
+const grotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-grotesk',
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
+
+const spacemono = Space_Mono({
+  subsets: ['latin'],
+  variable: '--font-spacemono',
+  weight: ['400', '700'],
+  display: 'swap',
+});
+
+const hindi = Noto_Sans({
+  subsets: ['devanagari', 'latin'],
+  variable: '--font-hindi',
+  weight: ['400', '500', '600'],
   display: 'swap',
 });
 
@@ -23,11 +42,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable} bg-canvas font-sans text-ink antialiased`}>
+      <body className={`${pixel.variable} ${grotesk.variable} ${spacemono.variable} ${hindi.variable} bg-void font-sans text-ink antialiased`}>
         <Script id="wake-backends" strategy="beforeInteractive">
           {landingWakeScript()}
         </Script>
-        <div className="grain" aria-hidden="true" />
+        <div className="scanlines" aria-hidden="true" />
         <WakeGate>{children}</WakeGate>
       </body>
     </html>

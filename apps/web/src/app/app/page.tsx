@@ -41,46 +41,46 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Shop</p>
-          <h1 className="mt-2 font-display font-medium text-display-2">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-lime">Shop · HUD</p>
+          <h1 className="mt-2 font-display text-4xl font-bold">DASHBOARD</h1>
+          <p className="mt-2 max-w-xl leading-6 text-muted">
             Saved rupees are cancelled Medium and High orders times your cost per RTO. It is an estimate, not a bank balance.
           </p>
         </div>
         <Link href="/app/history" className="pill pill-dark">
-          Add history
+          + ADD HISTORY
         </Link>
       </div>
       <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map(([label, value, hint]) => (
-          <article key={label} className="card spotlight p-6">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
-            <p className="mt-3 font-display text-4xl tabular-nums">{value}</p>
-            <p className="mt-2 text-xs leading-5 text-muted">{hint}</p>
+        {cards.map(([label, value, hint], i) => (
+          <article key={label} className={`card spotlight px-cut p-6 ${['border-lime', 'border-cyan', 'border-pink', 'border-yellow'][i]} border-2`}>
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
+            <p className="mt-3 font-display text-4xl font-bold tabular-nums">{value}</p>
+            <p className="mt-2 font-mono text-xs leading-5 text-muted">{hint}</p>
           </article>
         ))}
       </section>
-      <section className="grid gap-4 lg:grid-cols-5">
-        <article className="panel p-5 shadow-card lg:col-span-3">
-          <h2 className="font-semibold">RTO rate by week</h2>
-          <div className="mt-3">
+      <section className="grid gap-5 lg:grid-cols-5">
+        <article className="panel px-cut p-6 lg:col-span-3">
+          <h2 className="font-display text-xl font-bold text-lime">RTO RATE BY WEEK</h2>
+          <div className="mt-4">
             <TrendChart points={data.trend} />
           </div>
         </article>
-        <article className="panel p-5 shadow-card lg:col-span-2">
-          <h2 className="font-semibold">Pending risk</h2>
+        <article className="panel px-cut p-6 lg:col-span-2">
+          <h2 className="font-display text-xl font-bold text-cyan">PENDING RISK</h2>
           <div className="mt-4">
             <Distribution bands={data.distribution} />
           </div>
         </article>
       </section>
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className="panel p-5 shadow-card">
-          <h2 className="font-semibold">Top reasons</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+      <section className="grid gap-5 lg:grid-cols-2">
+        <article className="panel px-cut p-6">
+          <h2 className="font-display text-xl font-bold text-pink">TOP REASONS</h2>
+          <ul className="mt-4 space-y-2 font-mono text-sm">
             {data.topReasons.length ? (
               data.topReasons.map((reason) => (
                 <li key={reason.reason} className="flex justify-between gap-4">
@@ -93,8 +93,8 @@ export default function DashboardPage() {
             )}
           </ul>
         </article>
-        <article className="panel p-5 shadow-card">
-          <h2 className="font-semibold">Latest model check</h2>
+        <article className="panel px-cut p-6">
+          <h2 className="font-display text-xl font-bold text-yellow">LATEST MODEL CHECK</h2>
           {data.model ? (
             <div className="mt-3 space-y-2 text-sm leading-6">
               <p>

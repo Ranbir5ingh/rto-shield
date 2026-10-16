@@ -1,95 +1,105 @@
 'use client';
 
 import { useEffect } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export function useMarketingMotion(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let stopped = false;
-    let destroy = () => undefined;
 
-    void (async () => {
-      const [{ default: Lenis }, gsapMod, scrollMod] = await Promise.all([
-        import('lenis'),
-        import('gsap'),
-        import('gsap/ScrollTrigger'),
-      ]);
-      if (stopped) return;
-      const gsap = gsapMod.gsap;
-      const { ScrollTrigger } = scrollMod;
-      gsap.registerPlugin(ScrollTrigger);
-      const lenis = new Lenis({ lerp: 0.1, smoothWheel: true });
-      lenis.on('scroll', ScrollTrigger.update);
-      const ticker = (time: number) => lenis.raf(time * 1000);
-      gsap.ticker.add(ticker);
-      gsap.ticker.lagSmoothing(0);
+    const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
+    const raf = (time: number) => lenis.raf(time);
+    const rafId = requestAnimationFrame(function loop(time: number) {
+      raf(time);
+      requestAnimationFrame(loop);
+    });
+    lenis.on('scroll', ScrollTrigger.update);
 
+    const ctx = gsap.context(() => {
+      // Hero entrance — staggered, after the boot overlay lifts.
       gsap.from('[data-hero-item]', {
-        y: 28,
+        y: 44,
+        autoAlpha: 0,
         duration: 0.9,
-        stagger: 0.08,
-        ease: 'back.out(1.4)',
+        stagger: 0.09,
+        ease: 'power4.out',
+        delay: 1.15,
       });
 
-      document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((node) => {
+      // Hero background parallax.
+      gsap.to('[data-hero-bg]', {
+        yPercent: 14,
+        ease: 'none',
+        scrollTrigger: { trigger: '[data-hero-bg]', start: 'top top', end: 'bottom top', scrub: true },
+      });
+
+      // Section reveals.
+      gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((node) => {
         gsap.from(node, {
-          y: 36,
+          y: 48,
           autoAlpha: 0,
-          duration: 0.8,
-          ease: 'back.out(1.3)',
+          duration: 0.85,
+          ease: 'power3.out',
           scrollTrigger: { trigger: node, start: 'top 88%' },
         });
       });
 
-      document.querySelectorAll<HTMLElement>('[data-tick]').forEach((node) => {
-        const target = Number(node.dataset.tick || '0');
+      // Pixel counters.
+      gsap.utils.toArray<HTMLElement>('[data-count]').forEach((node) => {
+        const target = Number(node.dataset.count || '0');
         const prefix = node.dataset.prefix || '';
-        const suffix = node.dataset.suffix || '';
-        const state = { value: 0 };
-        gsap.to(state, {
-          value: target,
-          duration: 1.1,
-          ease: 'power2.out',
-          scrollTrigger: { trigger: node, start: 'top 85%' },
-          onUpdate: () => {
-            node.textContent = `${prefix}${Math.round(state.value).toLocaleString('en-IN')}${suffix}`;
+        const obj = { v: 0 };
+        ScrollTrigger.create({
+          trigger: node,
+          start: 'top 88%',
+          once: true,
+          onEnter: () => {
+            gsap.to(obj, {
+              v: target,
+              duration: 1.4,
+              ease: 'power2.out',
+              onUpdate: () => {
+                node.textContent = `${prefix}${Math.round(obj.v).toLocaleString('en-IN')}`;
+              },
+            });
           },
         });
       });
 
-      const cleanups: Array<() => void> = [];
-      document.querySelectorAll<HTMLElement>('[data-magnetic]').forEach((node) => {
-        const xTo = gsap.quickTo(node, 'x', { duration: 0.35, ease: 'power3.out' });
-        const yTo = gsap.quickTo(node, 'y', { duration: 0.35, ease: 'power3.out' });
-        const move = (event: PointerEvent) => {
-          const rect = node.getBoundingClientRect();
-          xTo((event.clientX - (rect.left + rect.width / 2)) * 0.18);
-          yTo((event.clientY - (rect.top + rect.height / 2)) * 0.28);
-        };
-        const leave = () => {
-          xTo(0);
-          yTo(0);
-        };
-        node.addEventListener('pointermove', move);
-        node.addEventListener('pointerleave', leave);
-        cleanups.push(() => {
-          node.removeEventListener('pointermove', move);
-          node.removeEventListener('pointerleave', leave);
+      // Level 03 — pinned horizontal ride.
+      const track = document.getElementById('level-3-track');
+      const pin = document.getElementById('level-3-pin');
+      if (track && pin) {
+        const getX = () => -(track.scrollWidth - window.innerWidth + 48);
+        gsap.to(track, {
+          x: getX,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: pin,
+            start: 'top top',
+            end: () => `+=${track.scrollWidth - window.innerWidth + 400}`,
+            pin: true,
+            scrub: 1,
+            invalidateOnRefresh: true,
+          },
         });
-      });
+      }
+    });
 
-      destroy = () => {
-        cleanups.forEach((fn) => fn());
-        ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-        gsap.ticker.remove(ticker);
-        lenis.destroy();
-      };
-    })();
+    const onRefresh = () => ScrollTrigger.refresh();
+    window.addEventListener('load', onRefresh);
 
     return () => {
-      stopped = true;
-      destroy();
+      window.removeEventListener('load', onRefresh);
+      cancelAnimationFrame(rafId);
+      lenis.destroy();
+      ctx.revert();
+      ScrollTrigger.getAll().forEach((t) => t.kill());
     };
   }, [enabled]);
 }
