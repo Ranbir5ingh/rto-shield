@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Search, Settings } from 'lucide-react';
+import { LogoMark } from '@/components/Logo';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
@@ -110,21 +111,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.replace('/');
   }
 
-  if (!user) {
-    return (
-      <div className="mx-auto max-w-page space-y-4 px-4 py-8" aria-busy="true" aria-label="Opening your shop">
-        <Skeleton className="h-14" />
-        <Skeleton className="h-40" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-black lg:grid lg:grid-cols-[76px_1fr]">
-      <aside className="fixed inset-x-0 bottom-0 z-[70] border-t border-line bg-black/90 backdrop-blur-md lg:static lg:inset-auto lg:border-r lg:border-t-0 lg:bg-black lg:backdrop-blur-none">
-        <div className="flex items-center justify-around px-2 py-2 lg:h-screen lg:flex-col lg:justify-start lg:gap-1 lg:px-0 lg:py-6">
+    <div className="flex h-dvh flex-col overflow-hidden bg-black text-white">
+      {/* Sidebar — fixed: bottom dock on mobile, left rail on desktop. Never scrolls. */}
+      <aside className="fixed inset-x-0 bottom-0 z-[70] border-t border-line bg-black lg:inset-y-0 lg:left-0 lg:right-auto lg:w-[76px] lg:border-r lg:border-t-0">
+        <div className="flex items-center justify-around px-2 py-2 lg:h-full lg:flex-col lg:justify-start lg:gap-1 lg:py-6">
           <Link href="/app" className="mb-0 hidden lg:mb-8 lg:block" aria-label="RTO Shield home">
-            <span className="grid h-10 w-10 place-items-center bg-go font-display text-base font-black text-black">R</span>
+            <LogoMark size={36} />
           </Link>
           {links.map(([href, label, , Icon]) => {
             const active = pathname === href;
@@ -159,38 +152,62 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="pb-20 lg:pb-0">
-        <div className="sticky top-0 z-[60] border-b border-line bg-black/85 backdrop-blur-md">
+      {/* Right column — fixed viewport. Only <main> scrolls. */}
+      <div className="flex min-h-0 flex-1 flex-col pb-[64px] lg:pb-0 lg:pl-[76px]">
+        <header className="z-[60] shrink-0 border-b border-line bg-black">
           <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
-            <div className="flex items-center gap-3">
-              <Link href="/app" className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black lg:hidden">
-                R
+            <div className="flex min-w-0 items-center gap-3">
+              <Link href="/app" className="shrink-0 lg:hidden" aria-label="RTO Shield home">
+                <LogoMark size={30} />
               </Link>
-              <div>
-                <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
-                <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-                  <span className="live-dot" /> Systems nominal
-                </p>
-              </div>
+              {user ? (
+                <div className="min-w-0">
+                  <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
+                  <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+                    <span className="live-dot" /> Systems nominal
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5" aria-hidden="true">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              )}
             </div>
             <button
               type="button"
               onClick={() => setPalette(true)}
-              className="flex items-center gap-2.5 border border-line px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted transition hover:border-white/40 hover:text-white"
+              className="flex shrink-0 items-center gap-2.5 border border-line px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted transition hover:border-white/40 hover:text-white"
             >
               <Search size={13} />
               <span className="hidden sm:inline">Jump to…</span>
               <kbd className="border border-line px-1.5 py-0.5 text-[10px]">⌘K</kbd>
             </button>
           </div>
-        </div>
+        </header>
 
         {palette && <CommandPalette onClose={() => setPalette(false)} />}
 
-        <div className="mx-auto max-w-page px-5 pt-5 sm:px-8">
-          <StatusStrip status={status} />
-        </div>
-        <main className="mx-auto max-w-page px-5 pb-16 sm:px-8">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black">
+          <div className="mx-auto max-w-page px-5 sm:px-8">
+            <div className="pt-5">
+              <StatusStrip status={status} />
+            </div>
+            {user ? (
+              <div className="pb-16 pt-1">{children}</div>
+            ) : (
+              <div className="space-y-4 pb-16 pt-1" aria-busy="true" aria-label="Opening your shop">
+                <Skeleton className="h-10 w-64" />
+                <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <Skeleton key={i} className="h-32" />
+                  ))}
+                </div>
+                <Skeleton className="h-56" />
+              </div>
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );

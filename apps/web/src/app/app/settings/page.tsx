@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Field, Notice, inputClass } from '@/components/ui';
+import { Button, Dropdown, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api, downloadExport } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
 
@@ -78,11 +78,16 @@ export default function SettingsPage() {
           <input className={inputClass} type="number" min={0} value={user.rtoCostInr} onChange={(event) => setUser({ ...user, rtoCostInr: Number(event.target.value) })} />
         </Field>
         <Field label="Default confirmation language">
-          <select className={inputClass} value={user.messageLanguage} onChange={(event) => setUser({ ...user, messageLanguage: event.target.value as PublicUser['messageLanguage'] })}>
-            <option value="hinglish">Hinglish</option>
-            <option value="hindi">Hindi</option>
-            <option value="english">English</option>
-          </select>
+          <Dropdown
+            label="Default confirmation language"
+            value={user.messageLanguage}
+            onChange={(v) => setUser({ ...user, messageLanguage: v as PublicUser['messageLanguage'] })}
+            options={[
+              { value: 'hinglish', label: 'Hinglish' },
+              { value: 'hindi', label: 'Hindi' },
+              { value: 'english', label: 'English' },
+            ]}
+          />
         </Field>
         <Button type="submit">Save</Button>
       </form>

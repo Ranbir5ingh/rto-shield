@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button, CopyButton, Notice, RiskBadge, Skeleton } from '@/components/ui';
+import { Button, CopyButton, Notice, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderDetail, PublicUser } from '@/lib/types';
@@ -92,11 +92,16 @@ export default function QueuePage() {
         </div>
         <label className="text-sm">
           Message
-          <select className="ml-2 rounded-lg border border-line bg-canvas px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as PublicUser['messageLanguage'])}>
-            <option value="hinglish">Hinglish</option>
-            <option value="hindi">Hindi</option>
-            <option value="english">English</option>
-          </select>
+          <Dropdown
+            label="Message language"
+            value={language}
+            onChange={(v) => setLanguage(v as PublicUser['messageLanguage'])}
+            options={[
+              { value: 'hinglish', label: 'Hinglish' },
+              { value: 'hindi', label: 'Hindi' },
+              { value: 'english', label: 'English' },
+            ]}
+          />
         </label>
       </div>
       {error ? <Notice>{error}</Notice> : null}

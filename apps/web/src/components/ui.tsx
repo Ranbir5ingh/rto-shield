@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 
 export function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse bg-white/5 ${className}`} aria-hidden="true" />;
@@ -105,6 +106,108 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={`${inputCls} ${props.className ?? ''}`} />;
+}
+
+export function Dropdown({
+  value,
+  options,
+  onChange,
+  label,
+  placeholder = '—',
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [focusIdx, setFocusIdx] = useState(-1);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open ]);
+
+  function pick(v: string) {
+    onChange(v);
+    setOpen(false);
+    setFocusIdx(-1);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen(true);
+            setFocusIdx(Math.max(0, options.findIndex((o) => o.value === value)));
+          }
+        }}
+        className={`${inputCls} flex cursor-pointer items-center justify-between gap-3 text-left`}
+      >
+        <span className={selected ? 'text-white' : 'text-muted/60'}>{selected?.label ?? placeholder}</span>
+        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto border border-line bg-panel py-1 shadow-[0_16px_48px_rgba(0,0,0,0.8)]"
+        >
+          {options.map((o, i) => {
+            const active = o.value === value;
+            return (
+              <li key={o.value} role="option" aria-selected={active}>
+                <button
+                  type="button"
+                  onClick={() => pick(o.value)}
+                  onMouseEnter={() => setFocusIdx(i)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setFocusIdx((f) => Math.min(options.length - 1, f + 1));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setFocusIdx((f) => Math.max(0, f - 1));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      pick(options[focusIdx >= 0 ? focusIdx : i].value);
+                    }
+                  }}
+                  className={`flex w-full items-center justify-between px-4 py-3 text-left font-mono text-xs uppercase tracking-[0.14em] transition ${
+                    i === focusIdx ? 'bg-white/10 text-white' : active ? 'text-go' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {o.label}
+                  {active && <Check size={14} className="text-go" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {

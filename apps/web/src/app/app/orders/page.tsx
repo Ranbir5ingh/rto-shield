@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
-import { Button, Field, Notice, RiskBadge, Skeleton, inputClass } from '@/components/ui';
+import { Button, Dropdown, Field, Notice, RiskBadge, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderSummary } from '@/lib/types';
@@ -116,10 +116,15 @@ export default function OrdersPage() {
           <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
         </Field>
         <Field label="Payment">
-          <select className={inputClass} value={form.paymentType} onChange={(event) => set('paymentType', event.target.value)}>
-            <option value="cod">Cash on delivery</option>
-            <option value="prepaid">Prepaid</option>
-          </select>
+          <Dropdown
+            label="Payment"
+            value={form.paymentType}
+            onChange={(v) => set('paymentType', v)}
+            options={[
+              { value: 'cod', label: 'Cash on delivery' },
+              { value: 'prepaid', label: 'Prepaid' },
+            ]}
+          />
         </Field>
         <Field label="Prior orders">
           <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />

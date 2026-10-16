@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ArrowRight, Menu, X } from 'lucide-react';
+import { LogoMark } from '@/components/Logo';
 
 const links = [
   ['#gap', 'The gap'],
@@ -39,7 +40,7 @@ export function SiteHeader() {
       >
         <div className="mx-auto flex max-w-page items-center justify-between px-5 py-4 sm:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label="RTO Shield home">
-            <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+            <LogoMark size={30} />
             <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
           </Link>
           <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
@@ -79,7 +80,7 @@ export function SiteHeader() {
         <div className="fixed inset-0 z-[100] flex flex-col bg-black" role="dialog" aria-label="Menu">
           <div className="flex items-center justify-between px-5 py-4">
             <span className="flex items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+              <LogoMark size={30} />
               <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
             </span>
             <button

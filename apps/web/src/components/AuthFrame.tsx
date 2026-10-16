@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { OrderRain } from '@/components/OrderRain';
+import { LogoMark } from '@/components/Logo';
 import { Eyebrow, Flag, LabelChip } from '@/components/ui';
 
 export function AuthFrame({
@@ -17,7 +18,7 @@ export function AuthFrame({
       <OrderRain columns={6} />
       <aside className="relative hidden border-r border-line lg:flex lg:flex-col lg:justify-between lg:p-12">
         <Link href="/" className="relative flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+          <LogoMark size={30} />
           <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
         </Link>
         <div className="relative max-w-md">
@@ -45,7 +46,7 @@ export function AuthFrame({
       </aside>
       <div className="relative flex flex-col justify-center px-5 py-12 sm:px-12">
         <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden">
-          <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+          <LogoMark size={30} />
           <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
         </Link>
         <div className="mx-auto w-full max-w-md">
