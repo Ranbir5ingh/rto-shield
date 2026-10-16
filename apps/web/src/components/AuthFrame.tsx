@@ -20,7 +20,7 @@ export function AuthFrame({
         </Link>
         <div className="relative max-w-md">
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent">Before the tape gun</p>
-          <p className="mt-4 font-medium text-display-2">Score the order. Confirm the risky ones. Ship the rest.</p>
+          <p className="mt-4 font-display font-medium text-display-2">Score the order. Confirm the risky ones. Ship the rest.</p>
           <div className="mt-8 space-y-2">
             {[
               ['S1042', 'High', '78'],
@@ -43,7 +43,7 @@ export function AuthFrame({
           RTO Shield
         </Link>
         <div className="mx-auto w-full max-w-md">
-          <h1 className="font-medium text-display-2">{title}</h1>
+          <h1 className="font-display font-medium text-display-2">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{lede}</p>
           <div className="mt-8">{children}</div>
         </div>

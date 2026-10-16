@@ -6,7 +6,7 @@ export default function PrivacyPage() {
       <SiteHeader />
       <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
       <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Privacy</p>
-      <h1 className="mt-3 font-medium text-display-2">What leaves the shop</h1>
+      <h1 className="mt-3 font-display font-medium text-display-2">What leaves the shop</h1>
       <div className="mt-8 space-y-5 text-base leading-7 text-ink/80">
         <p>
           Buyer phone numbers and street addresses are encrypted at rest with AES-GCM. The key comes from

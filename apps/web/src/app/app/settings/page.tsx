@@ -64,7 +64,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="font-medium text-display-2">Settings</h1>
+      <h1 className="font-display font-medium text-display-2">Settings</h1>
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
       <form onSubmit={save} className="panel space-y-3 p-5 shadow-card">

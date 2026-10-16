@@ -1,10 +1,18 @@
 import type { Metadata } from 'next';
 import { GeistMono } from 'geist/font/mono';
 import { GeistSans } from 'geist/font/sans';
+import { Fraunces } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
+
+const display = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['400', '500', '600'],
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'RTO Shield — stop paying for orders that come back',
@@ -15,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${GeistSans.variable} ${GeistMono.variable} bg-canvas font-sans text-ink antialiased`}>
+      <body className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable} bg-canvas font-sans text-ink antialiased`}>
         <Script id="wake-backends" strategy="beforeInteractive">
           {landingWakeScript()}
         </Script>

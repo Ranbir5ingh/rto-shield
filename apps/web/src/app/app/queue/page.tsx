@@ -85,7 +85,7 @@ export default function QueuePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-medium text-display-2">Confirmation queue</h1>
+          <h1 className="font-display font-medium text-display-2">Confirmation queue</h1>
           <p className="mt-2 max-w-2xl text-sm text-ink/70">
             WhatsApp opens with the text filled in. RTO Shield does not send it. Mark what the buyer said — cancelled and confirmed orders teach the next score.
           </p>

@@ -23,14 +23,14 @@ export function Landing() {
       <SiteHeader />
       <main>
         <section className="relative overflow-hidden">
-          <div className="hero-grid pointer-events-none absolute inset-0" aria-hidden="true" />
-          <div className="pointer-events-none absolute left-1/2 top-0 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" aria-hidden="true" />
+          <div className="ledger-rules pointer-events-none absolute inset-0" aria-hidden="true" />
+          <div className="pointer-events-none absolute left-1/2 top-0 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" aria-hidden="true" />
           <div className="relative mx-auto grid max-w-page items-end gap-12 px-5 pb-16 pt-16 sm:px-8 sm:pt-24 lg:grid-cols-[1.05fr_0.95fr] lg:pt-28">
             <div>
               <p data-hero-item className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent">
                 Cash on delivery · before the tape gun
               </p>
-              <h1 data-hero-item className="mt-4 max-w-xl font-medium text-display-1">
+              <h1 data-hero-item className="mt-4 max-w-xl font-display font-medium text-display-1">
                 Stop paying ₹150 for orders that come back.
               </h1>
               <p data-hero-item className="mt-6 max-w-md text-base leading-7 text-muted">
@@ -59,7 +59,7 @@ export function Landing() {
           <div className="mb-8 flex items-end justify-between gap-6" data-reveal>
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Product</p>
-              <h2 className="mt-2 max-w-lg font-medium text-display-2">A desk that shows the risk before the parcel leaves.</h2>
+              <h2 className="mt-2 max-w-lg font-display font-medium text-display-2">A desk that shows the risk before the parcel leaves.</h2>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-6">
@@ -68,7 +68,9 @@ export function Landing() {
                 <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">Live score</p>
                 <ScanLine size={16} className="text-accent" />
               </div>
-              <p className="mt-6 font-mono text-6xl tracking-tight text-accent">78</p>
+              <p className="mt-6 font-mono text-6xl tracking-tight tabular-nums">
+                <span className="stamp text-accent">78</span>
+              </p>
               <p className="mt-2 text-sm text-muted">S1042 · ₹1,599 COD · High</p>
               <ul className="mt-6 space-y-2 text-sm text-muted">
                 <li>First-time buyer, cash on delivery</li>
@@ -119,7 +121,7 @@ export function Landing() {
 
         <section className="mx-auto max-w-page px-5 py-20 sm:px-8">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Example day</p>
-          <h2 className="mt-2 max-w-xl font-medium text-display-2">40 COD orders. 8 come back.</h2>
+          <h2 className="mt-2 max-w-xl font-display font-medium text-display-2">40 COD orders. 8 come back.</h2>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {[
               ['40', '', 'Packed'],
@@ -144,7 +146,7 @@ export function Landing() {
           <div className="card flex flex-col items-start justify-between gap-8 p-6 sm:flex-row sm:items-end sm:p-10" data-reveal>
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Suggested price</p>
-              <h2 className="mt-2 font-medium text-display-1">₹499<span className="text-2xl text-muted">/mo</span></h2>
+              <h2 className="mt-2 font-display font-medium text-display-1">₹499<span className="text-2xl text-muted">/mo</span></h2>
               <p className="mt-4 max-w-md text-sm leading-7 text-muted">
                 Scoring, the confirmation queue, export, and delete. TabPFN, Gemma, ElevenLabs, and SerpApi keys are yours if you want them. This build does not take a card.
               </p>
@@ -154,7 +156,7 @@ export function Landing() {
         </section>
 
         <section className="mx-auto max-w-page px-5 pb-20 sm:px-8">
-          <h2 className="font-medium text-display-2">Questions</h2>
+          <h2 className="font-display font-medium text-display-2">Questions</h2>
           <div className="mt-6 divide-y divide-line border-y border-line">
             {faqs.map(([q, a]) => (
               <details key={q} className="group py-5">
@@ -184,10 +186,10 @@ export function Landing() {
 
 function ProductFrame() {
   return (
-    <div data-hero-item className="card relative overflow-hidden p-4 shadow-card shadow-glow sm:p-5">
-      <div className="mb-4 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
-        <span>Asha Studio</span>
-        <span className="text-low">Model · TabPFN</span>
+    <div data-hero-item className="card relative overflow-hidden p-4 shadow-card sm:p-5">
+      <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+        <span className="text-[11px] uppercase tracking-[0.16em] text-muted">Asha Studio · Ledger</span>
+        <span className="stamp font-mono text-xs font-semibold uppercase tracking-wide text-high">High · 78</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {[
@@ -195,25 +197,25 @@ function ProductFrame() {
           ['Saved', '₹12.4k'],
           ['Queue', '7'],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-lg bg-canvas p-3">
+          <div key={label} className="rounded-lg bg-raised p-3">
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
-            <p className="mt-1 font-mono text-xl tracking-tight">{value}</p>
+            <p className="mt-1 font-mono text-xl tracking-tight tabular-nums">{value}</p>
           </div>
         ))}
       </div>
       <svg viewBox="0 0 320 90" className="mt-4 h-24 w-full" role="img" aria-label="Weekly RTO rate trending down">
-        <path d="M8 20 L70 38 L130 30 L190 55 L250 46 L312 68" fill="none" stroke="#d6ff4a" strokeWidth="2" className="chart-line" />
+        <path d="M8 20 L70 38 L130 30 L190 55 L250 46 L312 68" fill="none" stroke="#c0392b" strokeWidth="2" pathLength="1" className="chart-line" />
       </svg>
-      <div className="mt-2 space-y-2">
+      <div className="mt-2 divide-y divide-line border-t border-line">
         {[
           ['S1042', 'High', '78'],
           ['S1048', 'Low', '22'],
           ['S1051', 'Medium', '51'],
         ].map(([id, band, score]) => (
-          <div key={id} className="flex items-center justify-between rounded-lg bg-canvas px-3 py-2 text-sm">
+          <div key={id} className="flex items-center justify-between px-1 py-2.5 text-sm">
             <span className="font-mono text-xs text-muted">{id}</span>
             <span className={band === 'High' ? 'text-high' : band === 'Medium' ? 'text-mid' : 'text-low'}>{band}</span>
-            <span className="font-mono">{score}</span>
+            <span className="font-mono tabular-nums">{score}</span>
           </div>
         ))}
       </div>

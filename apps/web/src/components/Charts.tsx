@@ -21,12 +21,12 @@ export function TrendChart({
   const labelEvery = coords.length > 8 ? Math.ceil(coords.length / 6) : 1;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Weekly RTO rate">
-      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#d6ff4a" strokeWidth="2" />
+      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#c0392b" strokeWidth="2" />
       {coords.map((point, index) => (
         <g key={point.label + point.x}>
-          <circle cx={point.x} cy={point.y} r="3.5" fill="#d6ff4a" />
+          <circle cx={point.x} cy={point.y} r="3.5" fill="#c0392b" />
           {index % labelEvery === 0 ? (
-            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#9a9aa3">
+            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#6e6357">
               {point.label}
             </text>
           ) : null}

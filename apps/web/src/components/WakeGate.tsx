@@ -44,7 +44,7 @@ export function WakeScreen({
     <div className={`wake-screen fixed inset-0 z-[70] flex items-center justify-center bg-canvas px-6 ${leaving ? 'is-leaving' : ''}`}>
       <div className="w-full max-w-lg">
         <p className="text-xs uppercase tracking-[0.22em] text-muted">RTO Shield</p>
-        <h1 className="mt-4 font-medium text-display-2">Getting the servers ready</h1>
+        <h1 className="mt-4 font-display font-medium text-display-2">Getting the servers ready</h1>
         <div className="mt-6" role="status" aria-live="polite" aria-busy={!failed}>
           <p className="text-base leading-7 text-muted">{failed ? 'The servers did not wake in time.' : message}</p>
         </div>

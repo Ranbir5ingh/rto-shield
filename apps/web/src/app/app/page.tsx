@@ -45,7 +45,7 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">Shop</p>
-          <h1 className="mt-2 font-medium text-display-2">Dashboard</h1>
+          <h1 className="mt-2 font-display font-medium text-display-2">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">
             Saved rupees are cancelled Medium and High orders times your cost per RTO. It is an estimate, not a bank balance.
           </p>

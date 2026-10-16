@@ -84,7 +84,7 @@ export default function OrdersPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-medium text-display-2">Score pending orders</h1>
+          <h1 className="font-display font-medium text-display-2">Score pending orders</h1>
           <p className="mt-2 text-sm text-ink/70">Low scores can ship. Medium and High go to the confirmation queue.</p>
         </div>
         <Button type="button" onClick={score} disabled={pending}>

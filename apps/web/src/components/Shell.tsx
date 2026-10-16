@@ -62,7 +62,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition ${active ? 'bg-raised text-ink shadow-[inset_2px_0_0_#d6ff4a]' : 'text-muted hover:bg-raised/70 hover:text-ink'}`}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition ${active ? 'bg-raised text-ink shadow-[inset_2px_0_0_#c0392b]' : 'text-muted hover:bg-raised/70 hover:text-ink'}`}
               >
                 <Icon size={15} />
                 {label}
