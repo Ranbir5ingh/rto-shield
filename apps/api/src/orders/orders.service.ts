@@ -432,8 +432,13 @@ export class OrdersService {
           priorRtos: signal.priorRtos,
           productName: order.productName,
           courier: order.courier,
-          stage: order.stage,
-          outcome: order.outcome,
+          stage: order.stage === 'pending' ? 'pending' : 'history',
+          outcome:
+            order.outcome === 'rto' || order.outcome === 'cancelled'
+              ? 'rto'
+              : order.outcome === 'delivered' || order.outcome === 'confirmed'
+                ? 'delivered'
+                : null,
         };
       });
       result = scoreWithRules(prepared);
