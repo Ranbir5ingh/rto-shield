@@ -104,9 +104,17 @@ def _sklearn(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> np
     return _positive_proba(clf, clf.predict_proba(X_test))
 
 
-def _fit_predict(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> tuple[np.ndarray, str, str]:
+def _fit_predict(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    *,
+    fast: bool = False,
+) -> tuple[np.ndarray, str, str]:
     X_fit, y_fit = _subsample(X_train, y_train, settings.tabpfn_max_rows)
-    if settings.tabpfn_token and module_available("tabpfn_client"):
+    # The demo shop must return inside the web proxy budget. TabPFN is two
+    # remote fits (held-out, then full) and is reserved for an explicit Score.
+    if not fast and settings.tabpfn_token and module_available("tabpfn_client"):
         try:
             with traced(
                 "ai.tabpfn",
@@ -121,10 +129,10 @@ def _fit_predict(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -
             return probs, "tabpfn-client", "TabPFN (Prior Labs) trained in-context on this shop's history."
         except Exception as exc:  # noqa: BLE001
             log.warning("tabpfn_client_failed %s", type(exc).__name__)
-    elif settings.tabpfn_token and not module_available("tabpfn_client"):
+    elif not fast and settings.tabpfn_token and not module_available("tabpfn_client"):
         log.info("tabpfn_token_set_but_client_missing")
 
-    if module_available("tabpfn"):
+    if not fast and module_available("tabpfn"):
         try:
             with traced(
                 "ai.tabpfn",
@@ -152,14 +160,25 @@ def _fit_predict(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -
         model="sklearn-gradient-boosting",
     ):
         probs = _sklearn(X_train, y_train, X_test)
-    label = (
-        "Deterministic fallback (scikit-learn gradient boosting). "
-        "TabPFN was not used — set TABPFN_TOKEN for the Prior Labs API, or install the local tabpfn package."
-    )
+    if fast:
+        label = (
+            "Fast demo score (scikit-learn gradient boosting). "
+            "TabPFN runs when you press Score, not while the demo shop opens."
+        )
+    else:
+        label = (
+            "Deterministic fallback (scikit-learn gradient boosting). "
+            "TabPFN was not used — set TABPFN_TOKEN for the Prior Labs API, or install the local tabpfn package."
+        )
     return probs, "sklearn-gradient-boosting", label
 
 
-def score_orders(history: Sequence[dict[str, Any]], pending: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def score_orders(
+    history: Sequence[dict[str, Any]],
+    pending: Sequence[dict[str, Any]],
+    *,
+    fast: bool = False,
+) -> dict[str, Any]:
     warnings: list[str] = []
     labeled = [row for row in history if row.get("label") in (0, 1)]
     if len(labeled) < settings.min_train_rows or len({int(row["label"]) for row in labeled}) < 2:
@@ -185,7 +204,7 @@ def score_orders(history: Sequence[dict[str, Any]], pending: Sequence[dict[str, 
         y_train = np.asarray([y_all[i] for i in train_idx], dtype=int)
         X_test = np.asarray([vector(labeled[i]) for i in test_idx], dtype=float)
         y_test = [y_all[i] for i in test_idx]
-        test_probs, model_name, model_label = _fit_predict(X_train, y_train, X_test)
+        test_probs, model_name, model_label = _fit_predict(X_train, y_train, X_test, fast=fast)
         metrics = {
             "auc": roc_auc(y_test, test_probs.tolist()),
             "precision_at_top_10pct": precision_at_top_fraction(y_test, test_probs.tolist(), 0.1),
@@ -201,7 +220,12 @@ def score_orders(history: Sequence[dict[str, Any]], pending: Sequence[dict[str, 
     X_full = np.asarray([vector(row) for row in labeled], dtype=float)
     y_full = np.asarray(y_all, dtype=int)
     X_pending = np.asarray([vector(row) for row in pending], dtype=float) if pending else np.zeros((0, len(FEATURE_COLUMNS)))
-    probs, model_name, model_label = _fit_predict(X_full, y_full, X_pending if len(X_pending) else np.zeros((1, len(FEATURE_COLUMNS))))
+    probs, model_name, model_label = _fit_predict(
+        X_full,
+        y_full,
+        X_pending if len(X_pending) else np.zeros((1, len(FEATURE_COLUMNS))),
+        fast=fast,
+    )
     if not len(X_pending):
         probs = np.asarray([])
     predictions = [_pack(row, float(p), model_name) for row, p in zip(pending, probs, strict=False)]

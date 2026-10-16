@@ -47,7 +47,7 @@ export class AuthController {
     let notice: string | null = null;
     try {
       await this.orders.loadSample(user);
-      const result = await this.orders.score(user);
+      const result = await this.orders.score(user, { fast: true });
       scored = result.scored > 0;
       if (!scored) notice = 'Sample orders are in the shop. Score them once the model is awake.';
     } catch {

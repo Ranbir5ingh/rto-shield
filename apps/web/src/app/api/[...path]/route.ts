@@ -47,9 +47,15 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   let upstream: Response;
   try {
     upstream = await fetch(target, { ...init, signal: controller.signal });
-  } catch {
+  } catch (error) {
+    const aborted = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError');
     return NextResponse.json(
-      { ok: false, error: 'The API did not respond. It may still be waking up.' },
+      {
+        ok: false,
+        error: aborted
+          ? 'The API took too long to answer. Try again in a moment.'
+          : 'The API did not respond. It may still be waking up.',
+      },
       { status: 504, headers: { 'cache-control': 'no-store' } },
     );
   } finally {

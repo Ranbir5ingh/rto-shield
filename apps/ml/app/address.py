@@ -204,14 +204,24 @@ def apply_quality(order: dict[str, Any], quality: dict[str, Any]) -> dict[str, A
     return merged
 
 
-async def annotate(orders: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str, list[str]]:
+async def annotate(
+    orders: list[dict[str, Any]],
+    *,
+    llm: bool | None = None,
+) -> tuple[list[dict[str, Any]], str, list[str]]:
     warnings: list[str] = []
     if not orders:
         return [], "heuristic", warnings
-    use_llm = bool(settings.ollama_base_url or settings.gemini_api_key)
+    # llm=False is the demo path: never wait on Gemma while the shop is opening.
+    use_llm = (bool(settings.ollama_base_url or settings.gemini_api_key) if llm is None else llm)
     if not use_llm:
         done = [apply_quality(order, heuristic_address(order.get("address", ""), order.get("pincode", ""), order.get("city", ""), order.get("state", ""))) for order in orders]
-        return done, "heuristic", ["Address quality used local rules. Set OLLAMA_BASE_URL (privacy-max) or GEMINI_API_KEY for Gemma."]
+        note = (
+            "Address quality used local rules."
+            if llm is False
+            else "Address quality used local rules. Set OLLAMA_BASE_URL (privacy-max) or GEMINI_API_KEY for Gemma."
+        )
+        return done, "heuristic", [note]
 
     by_id: dict[str, dict[str, Any]] = {}
     source = "ollama" if settings.ollama_base_url else "gemini"

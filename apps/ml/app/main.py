@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,6 +64,7 @@ class OrderIn(BaseModel):
 class PredictRequest(BaseModel):
     history: list[OrderIn] = Field(default_factory=list, max_length=5000)
     pending: list[OrderIn] = Field(default_factory=list, max_length=500)
+    speed: Literal["full", "fast"] = "full"
 
 
 class MessageOrder(BaseModel):
@@ -111,9 +112,10 @@ async def predict(
         },
     ):
         # Address text stays inside this service. Only quality flags enter the model matrix.
-        annotated_history, source_h, warn_h = await annotate(history)
-        annotated_pending, source_p, warn_p = await annotate(pending)
-        result = score_orders(annotated_history, annotated_pending)
+        fast = body.speed == "fast"
+        annotated_history, source_h, warn_h = await annotate(history, llm=False if fast else None)
+        annotated_pending, source_p, warn_p = await annotate(pending, llm=False if fast else None)
+        result = score_orders(annotated_history, annotated_pending, fast=fast)
     result["address_source"] = source_p if pending else source_h
     result["warnings"] = [*warn_h, *warn_p, *result["warnings"]]
     # Do not echo raw addresses back.

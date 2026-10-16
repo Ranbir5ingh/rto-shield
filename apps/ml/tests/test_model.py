@@ -7,6 +7,7 @@ from app.features import FEATURE_COLUMNS, rules_probability
 from app.main import app
 from app.messages import safe_voice_script, template_messages
 from app.metrics import precision_at_top_fraction, roc_auc
+from app.config import settings
 from app.predictors import score_orders
 from app.reasons import band_for
 from app.sample import generate, outcome_rates
@@ -76,6 +77,21 @@ def test_sample_cod_returns_more_than_prepaid():
     data = generate(360, 10, seed=42)
     rates = outcome_rates(data["history"])
     assert rates["cod_rto_rate"] > rates["prepaid_rto_rate"] + 0.15
+
+
+def test_fast_score_does_not_call_tabpfn(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise AssertionError("TabPFN must not run on the fast path")
+
+    monkeypatch.setattr("app.predictors._try_tabpfn_client", boom)
+    monkeypatch.setattr("app.predictors._try_tabpfn_local", boom)
+    monkeypatch.setattr(settings, "tabpfn_token", "present")
+    monkeypatch.setattr("app.predictors.module_available", lambda name: name in {"tabpfn_client", "tabpfn"})
+    data = generate(80, 6, seed=42)
+    result = score_orders(data["history"], data["pending"], fast=True)
+    assert result["model"] == "sklearn-gradient-boosting"
+    assert "Fast demo score" in result["model_label"]
+    assert len(result["predictions"]) == 6
 
 
 def test_sklearn_held_out_auc_on_sample():

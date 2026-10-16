@@ -161,7 +161,7 @@ export class OrdersService {
     return this.toDetail(user, order);
   }
 
-  async score(user: UserDocument) {
+  async score(user: UserDocument, options?: { fast?: boolean }) {
     const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
     if (!pending.length) {
       const latest = await this.latestModel(user);
@@ -206,14 +206,19 @@ export class OrdersService {
       }),
     );
 
-    const result = await this.ml.predict(historyPayload, pendingPayload);
+    const fast = options?.fast === true;
+    const result = await this.ml.predict(historyPayload, pendingPayload, {
+      speed: fast ? 'fast' : 'full',
+      timeoutMs: fast ? 12_000 : 60_000,
+    });
     const byId = new Map(result.predictions.map((row) => [row.id, row]));
     const risky = pending.filter((order) => {
       const band = byId.get(String(order._id))?.band;
       return band === 'High' || band === 'Medium';
     });
     const drafts = new Map<string, DraftMessage>();
-    if (risky.length) {
+    // Demo opening stays on local templates. Gemma drafts happen on an explicit Score.
+    if (risky.length && !fast) {
       try {
         const generated = await this.ml.messages(
           user.shopName,

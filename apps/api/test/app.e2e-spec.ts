@@ -229,6 +229,8 @@ describe('RTO Shield API', () => {
     expect(opened.body.user.shopName).toBe('Asha Studio');
     expect(opened.body.user.email).toMatch(/@demo\.rtoshield\.tech$/);
     expect(opened.body.scored).toBe(true);
+    const demoCall = fakeMl.predict.mock.calls.at(-1);
+    expect(demoCall?.[2]).toEqual(expect.objectContaining({ speed: 'fast', timeoutMs: 12_000 }));
     const orders = await agent.get('/api/orders?limit=5').expect(200);
     expect(orders.body.total).toBeGreaterThan(20);
     const stranger = request.agent(app.getHttpServer());
