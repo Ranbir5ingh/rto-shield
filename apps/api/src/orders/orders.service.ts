@@ -333,7 +333,7 @@ export class OrdersService {
     try {
       const latest = await this.latestModel(user);
       if (!latest || latest.model === 'rules-prior') {
-        await this.score(user, { fast: true, timeoutMs: 20_000 });
+        await this.score(user, { fast: true, timeoutMs: 40_000 });
       }
       await this.score(user, { fast: false, timeoutMs: 55_000 });
     } catch (error) {
@@ -409,7 +409,7 @@ export class OrdersService {
     try {
       result = await this.ml.predict(historyPayload, pendingPayload, {
         speed: fast ? 'fast' : 'full',
-        timeoutMs: options?.timeoutMs ?? (fast ? 8_000 : 55_000),
+        timeoutMs: options?.timeoutMs ?? (fast ? 12_000 : 55_000),
       });
     } catch (error) {
       if (!fast) throw error;
