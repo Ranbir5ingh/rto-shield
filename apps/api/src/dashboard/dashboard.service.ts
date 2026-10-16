@@ -14,7 +14,7 @@ export class DashboardService {
 
   async summary(user: UserDocument) {
     const sellerId = user._id;
-    const [delivered, rto, history, pending, closed, highPendingOrders, preventedOrders, distribution, trend, reasonDocs, model] =
+    const [delivered, rto, history, pending, closed, highPendingOrders, preventedOrders, distribution, trend, reasonDocs, model, wireRows] =
       await Promise.all([
         this.orders.countDocuments({ sellerId, outcome: 'delivered' }),
         this.orders.countDocuments({ sellerId, outcome: 'rto' }),
@@ -52,6 +52,12 @@ export class DashboardService {
           .select('reasons')
           .lean(),
         this.orderService.latestModel(user),
+        this.orders
+          .find({ sellerId, stage: 'pending', riskScore: { $ne: null } })
+          .sort({ riskScore: -1 })
+          .limit(24)
+          .select('externalOrderId city orderValue riskBand riskScore')
+          .lean(),
       ]);
 
     const denom = delivered + rto;
@@ -91,8 +97,44 @@ export class DashboardService {
       topReasons,
       model,
       counts: { history, pending, closed },
+      liveWire: spreadWire(wireRows),
     };
   }
+}
+
+function spreadWire(
+  rows: Array<{
+    _id: unknown;
+    externalOrderId?: string;
+    city?: string;
+    orderValue?: number;
+    riskBand?: 'Low' | 'Medium' | 'High' | null;
+    riskScore?: number | null;
+  }>,
+) {
+  const buckets: Record<'High' | 'Medium' | 'Low', typeof rows> = { High: [], Medium: [], Low: [] };
+  for (const row of rows) {
+    if (row.riskBand === 'High' || row.riskBand === 'Medium' || row.riskBand === 'Low') buckets[row.riskBand].push(row);
+  }
+  const picked = [...buckets.High.slice(0, 2), ...buckets.Medium.slice(0, 2), ...buckets.Low.slice(0, 2)];
+  if (picked.length < 6) {
+    const seen = new Set(picked.map((row) => String(row._id)));
+    for (const row of rows) {
+      if (picked.length >= 6) break;
+      const id = String(row._id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      picked.push(row);
+    }
+  }
+  return picked.slice(0, 6).map((row) => ({
+    id: String(row._id),
+    externalOrderId: row.externalOrderId || '',
+    city: row.city || '',
+    orderValue: row.orderValue || 0,
+    riskBand: row.riskBand ?? null,
+    riskScore: row.riskScore ?? null,
+  }));
 }
 
 function moneyAtRisk(orders: Array<{ orderValue?: number }>, shippingBothWays: number) {

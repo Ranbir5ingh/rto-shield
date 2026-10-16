@@ -249,6 +249,7 @@ describe('RTO Shield API', () => {
     const dashboard = await agent.get('/api/dashboard').expect(200);
     expect(dashboard.body.model).toBeTruthy();
     expect(dashboard.body.distribution.High + dashboard.body.distribution.Medium + dashboard.body.distribution.Low).toBeGreaterThan(0);
+    expect(dashboard.body.liveWire.length).toBeGreaterThan(0);
     expect(orders.body.total).toBeGreaterThan(20);
     const stranger = request.agent(app.getHttpServer());
     const strangerToken = await csrf(stranger);
@@ -276,7 +277,10 @@ describe('RTO Shield API', () => {
       ),
     ).toBe(true);
     const dashboard = await agent.get('/api/dashboard').expect(200);
-    expect(dashboard.body.model.model).toBe('rules-prior');
+    // Opening fell back to rules. The background pass may already have replaced it if the service answers on the retry.
+    expect(['rules-prior', 'sklearn-gradient-boosting']).toContain(dashboard.body.model.model);
+    expect(Array.isArray(dashboard.body.liveWire)).toBe(true);
+    expect(dashboard.body.liveWire.length).toBeGreaterThan(0);
     const queue = await agent.get('/api/queue').expect(200);
     expect(queue.body.orders.length).toBeGreaterThan(0);
   });

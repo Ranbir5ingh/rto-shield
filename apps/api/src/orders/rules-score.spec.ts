@@ -75,5 +75,14 @@ describe('local rules score', () => {
     expect(risky.predictions[0]!.score).toBeGreaterThan(calm.predictions[0]!.score);
     expect(risky.predictions[0]!.band).toBe('High');
     expect(calm.predictions[0]!.band).toBe('Low');
+    expect(calm.predictions[0]!.reasons.join(' ')).not.toMatch(/junk/i);
+  });
+
+  it('plants a pending mix with low, medium, and high', () => {
+    const orders = prepared();
+    const result = scoreWithRules(orders);
+    const counts = { Low: 0, Medium: 0, High: 0 };
+    for (const row of result.predictions) counts[row.band] += 1;
+    expect(counts).toEqual({ Low: 10, Medium: 8, High: 6 });
   });
 });

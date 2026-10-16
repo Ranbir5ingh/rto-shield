@@ -335,29 +335,103 @@ export class OrdersService {
 
   private async runUpgrade(user: UserDocument, full: boolean) {
     try {
-      const latest = await this.latestModel(user);
-      if (!latest || latest.model === 'rules-prior') {
-        await this.score(user, { fast: true, timeoutMs: 40_000 });
+      if (full) {
+        const latest = await this.latestModel(user);
+        if (!latest || latest.model === 'rules-prior') {
+          await this.score(user, { fast: true, timeoutMs: 20_000, historyLimit: 120 });
+        }
+        await this.score(user, { fast: false, timeoutMs: 55_000, address: 'heuristic' });
+      } else {
+        // Demo landing trains one scikit-learn pass on a stable history slice, then asks Gemma for notes.
+        await this.score(user, { fast: true, timeoutMs: 40_000, historyLimit: 120, address: 'heuristic' });
       }
-      if (full) await this.score(user, { fast: false, timeoutMs: 55_000 });
+      await this.refreshGemma(user);
     } catch (error) {
       this.logger.warn(`Background score stopped: ${error instanceof Error ? error.name : 'error'}`);
     }
   }
 
-  async score(user: UserDocument, options?: { fast?: boolean; timeoutMs?: number }) {
+  /** Address notes and confirmation drafts. Scores already on the order stay put. */
+  private async refreshGemma(user: UserDocument) {
+    try {
+      const health = await this.ml.health(4_000);
+      if (!health?.gemini && !health?.ollama_configured) return;
+      const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(80);
+      if (!pending.length) return;
+      const noted = await this.ml.addressNotes(
+        pending.map((order) => ({
+          id: String(order._id),
+          address: this.crypto.decrypt(order.addressEnc),
+          city: order.city,
+          state: order.state,
+          pincode: order.pincode,
+        })),
+      );
+      const notes = new Map(noted.addresses.map((row) => [row.id, row.address_quality]));
+      const risky = pending.filter((order) => order.riskBand === 'High' || order.riskBand === 'Medium');
+      const drafts = new Map<string, DraftMessage>();
+      if (risky.length) {
+        const generated = await this.ml.messages(
+          user.shopName,
+          risky.map((order) => ({
+            id: String(order._id),
+            first_name: this.firstName(order),
+            order_value: order.orderValue,
+            product_name: order.productName || 'order',
+            payment_type: order.paymentType,
+          })),
+        );
+        for (const message of generated.messages) {
+          if (message.source === 'gemini' || message.source === 'ollama') drafts.set(message.id, message);
+        }
+      }
+      const now = new Date();
+      const writes = [];
+      for (const order of pending) {
+        const quality = notes.get(String(order._id));
+        const draft = drafts.get(String(order._id));
+        const $set: Record<string, unknown> = {};
+        if (quality && (quality.source === 'gemini' || quality.source === 'ollama')) $set.addressQuality = quality;
+        if (draft) {
+          draft.voice_script_hi = assertSafeVoiceScript(draft.voice_script_hi, user.shopName, order.orderValue);
+          $set.messages = draft;
+        }
+        if (!Object.keys($set).length) continue;
+        $set.updatedAt = now;
+        writes.push({
+          updateOne: {
+            filter: { _id: order._id, sellerId: user._id },
+            update: { $set },
+          },
+        });
+      }
+      if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
+    } catch (error) {
+      this.logger.warn(`Gemma notes missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+  }
+
+  async score(user: UserDocument, options?: {
+    fast?: boolean;
+    timeoutMs?: number;
+    historyLimit?: number;
+    address?: 'heuristic' | 'auto' | 'gemma';
+  }) {
     const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
     if (!pending.length) {
       const latest = await this.latestModel(user);
       return { scored: 0, message: 'No pending orders to score.', model: latest };
     }
+    const fast = options?.fast === true;
+    // The button waits on a short history. Background training can ask for more.
+    const historyLimit = options?.historyLimit ?? (fast ? 48 : 5000);
     const history = await this.orders
       .find({
         sellerId: user._id,
         outcome: { $in: ['delivered', 'rto', 'confirmed', 'cancelled'] },
       })
       .sort({ orderedAt: -1 })
-      .limit(5000);
+      .limit(historyLimit);
 
     const labelled = history.map((order) => ({
       pincode: order.pincode,
@@ -371,7 +445,7 @@ export class OrdersService {
       const pin = pinSignal(pins, order.pincode);
       return { ...buyer, ...pin };
     };
-    const historyPayload = (options?.fast ? history.slice(0, 120) : history).map((order) => {
+    const historyPayload = history.map((order) => {
       const signal = signalFor(order);
       return toMlOrder({
         id: String(order._id),
@@ -408,12 +482,12 @@ export class OrdersService {
       });
     });
 
-    const fast = options?.fast === true;
     let result: PredictResponse;
     try {
       result = await this.ml.predict(historyPayload, pendingPayload, {
         speed: fast ? 'fast' : 'full',
-        timeoutMs: options?.timeoutMs ?? (fast ? 12_000 : 55_000),
+        timeoutMs: options?.timeoutMs ?? (fast ? 9_000 : 55_000),
+        address: options?.address ?? 'heuristic',
       });
     } catch (error) {
       if (!fast) throw error;
@@ -448,31 +522,9 @@ export class OrdersService {
       result = scoreWithRules(prepared);
     }
     const byId = new Map(result.predictions.map((row) => [row.id, row]));
-    const risky = pending.filter((order) => {
-      const band = byId.get(String(order._id))?.band;
-      return band === 'High' || band === 'Medium';
-    });
-    const drafts = new Map<string, DraftMessage>();
-    // Demo opening stays on local templates. Gemma drafts happen on an explicit Score.
-    if (risky.length && !fast) {
-      try {
-        const generated = await this.ml.messages(
-          user.shopName,
-          risky.map((order) => ({
-            id: String(order._id),
-            first_name: this.firstName(order),
-            order_value: order.orderValue,
-            product_name: order.productName || 'order',
-            payment_type: order.paymentType,
-          })),
-        );
-        for (const message of generated.messages) drafts.set(message.id, message);
-        result.warnings.push(...generated.warnings);
-      } catch {
-        result.warnings.push('Confirmation drafts used built-in templates because Gemma was unreachable.');
-      }
-    }
-
+    // Templates land with the score. Gemma replaces notes and drafts afterwards, off this timer.
+    const now = new Date();
+    const writes: Array<{ updateOne: { filter: { _id: OrderDocument['_id']; sellerId: UserDocument['_id'] }; update: { $set: Record<string, unknown> } } }> = [];
     for (const order of pending) {
       const prediction = byId.get(String(order._id));
       if (!prediction) continue;
@@ -482,14 +534,28 @@ export class OrdersService {
       order.addressQuality = prediction.address_quality as unknown as Record<string, unknown>;
       order.predictor = result.model;
       if (prediction.band === 'High' || prediction.band === 'Medium') {
-        const draft =
-          drafts.get(String(order._id)) ||
-          templateMessage(user.shopName, this.firstName(order), order.orderValue, order.productName);
+        const draft = templateMessage(user.shopName, this.firstName(order), order.orderValue, order.productName);
         draft.voice_script_hi = assertSafeVoiceScript(draft.voice_script_hi, user.shopName, order.orderValue);
         order.messages = draft;
       }
-      await order.save();
+      writes.push({
+        updateOne: {
+          filter: { _id: order._id, sellerId: user._id },
+          update: {
+            $set: {
+              riskScore: order.riskScore,
+              riskBand: order.riskBand,
+              reasons: order.reasons,
+              addressQuality: order.addressQuality,
+              messages: order.messages,
+              predictor: order.predictor,
+              updatedAt: now,
+            },
+          },
+        },
+      });
     }
+    if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
 
     await this.runs.create({
       sellerId: user._id,

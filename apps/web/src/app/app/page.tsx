@@ -8,11 +8,11 @@ import { Distribution, TrendChart } from '@/components/Charts';
 import { Eyebrow, Flag, Skeleton, Stat } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
-import type { DashboardData, OrderSummary } from '@/lib/types';
+import type { DashboardData, LiveWireOrder } from '@/lib/types';
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [wire, setWire] = useState<OrderSummary[] | null>(null);
+  const [wire, setWire] = useState<LiveWireOrder[] | null>(null);
   const [error, setError] = useState('');
   const animated = useRef(false);
 
@@ -43,12 +43,7 @@ export default function DashboardPage() {
         const body = await api<DashboardData>('/dashboard');
         if (stop) return;
         setData(body);
-        try {
-          const listed = await api<{ orders: OrderSummary[] }>('/orders?stage=pending&limit=100');
-          if (!stop) setWire(listed.orders.filter((order) => order.riskScore !== null).slice(0, 6));
-        } catch {
-          if (!stop) setWire((current) => current ?? []);
-        }
+        setWire(body.liveWire ?? []);
         tries += 1;
         const waiting = Boolean(body.upgrading) || body.model?.model === 'rules-prior';
         if (waiting && tries < 24) timer.id = window.setTimeout(() => void pull(true), 2500);

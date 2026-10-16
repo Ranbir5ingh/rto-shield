@@ -71,6 +71,15 @@ export interface ModelSnapshot {
   createdAt: string | null;
 }
 
+export interface LiveWireOrder {
+  id: string;
+  externalOrderId: string;
+  city: string;
+  orderValue: number;
+  riskBand: 'Low' | 'Medium' | 'High' | null;
+  riskScore: number | null;
+}
+
 export interface DashboardData {
   rtoRate: number | null;
   delivered: number;
@@ -86,6 +95,7 @@ export interface DashboardData {
   topReasons: Array<{ reason: string; count: number }>;
   model: ModelSnapshot | null;
   counts: { history: number; pending: number; closed: number };
+  liveWire?: LiveWireOrder[];
 }
 
 export interface Integrations {

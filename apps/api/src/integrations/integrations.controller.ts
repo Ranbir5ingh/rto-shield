@@ -33,15 +33,26 @@ export class IntegrationsController {
         sentry: false,
         elevenlabs: false,
         serpapi: false,
-        ml: {
-          reachable: Boolean(ml),
-          activePredictor: null,
-          tabpfnToken: false,
-          gemini: false,
-          ollama: false,
-          tabpfnClientInstalled: false,
-          tabpfnLocalInstalled: false,
-        },
+        ml: ml
+          ? {
+              reachable: true,
+              // The settings panel stays hidden. These two flags are what the notice reads.
+              activePredictor: null,
+              tabpfnToken: false,
+              gemini: ml.gemini,
+              ollama: ml.ollama_configured,
+              tabpfnClientInstalled: false,
+              tabpfnLocalInstalled: false,
+            }
+          : {
+              reachable: false,
+              activePredictor: null,
+              tabpfnToken: false,
+              gemini: false,
+              ollama: false,
+              tabpfnClientInstalled: false,
+              tabpfnLocalInstalled: false,
+            },
       };
     }
     return {

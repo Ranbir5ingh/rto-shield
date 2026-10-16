@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any, Literal
@@ -67,6 +68,20 @@ class PredictRequest(BaseModel):
     history: list[OrderIn] = Field(default_factory=list, max_length=5000)
     pending: list[OrderIn] = Field(default_factory=list, max_length=500)
     speed: Literal["full", "fast"] = "full"
+    # auto: Gemma on a full score, local rules on a fast score.
+    address: Literal["auto", "heuristic", "gemma"] = "auto"
+
+
+class AddressRow(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    address: str = Field(default="", max_length=500)
+    city: str = Field(default="", max_length=80)
+    state: str = Field(default="", max_length=80)
+    pincode: str = Field(default="", max_length=12)
+
+
+class AddressRequest(BaseModel):
+    orders: list[AddressRow] = Field(default_factory=list, max_length=80)
 
 
 class MessageOrder(BaseModel):
@@ -115,9 +130,13 @@ async def predict(
     ):
         # Address text stays inside this service. Only quality flags enter the model matrix.
         fast = body.speed == "fast"
-        annotated_history, source_h, warn_h = await annotate(history, llm=False if fast else None)
-        annotated_pending, source_p, warn_p = await annotate(pending, llm=False if fast else None)
-        result = score_orders(annotated_history, annotated_pending, fast=fast)
+        # Gemma reads the pending addresses only. History stays on the heuristic so a
+        # shop of hundreds of rows does not wait on a language model during scoring.
+        pending_llm = body.address == "gemma" or (body.address == "auto" and not fast)
+        annotated_history, source_h, warn_h = await annotate(history, llm=False)
+        annotated_pending, source_p, warn_p = await annotate(pending, llm=True if pending_llm else False)
+        # TabPFN and scikit-learn fit on the CPU. A thread keeps /health answering.
+        result = await asyncio.to_thread(score_orders, annotated_history, annotated_pending, fast=fast)
     result["address_source"] = source_p if pending else source_h
     result["warnings"] = [*warn_h, *warn_p, *result["warnings"]]
     # Do not echo raw addresses back.
@@ -125,6 +144,25 @@ async def predict(
         quality = row.get("address_quality") or {}
         quality.pop("address", None)
     return result
+
+
+@app.post("/v1/address")
+async def address_notes(
+    body: AddressRequest,
+    x_internal_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Address notes for pending orders. Does not score and does not see a phone."""
+    _guard(x_internal_token)
+    rows = [row.model_dump() for row in body.orders]
+    annotated, source, warnings = await annotate(rows, llm=True)
+    return {
+        "source": source,
+        "warnings": warnings,
+        "addresses": [
+            {"id": str(row["id"]), "address_quality": row.get("address_quality")}
+            for row in annotated
+        ],
+    }
 
 
 @app.post("/v1/messages")

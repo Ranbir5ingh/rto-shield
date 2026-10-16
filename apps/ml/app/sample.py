@@ -103,6 +103,8 @@ def generate(n_history: int = 360, n_pending: int = 24, seed: int = 42) -> dict[
             "stage": "history" if i < n_history else "pending",
             **flags,
         }
+        if order["stage"] == "pending":
+            _apply_pending_profile(order, i - n_history)
         p = probability_from_logit(_logit(order))
         order["rto_probability"] = round(p, 4)
         if order["stage"] == "history":
@@ -114,6 +116,78 @@ def generate(n_history: int = 360, n_pending: int = 24, seed: int = 42) -> dict[
         "history": [r for r in rows if r["stage"] == "history"],
         "pending": [r for r in rows if r["stage"] == "pending"],
     }
+
+
+# Incomplete COD addresses with a prior refusal. On the demo history the
+# trained model files a clean repeat as Low and junk as High, and files these
+# in the middle. Keep the text short: a full street line leaves the band.
+_MEDIUM_PROFILES = (
+    (6, 2, 2499, 18, "H.No 8, Gali 2"),
+    (4, 1, 2499, 14, "Sector 7 market"),
+    (6, 2, 1599, 14, "H.No 18, Lane 9"),
+    (4, 1, 1899, 14, "H.No 9, Gali 3"),
+    (6, 2, 1599, 14, "Sector 4 market"),
+    (6, 2, 2499, 21, "H.No 15, Lane 6"),
+    (6, 2, 1899, 18, "H.No 7, Gali 6"),
+    (4, 1, 2499, 14, "H.No 11, Lane 5"),
+)
+_HIGH_ADDRESSES = ("asdf", "test", "xxx", "qwerty", "fake", "null")
+
+
+def _apply_pending_profile(order: dict[str, Any], slot: int) -> None:
+    """Pending demo orders are planted in three bands so the shop is not all Low.
+
+    The address text is what scoring reads. Flags here match that text; the API
+    recomputes them with the same heuristic before the model runs.
+    """
+    if slot < 10:
+        cod = slot < 6
+        order.update(
+            is_cod=cod,
+            payment_type="cod" if cod else "prepaid",
+            prior_orders=5 if cod else 3,
+            prior_rtos=0,
+            order_value=499 if cod else 899,
+            hour=14,
+            address=f"H.No {12 + slot}, Lane 4, Shastri Nagar, {order['city']}",
+            addr_quality=0.9,
+            addr_incomplete=0,
+            addr_landmark=0,
+            addr_junk=0,
+            addr_mismatch=0,
+        )
+        return
+    if slot < 18:
+        prior_orders, prior_rtos, value, hour, template = _MEDIUM_PROFILES[slot - 10]
+        order.update(
+            is_cod=True,
+            payment_type="cod",
+            prior_orders=prior_orders,
+            prior_rtos=prior_rtos,
+            order_value=value,
+            hour=hour,
+            address=template,
+            addr_quality=0.65,
+            addr_incomplete=1,
+            addr_landmark=0,
+            addr_junk=0,
+            addr_mismatch=0,
+        )
+        return
+    order.update(
+        is_cod=True,
+        payment_type="cod",
+        prior_orders=2,
+        prior_rtos=2,
+        order_value=2499,
+        hour=0,
+        address=_HIGH_ADDRESSES[slot - 18],
+        addr_quality=0.08,
+        addr_incomplete=0,
+        addr_landmark=0,
+        addr_junk=1,
+        addr_mismatch=0,
+    )
 
 
 def outcome_rates(history: list[dict[str, Any]]) -> dict[str, float]:

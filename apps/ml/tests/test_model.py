@@ -35,6 +35,12 @@ def test_address_heuristic_cases():
     assert landmark["landmark_only"]
     junk = heuristic_address("asdf", "560001", "Bengaluru", "Karnataka")
     assert junk["junk"]
+    nagar = heuristic_address("H.No 12, Lane 4, Shastri Nagar, Patna", "800001", "Patna", "Bihar")
+    assert not nagar["junk"]
+    assert nagar["quality_score"] > 0.7
+    purana = heuristic_address("near purana bus stand", "226010", "Lucknow", "Uttar Pradesh")
+    assert not purana["junk"]
+    assert purana["landmark_only"]
     mismatch = heuristic_address("H.No 9, Park Street, Kolkata 700019", "560001", "Bengaluru", "Karnataka")
     assert mismatch["pincode_mismatch"]
 
@@ -71,6 +77,31 @@ def test_rules_rank_risky_above_safe():
     assert risky > 0.7
     assert safe < 0.25
     assert risky > safe
+
+
+def _with_heuristic(rows):
+    done = []
+    for row in rows:
+        quality = heuristic_address(row["address"], row["pincode"], row["city"], row["state"])
+        item = dict(row)
+        item["addr_quality"] = quality["quality_score"]
+        item["addr_incomplete"] = quality["incomplete"]
+        item["addr_landmark"] = quality["landmark_only"]
+        item["addr_junk"] = quality["junk"]
+        item["addr_mismatch"] = quality["pincode_mismatch"]
+        item["seller_pin_rto_rate"] = 0.3
+        done.append(item)
+    return done
+
+
+def test_pending_demo_mix_has_a_middle_band():
+    data = generate(180, 24, seed=42)
+    pending = _with_heuristic(data["pending"])
+    rules = {"Low": 0, "Medium": 0, "High": 0}
+    for row in pending:
+        score = int(round(rules_probability(row) * 100))
+        rules[band_for(score)] += 1
+    assert rules == {"Low": 10, "Medium": 8, "High": 6}
 
 
 def test_sample_cod_returns_more_than_prepaid():

@@ -1,11 +1,15 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { traceSpan } from '../common/trace';
-import type { MlHealth, MlMessage, MlOrder, PredictResponse } from './ml.types';
+import type { AddressQuality, MlHealth, MlMessage, MlOrder, PredictResponse } from './ml.types';
+
+const HEALTH_MEMORY_MS = 120_000;
 
 @Injectable()
 export class MlService {
   private readonly logger = new Logger(MlService.name);
+  /** Last /health that answered. A busy fit must not look like an outage. */
+  private lastHealth: { at: number; body: MlHealth } | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -23,17 +27,26 @@ export class MlService {
   async predict(
     history: MlOrder[],
     pending: MlOrder[],
-    options?: { speed?: 'full' | 'fast'; timeoutMs?: number },
+    options?: { speed?: 'full' | 'fast'; timeoutMs?: number; address?: 'auto' | 'heuristic' | 'gemma' },
   ): Promise<PredictResponse> {
     const speed = options?.speed ?? 'full';
-    const timeoutMs = options?.timeoutMs ?? (speed === 'fast' ? 12_000 : 60_000);
+    const timeoutMs = options?.timeoutMs ?? (speed === 'fast' ? 9_000 : 60_000);
+    const address = options?.address ?? (speed === 'fast' ? 'heuristic' : 'auto');
     return traceSpan('invoke_agent rto.score', 'gen_ai.invoke_agent', {
       'gen_ai.operation.name': 'invoke_agent',
       'gen_ai.system': 'rto-shield',
       'gen_ai.request.model': speed === 'fast' ? 'sklearn-fast' : 'tabpfn-or-fallback',
       rows_history: history.length,
       rows_pending: pending.length,
-    }, () => this.post<PredictResponse>('/v1/predict', { history, pending, speed }, timeoutMs));
+    }, () => this.post<PredictResponse>('/v1/predict', { history, pending, speed, address }, timeoutMs));
+  }
+
+  async addressNotes(orders: Array<{ id: string; address: string; city: string; state: string; pincode: string }>): Promise<{
+    source: string;
+    warnings: string[];
+    addresses: Array<{ id: string; address_quality: AddressQuality }>;
+  }> {
+    return this.post('/v1/address', { orders }, 40_000);
   }
 
   async messages(shopName: string, orders: Array<Record<string, unknown>>): Promise<{
@@ -52,11 +65,20 @@ export class MlService {
   async health(timeoutMs = 3000): Promise<MlHealth | null> {
     try {
       const response = await fetch(`${this.baseUrl()}/health`, { signal: AbortSignal.timeout(timeoutMs) });
-      if (!response.ok) return null;
-      return (await response.json()) as MlHealth;
+      if (!response.ok) return this.rememberedHealth();
+      const body = (await response.json()) as MlHealth;
+      this.lastHealth = { at: Date.now(), body };
+      return body;
     } catch {
-      return null;
+      // TabPFN can pin the CPU for about a minute. A recent success still means the service is up.
+      return this.rememberedHealth();
     }
+  }
+
+  private rememberedHealth(): MlHealth | null {
+    if (!this.lastHealth) return null;
+    if (Date.now() - this.lastHealth.at > HEALTH_MEMORY_MS) return null;
+    return this.lastHealth.body;
   }
 
   private async post<T>(path: string, body: unknown, timeoutMs = 60_000): Promise<T> {

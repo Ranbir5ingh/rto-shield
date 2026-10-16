@@ -19,6 +19,16 @@ from app.tracing import traced
 log = logging.getLogger("rto.ml")
 
 _JUNK = ("asdf", "qwerty", "test", "xxx", "fake", "none", "n/a", "na", "abc123", "null")
+
+
+def _junk_token(low: str) -> bool:
+    """Match junk as a whole token. 'na' must not fire inside nagar, patna, or purana."""
+    tokens = set(re.findall(r"[a-z0-9]+", low))
+    if any(token in tokens for token in _JUNK):
+        return True
+    return "n/a" in low
+
+
 _LANDMARK = ("near ", "opp ", "opp.", "opposite", "behind", "ke paas", "ke pass", "ke samne", "samne", "nearby")
 _KNOWN_CITIES = {
     "mumbai": "maharashtra",
@@ -46,7 +56,7 @@ def heuristic_address(address: str, pincode: str, city: str, state: str) -> dict
     junk = (
         len(text) < 4
         or text.isdigit()
-        or any(tok in low for tok in _JUNK)
+        or _junk_token(low)
         or len(set(low.replace(" ", ""))) <= 2
     )
     landmark_only = (not has_number) and any(w in low for w in _LANDMARK)
@@ -134,14 +144,25 @@ async def _ollama(prompt: str) -> tuple[str, dict[str, Any]]:
 
 
 async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
-    model = settings.gemma_model
+    model = settings.gemma_model or "gemma-3-27b-it"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
-    }
+    # Gemma on AI Studio accepts a plain user turn. generationConfig is optional and
+    # some Gemma builds reject it, so a 400 retries without it.
+    bodies = [
+        {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+        },
+        {"contents": [{"parts": [{"text": prompt}]}]},
+    ]
+    headers = {"x-goog-api-key": settings.gemini_api_key}
     async with httpx.AsyncClient(timeout=45) as client:
-        response = await client.post(url, params={"key": settings.gemini_api_key}, json=body)
+        response = None
+        for body in bodies:
+            response = await client.post(url, params={"key": settings.gemini_api_key}, headers=headers, json=body)
+            if response.status_code != 400:
+                break
+        assert response is not None
         response.raise_for_status()
         data = response.json()
     parts = data["candidates"][0]["content"]["parts"]
@@ -212,8 +233,9 @@ async def annotate(
     warnings: list[str] = []
     if not orders:
         return [], "heuristic", warnings
-    # llm=False is the demo path: never wait on Gemma while the shop is opening.
-    use_llm = (bool(settings.ollama_base_url or settings.gemini_api_key) if llm is None else llm)
+    # llm=False is the fast path: never wait on Gemma while the shop is waiting.
+    configured = bool(settings.ollama_base_url or settings.gemini_api_key)
+    use_llm = configured if llm is None else bool(llm and configured)
     if not use_llm:
         done = [apply_quality(order, heuristic_address(order.get("address", ""), order.get("pincode", ""), order.get("city", ""), order.get("state", ""))) for order in orders]
         note = (

@@ -35,6 +35,59 @@ const PRODUCTS = ['Cotton kurti', 'Daily saree', 'Mobile cover', 'Oxidised earri
 const LANDMARKS = ['Hanuman mandir', 'SBI ATM', 'purana bus stand', 'paani ki tanki', 'red gate'];
 const STREETS = ['Gali no 4', 'Lane 2, Shastri Nagar', 'Main Market', 'Sector 7', 'Teachers Colony'];
 const COURIERS = ['Delhivery', 'Shadowfax', 'Xpressbees', 'Ecom Express'];
+// Repeat buyers with one earlier refusal. The trained demo model scores a
+// first late-night order as Low and a junk order as High, so Medium has to
+// look like this or the shop shows only two bands.
+const MEDIUM_PROFILES: Array<{ priorOrders: number; priorRtos: number; orderValue: number; hour: number; address: string }> = [
+  { priorOrders: 6, priorRtos: 2, orderValue: 2499, hour: 18, address: 'H.No 8, Gali 2' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 2499, hour: 14, address: 'Sector 7 market' },
+  { priorOrders: 6, priorRtos: 2, orderValue: 1599, hour: 14, address: 'H.No 18, Lane 9' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 1899, hour: 14, address: 'H.No 9, Gali 3' },
+  { priorOrders: 6, priorRtos: 2, orderValue: 1599, hour: 14, address: 'Sector 4 market' },
+  { priorOrders: 6, priorRtos: 2, orderValue: 2499, hour: 21, address: 'H.No 15, Lane 6' },
+  { priorOrders: 6, priorRtos: 2, orderValue: 1899, hour: 18, address: 'H.No 7, Gali 6' },
+  { priorOrders: 4, priorRtos: 1, orderValue: 2499, hour: 14, address: 'H.No 11, Lane 5' },
+];
+const HIGH_ADDRESSES = ['asdf', 'test', 'xxx', 'qwerty', 'fake', 'null'];
+
+/** A fixed IST hour, so demo scoring does not depend on when the shop was opened. */
+function atKolkataHour(hour: number): Date {
+  // 14 Jun 2026 18:30 UTC is 15 Jun 2026 00:00 in Asia/Kolkata.
+  return new Date(Date.UTC(2026, 5, 14, 18, 30, 0) + hour * 60 * 60 * 1000);
+}
+
+function pendingProfile(slot: number, city: string) {
+  if (slot < 10) {
+    const cod = slot < 6;
+    return {
+      address: `H.No ${12 + slot}, Lane 4, Shastri Nagar, ${city}`,
+      paymentType: (cod ? 'cod' : 'prepaid') as 'cod' | 'prepaid',
+      priorOrders: cod ? 5 : 3,
+      priorRtos: 0,
+      orderValue: cod ? 499 : 899,
+      orderedAt: atKolkataHour(14),
+    };
+  }
+  if (slot < 18) {
+    const profile = MEDIUM_PROFILES[slot - 10]!;
+    return {
+      address: profile.address,
+      paymentType: 'cod' as const,
+      priorOrders: profile.priorOrders,
+      priorRtos: profile.priorRtos,
+      orderValue: profile.orderValue,
+      orderedAt: atKolkataHour(profile.hour),
+    };
+  }
+  return {
+    address: HIGH_ADDRESSES[slot - 18] || 'asdf',
+    paymentType: 'cod' as const,
+    priorOrders: 2,
+    priorRtos: 2,
+    orderValue: 2499,
+    orderedAt: atKolkataHour(0),
+  };
+}
 
 function mulberry32(seed: number) {
   let state = seed >>> 0;
@@ -102,6 +155,12 @@ export function generateSample(seed = 42, historyCount = 360, pendingCount = 24)
     const orderValue = pick([299, 399, 499, 649, 799, 999, 1299, 1599, 1899, 2499, 3499]);
     const hour = pick([11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 0, 1]);
     const stage = i < historyCount ? 'history' : 'pending';
+    const planted = stage === 'pending' ? pendingProfile(i - historyCount, city) : null;
+    const addressOut = planted?.address ?? address;
+    const paymentType = planted?.paymentType ?? (isCod ? 'cod' : 'prepaid');
+    const priorOrdersOut = planted?.priorOrders ?? priorOrders;
+    const priorRtosOut = planted?.priorRtos ?? priorRtos;
+    const orderValueOut = planted?.orderValue ?? orderValue;
     const rate = priorOrders ? priorRtos / priorOrders : 0;
     const pincode = pick(pins);
     const pinRate = pinTendency(pincode);
@@ -119,23 +178,22 @@ export function generateSample(seed = 42, historyCount = 360, pendingCount = 24)
     z -= 0.45 * (isCod ? 0 : 1);
     if (priorOrders >= 2 && rate < 0.15 && addrQuality >= 0.7) z -= 0.95;
     const label = rand() < sigmoid(z);
-    const orderedAt =
-      stage === 'history'
-        ? new Date(start + rand() * 50 * 24 * 60 * 60 * 1000 + hour * 60 * 60 * 1000)
-        : new Date(Date.now() - rand() * 36 * 60 * 60 * 1000);
+    const orderedAt = planted
+      ? planted.orderedAt
+      : new Date(start + rand() * 50 * 24 * 60 * 60 * 1000 + hour * 60 * 60 * 1000);
     orders.push({
       externalOrderId: `S${String(i).padStart(4, '0')}`,
       buyerName: `${pick(FIRST)} ${pick(LAST)}`,
       phone: `9${String(Math.floor(100000000 + rand() * 900000000)).slice(0, 9)}`,
-      address,
+      address: addressOut,
       city,
       state,
       pincode,
-      orderValue,
-      paymentType: isCod ? 'cod' : 'prepaid',
+      orderValue: orderValueOut,
+      paymentType,
       orderedAt,
-      priorOrders,
-      priorRtos,
+      priorOrders: priorOrdersOut,
+      priorRtos: priorRtosOut,
       productName: pick(PRODUCTS),
       courier: pick(COURIERS),
       stage,

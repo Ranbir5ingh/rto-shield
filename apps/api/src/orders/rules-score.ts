@@ -6,6 +6,12 @@ export interface PreparedSampleOrder extends SampleOrder {
 }
 
 const JUNK = ['asdf', 'qwerty', 'test', 'xxx', 'fake', 'none', 'n/a', 'na', 'abc123', 'null'];
+
+function junkToken(low: string): boolean {
+  // Whole tokens only. "na" must not fire inside nagar, patna, or purana.
+  const tokens = new Set(low.match(/[a-z0-9]+/g) || []);
+  return JUNK.some((token) => tokens.has(token)) || low.includes('n/a');
+}
 const LANDMARK = ['near ', 'opp ', 'opp.', 'opposite', 'behind', 'ke paas', 'ke pass', 'ke samne', 'samne', 'nearby'];
 const KNOWN_CITIES: Record<string, string> = {
   mumbai: 'maharashtra',
@@ -48,7 +54,7 @@ function heuristicAddress(address: string, pincode: string, city: string, state:
   const junk =
     text.length < 4 ||
     /^\d+$/.test(text) ||
-    JUNK.some((token) => low.includes(token)) ||
+    junkToken(low) ||
     new Set(low.replace(/ /g, '')).size <= 2;
   const landmarkOnly = !hasNumber && LANDMARK.some((word) => low.includes(word));
   const wordCount = low.split(' ').filter(Boolean).length;
