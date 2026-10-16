@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthFrame } from '@/components/AuthFrame';
-import { Button, Field, inputClass } from '@/components/ui';
+import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 export default function SignupPage() {
@@ -19,6 +19,11 @@ export default function SignupPage() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const problem = formProblem(form.email, form.password);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setPending(true);
     setError('');
     try {
@@ -33,7 +38,7 @@ export default function SignupPage() {
 
   return (
     <AuthFrame title="Open your shop" lede="Email and password. Score sample orders before any real buyer data.">
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} noValidate className="space-y-4">
         <Field label="Your name">
           <input className={inputClass} value={form.name} onChange={(event) => set('name', event.target.value)} required />
         </Field>
@@ -46,7 +51,7 @@ export default function SignupPage() {
         <Field label="Password (8+)">
           <input className={inputClass} type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => set('password', event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-risk">{error}</p> : null}
+        {error ? <Notice>{error}</Notice> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Creating…' : 'Create account'}
         </Button>
@@ -59,4 +64,10 @@ export default function SignupPage() {
       </p>
     </AuthFrame>
   );
+}
+
+function formProblem(email: string, password: string) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email, like asha@shop.in.';
+  if (password.length < 8) return 'Use at least 8 characters.';
+  return '';
 }

@@ -46,8 +46,16 @@ export class OrdersController {
   }
 
   @Post('orders/score')
-  score(@CurrentUser() user: UserDocument) {
-    return this.orders.score(user);
+  async score(@CurrentUser() user: UserDocument) {
+    const result = await this.orders.score(user, { fast: true });
+    this.orders.startUpgrade(user);
+    return { ...result, upgrading: true };
+  }
+
+  @Get('orders/score-status')
+  async scoreStatus(@CurrentUser() user: UserDocument) {
+    const model = await this.orders.latestModel(user);
+    return { upgrading: this.orders.isUpgrading(String(user._id)), model };
   }
 
   @Get('orders')

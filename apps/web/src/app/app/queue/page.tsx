@@ -13,6 +13,8 @@ export default function QueuePage() {
   const [error, setError] = useState('');
   const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
+  const [voiceId, setVoiceId] = useState('');
+  const [voiceState, setVoiceState] = useState<'playing' | 'played' | ''>('');
 
   async function load() {
     const [queue, me] = await Promise.all([
@@ -44,16 +46,20 @@ export default function QueuePage() {
 
   async function outcome(id: string, value: 'confirmed' | 'cancelled' | 'no_response') {
     setError('');
+    const previous = orders;
+    setOrders((current) => current.filter((order) => order.id !== id));
     try {
       await api(`/orders/${id}/outcome`, { method: 'PATCH', body: JSON.stringify({ outcome: value }) });
-      await load();
     } catch (err) {
+      setOrders(previous);
       setError(err instanceof ApiError ? err.message : 'Could not save the outcome');
     }
   }
 
   async function voice(order: OrderDetail) {
     setError('');
+    setVoiceId(order.id);
+    setVoiceState('playing');
     try {
       const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
         `/orders/${order.id}/voice`,
@@ -62,10 +68,15 @@ export default function QueuePage() {
       if (result.audioBase64 && result.mime) {
         const audio = new Audio(`data:${result.mime};base64,${result.audioBase64}`);
         await audio.play();
+        setVoiceState('played');
       } else if (result.notice) {
+        setVoiceState('');
         setError(`${result.notice} Script: ${result.script}`);
+      } else {
+        setVoiceState('played');
       }
     } catch (err) {
+      setVoiceState('');
       setError(err instanceof ApiError ? err.message : 'Voice failed');
     }
   }
@@ -136,8 +147,8 @@ export default function QueuePage() {
                     Prepaid nudge
                   </a>
                 ) : null}
-                <Button type="button" tone="ghost" onClick={() => voice(order)}>
-                  Play Hindi script
+                <Button type="button" tone="ghost" onClick={() => voice(order)} disabled={voiceId === order.id && voiceState === 'playing'}>
+                  {voiceId === order.id && voiceState === 'playing' ? 'Playing…' : voiceId === order.id && voiceState === 'played' ? 'Played' : 'Play Hindi script'}
                 </Button>
               </div>
             </div>

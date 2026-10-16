@@ -208,7 +208,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         {palette && <CommandPalette onClose={() => setPalette(false)} />}
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-paper">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain bg-paper">
           <div className="mx-auto max-w-page px-5 sm:px-8">
             <div className="pt-5">
               <StatusStrip status={status} />

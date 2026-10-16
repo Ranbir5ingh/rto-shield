@@ -103,9 +103,14 @@ interface Features {
   addr_quality: number;
   late_night: number;
   order_value: number;
+  seller_pin_rto_rate: number;
+  seller_pin_n: number;
 }
 
-function featuresOf(order: PreparedSampleOrder, quality: AddressQuality): Features {
+function featuresOf(
+  order: PreparedSampleOrder & { sellerPinRtoRate?: number; sellerPinN?: number },
+  quality: AddressQuality,
+): Features {
   const value = order.orderValue || 0;
   const isCod = order.paymentType === 'cod' ? 1 : 0;
   const hour = order.hour % 24;
@@ -125,22 +130,25 @@ function featuresOf(order: PreparedSampleOrder, quality: AddressQuality): Featur
     addr_quality: quality.quality_score,
     late_night: hour >= 22 || hour <= 5 ? 1 : 0,
     order_value: value,
+    seller_pin_rto_rate: order.sellerPinRtoRate ?? 0.3,
+    seller_pin_n: order.sellerPinN ?? 0,
   };
 }
 
 function priorLogit(row: Features): number {
-  let z = -1.55;
-  z += 1.45 * row.is_cod;
-  z += 0.95 * row.high_value_cod;
-  z += 0.85 * row.is_new_buyer * row.is_cod;
-  z += 1.15 * row.prior_rto_rate * (row.prior_orders === 0 ? 0 : 1);
-  z += 0.85 * row.addr_incomplete;
-  z += 0.75 * row.addr_landmark;
-  z += 1.25 * row.addr_junk;
-  z += 0.55 * row.addr_mismatch;
-  z += 0.35 * row.late_night;
-  z -= 1.1 * (1 - row.is_cod);
-  if (row.prior_orders >= 3 && row.prior_rto_rate < 0.15 && row.addr_quality >= 0.7) z -= 0.45;
+  let z = -2.2;
+  z += 0.4 * row.is_cod;
+  z += 0.9 * row.high_value_cod;
+  z += 0.5 * row.is_new_buyer * row.is_cod;
+  z += 2.0 * row.prior_rto_rate * (row.prior_orders === 0 ? 0 : 1);
+  z += 1.15 * row.addr_junk;
+  z += 0.6 * row.addr_incomplete;
+  z += 0.45 * row.addr_landmark;
+  z += 0.4 * row.addr_mismatch;
+  z += 0.5 * row.late_night * row.is_cod;
+  z += 1.15 * (row.seller_pin_rto_rate - 0.3);
+  z -= 0.45 * (1 - row.is_cod);
+  if (row.prior_orders >= 2 && row.prior_rto_rate < 0.15 && row.addr_quality >= 0.7) z -= 0.95;
   return z;
 }
 
@@ -159,31 +167,34 @@ function bandFor(score: number): Prediction['band'] {
 function reasonsFor(row: Features, score: number): string[] {
   const found: string[] = [];
   const value = Math.round(row.order_value);
-  if (row.is_cod && row.is_new_buyer) found.push('Cash on delivery from a first-time buyer');
-  else if (row.high_value_cod) found.push(`High-value cash-on-delivery order (₹${value})`);
-  else if (row.is_cod) found.push('Cash on delivery, which comes back more often than prepaid');
-  if (row.prior_orders >= 1 && row.prior_rto_rate >= 0.34) {
+  if (row.prior_orders >= 2 && row.prior_rto_rate < 0.15) found.push('Repeat buyer with a clean delivery history');
+  else if (row.prior_orders >= 1 && row.prior_rto_rate >= 0.34) {
     const pct = Math.round(row.prior_rto_rate * 100);
     found.push(`This buyer refused ${pct}% of ${row.prior_orders} earlier orders`);
-  }
+  } else if (row.is_cod && row.is_new_buyer) found.push('Cash on delivery from a first-time buyer');
+  if (row.high_value_cod) found.push(`High-value cash-on-delivery order (₹${value})`);
   if (row.addr_junk) found.push('Address looks junk or too short to deliver');
   else if (row.addr_landmark) found.push('Address is only a landmark, with no house or street number');
   else if (row.addr_incomplete) found.push('Address looks incomplete');
-  if (row.addr_mismatch) found.push('The address text and pincode disagree');
+  else if (row.addr_quality >= 0.75) found.push('Address looks complete enough to ship');
+  if (row.addr_mismatch) found.push('The address text and the typed pincode disagree');
   if (row.late_night && row.is_cod) found.push('Placed late at night, when buyers confirm less often');
-
-  if (score < 40) {
-    const calm: string[] = [];
-    if (!row.is_cod) calm.push('Prepaid order — the buyer has already paid');
-    if (row.prior_orders >= 2 && row.prior_rto_rate < 0.2) calm.push('Repeat buyer with a clean delivery history');
-    if (row.addr_quality >= 0.75 && !row.addr_incomplete) calm.push('Address looks complete enough to ship');
-    if (calm.length) return calm.slice(0, 3);
+  else if (row.is_cod && !row.late_night && row.order_value < 1500) found.push('Daytime order at a modest value');
+  if (row.seller_pin_n >= 6 && row.seller_pin_rto_rate >= 0.45) {
+    found.push(
+      `In your shop, ${Math.round(row.seller_pin_rto_rate * row.seller_pin_n)} of ${row.seller_pin_n} earlier orders to this pincode came back`,
+    );
+  } else if (row.seller_pin_n >= 6 && row.seller_pin_rto_rate <= 0.2) {
+    found.push(`In your shop, orders to this pincode have mostly been delivered (${row.seller_pin_n} earlier)`);
   }
-  if (!found.length) found.push('Mixed signals from payment type, order value, and buyer history');
-  return found.slice(0, 3);
+  if (!row.is_cod) found.push('Prepaid order — the buyer has already paid');
+  const ranked = score < 40 ? found.filter((item) => !/refused|junk|came back/.test(item)) : found;
+  const chosen = (ranked.length ? ranked : found).slice(0, 3);
+  if (!chosen.length) chosen.push('Mixed signals from payment type, order value, and buyer history');
+  return chosen;
 }
 
-function scoreOne(order: PreparedSampleOrder): Prediction {
+function scoreOne(order: PreparedSampleOrder & { sellerPinRtoRate?: number; sellerPinN?: number }): Prediction {
   const quality = heuristicAddress(order.address, order.pincode, order.city, order.state);
   const row = featuresOf(order, quality);
   const probability = Math.max(0, Math.min(1, probabilityFromLogit(priorLogit(row))));
@@ -200,7 +211,22 @@ function scoreOne(order: PreparedSampleOrder): Prediction {
 }
 
 export function scoreWithRules(orders: PreparedSampleOrder[]): PredictResponse {
-  const predictions = orders.filter((order) => order.stage === 'pending').map(scoreOne);
+  const tallies = new Map<string, { n: number; rtos: number }>();
+  for (const order of orders) {
+    if (order.stage !== 'history' || (order.outcome !== 'rto' && order.outcome !== 'delivered')) continue;
+    const tally = tallies.get(order.pincode) || { n: 0, rtos: 0 };
+    tally.n += 1;
+    if (order.outcome === 'rto') tally.rtos += 1;
+    tallies.set(order.pincode, tally);
+  }
+  const predictions = orders
+    .filter((order) => order.stage === 'pending')
+    .map((order) => {
+      const tally = tallies.get(order.pincode);
+      const sellerPinN = tally?.n ?? 0;
+      const sellerPinRtoRate = sellerPinN >= 6 && tally ? tally.rtos / sellerPinN : 0.3;
+      return scoreOne({ ...order, sellerPinN, sellerPinRtoRate });
+    });
   return {
     model: RULES_MODEL,
     model_label: RULES_LABEL,

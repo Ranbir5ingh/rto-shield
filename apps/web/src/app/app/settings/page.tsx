@@ -91,7 +91,7 @@ export default function SettingsPage() {
         </Field>
         <Button type="submit">Save</Button>
       </form>
-      <section className="panel p-5 text-sm">
+      {status && !status.sellerView ? <section className="panel p-5 text-sm">
         <h2 className="font-medium">Integrations</h2>
         <dl className="mt-4 divide-y divide-line">
           {[
@@ -111,7 +111,7 @@ export default function SettingsPage() {
             </div>
           ))}
         </dl>
-      </section>
+      </section> : null}
       <div className="flex flex-wrap gap-3">
         <Button type="button" tone="ghost" onClick={() => downloadExport().catch(() => setError('Export failed'))}>
           Export my data

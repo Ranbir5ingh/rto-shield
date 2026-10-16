@@ -80,6 +80,7 @@ export interface DashboardData {
   rtoCostInr: number;
   exposureInr: number;
   highPending: number;
+  upgrading?: boolean;
   trend: Array<{ week: string; delivered: number; rto: number; rate: number | null }>;
   distribution: { Low: number; Medium: number; High: number };
   topReasons: Array<{ reason: string; count: number }>;
@@ -88,6 +89,7 @@ export interface DashboardData {
 }
 
 export interface Integrations {
+  sellerView?: boolean;
   encryption: 'configured' | 'development-fallback';
   mongodb: 'memory' | 'configured';
   sentry: boolean;

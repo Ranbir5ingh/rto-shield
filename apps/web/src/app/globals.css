@@ -8,6 +8,8 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 html.lenis,
@@ -26,7 +28,8 @@ html.lenis body {
 body {
   background: #faf6ee;
   color: #1b1712;
-  overflow-x: hidden;
+  overflow-x: clip;
+  max-width: 100%;
   background-image: radial-gradient(rgba(27, 23, 18, 0.055) 1px, transparent 1px);
   background-size: 26px 26px;
 }

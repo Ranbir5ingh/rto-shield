@@ -9,6 +9,8 @@ export interface MlOrder {
   city: string;
   state: string;
   pincode: string;
+  seller_pin_rto_rate?: number;
+  seller_pin_n?: number;
   label?: number;
 }
 

@@ -2,9 +2,28 @@ import { generateSample } from '../common/sample';
 import { hourInKolkata } from '../common/hour';
 import { scoreWithRules } from './rules-score';
 
+function prepared() {
+  return generateSample().map((order) => ({ ...order, hour: hourInKolkata(order.orderedAt) }));
+}
+
 describe('local rules score', () => {
+  it('keeps sample returns near a third and lets some cash orders score low', () => {
+    const orders = prepared();
+    const history = orders.filter((order) => order.stage === 'history');
+    const rto = history.filter((order) => order.outcome === 'rto').length / history.length;
+    expect(rto).toBeGreaterThanOrEqual(0.22);
+    expect(rto).toBeLessThanOrEqual(0.38);
+    const result = scoreWithRules(orders);
+    const cod = new Set(
+      orders.filter((order) => order.stage === 'pending' && order.paymentType === 'cod').map((order) => order.externalOrderId),
+    );
+    expect(result.predictions.some((row) => cod.has(row.id) && row.band === 'Low')).toBe(true);
+    expect(result.predictions.some((row) => row.band === 'Medium' || row.band === 'High')).toBe(true);
+    expect(result.predictions.every((row) => row.reasons.length > 0)).toBe(true);
+  });
+
   it('scores every pending sample order into a risk band', () => {
-    const orders = generateSample().map((order) => ({ ...order, hour: hourInKolkata(order.orderedAt) }));
+    const orders = prepared();
     const result = scoreWithRules(orders);
     const pending = orders.filter((order) => order.stage === 'pending');
     expect(result.model).toBe('rules-prior');

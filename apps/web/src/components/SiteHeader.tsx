@@ -28,7 +28,7 @@ export function SiteHeader() {
       <header className="fixed inset-x-0 top-3 z-[80] flex justify-center px-4 sm:top-5">
         <div
           data-nav-pill
-          className="flex items-center gap-1 rounded-full border-2 border-ink bg-paper/95 py-2 pl-3 pr-2 shadow-sticker backdrop-blur-md"
+          className="flex max-w-full items-center gap-1 rounded-full border-2 border-ink bg-paper/95 py-2 pl-3 pr-2 shadow-sticker backdrop-blur-md"
         >
           <Link href="/" className="mr-1 flex items-center gap-2.5" aria-label="RTO Shield home">
             <LogoMark size={30} />

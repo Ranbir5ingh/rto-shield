@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import gsap from 'gsap';
 import { Distribution, TrendChart } from '@/components/Charts';
@@ -14,10 +14,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [wire, setWire] = useState<OrderSummary[] | null>(null);
   const [error, setError] = useState('');
+  const animated = useRef(false);
 
   // Sticker pop-in for the stat cards once data lands.
   useEffect(() => {
-    if (!data) return;
+    if (!data || animated.current) return;
+    animated.current = true;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     document.querySelectorAll<HTMLElement>('[data-reveal="pop"]').forEach((n) => {
       gsap.from(n, {
@@ -33,12 +35,32 @@ export default function DashboardPage() {
   }, [data]);
 
   useEffect(() => {
-    api<DashboardData>('/dashboard')
-      .then(setData)
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load the dashboard'));
-    api<{ orders: OrderSummary[] }>('/orders?stage=pending&limit=100')
-      .then((b) => setWire(b.orders.filter((o) => o.riskScore !== null).slice(0, 6)))
-      .catch(() => setWire([]));
+    let stop = false;
+    let tries = 0;
+    const timer = { id: 0 };
+    async function pull(quiet = false) {
+      try {
+        const body = await api<DashboardData>('/dashboard');
+        if (stop) return;
+        setData(body);
+        try {
+          const listed = await api<{ orders: OrderSummary[] }>('/orders?stage=pending&limit=100');
+          if (!stop) setWire(listed.orders.filter((order) => order.riskScore !== null).slice(0, 6));
+        } catch {
+          if (!stop) setWire((current) => current ?? []);
+        }
+        tries += 1;
+        const waiting = Boolean(body.upgrading) || body.model?.model === 'rules-prior';
+        if (waiting && tries < 24) timer.id = window.setTimeout(() => void pull(true), 2500);
+      } catch (err) {
+        if (!quiet && !stop) setError(err instanceof ApiError ? err.message : 'Could not load the dashboard');
+      }
+    }
+    void pull();
+    return () => {
+      stop = true;
+      window.clearTimeout(timer.id);
+    };
   }, []);
 
   if (error) return <p className="text-risk font-bold">{error}</p>;
@@ -134,10 +156,10 @@ export default function DashboardPage() {
             {(wire ?? []).map((o) => (
               <div key={o.id} className="datarow">
                 <Link href={`/app/orders/${o.id}`} className="font-bold text-ink transition hover:underline hover:decoration-hl hover:decoration-2">
-                  {o.externalOrderId || o.id.slice(-6)} · {o.city} · ₹{o.orderValue.toLocaleString('en-IN')}
+                  {o.externalOrderId || o.id.slice(-6)} · {o.city} · {inr(o.orderValue)}
                 </Link>
                 <span className="flex items-center gap-4">
-                  {o.riskBand === 'High' ? <Flag tone="red">RTO risk</Flag> : o.riskBand === 'Medium' ? <Flag tone="banana">Watch</Flag> : <Flag tone="go">Clear</Flag>}
+                  {o.riskBand === 'High' ? <Flag tone="red">High</Flag> : o.riskBand === 'Medium' ? <Flag tone="banana">Medium</Flag> : <Flag tone="go">Low</Flag>}
                   <span className="font-display text-xl font-extrabold tabular-nums">{o.riskScore}</span>
                 </span>
               </div>
@@ -185,7 +207,7 @@ export default function DashboardPage() {
           )}
         </div>
         <p className="mt-10 font-mono text-[11px] font-bold leading-6 tracking-[0.08em] text-inksoft">
-          SAVED RUPEES ARE CANCELLED MEDIUM AND HIGH ORDERS × YOUR COST PER RTO — AN ESTIMATE, NOT A BANK BALANCE.
+          SAVED AND EXPOSURE USE EACH ORDER'S VALUE PLUS YOUR COST PER RTO (SHIPPING BOTH WAYS). AN ESTIMATE, NOT A BANK BALANCE.
         </p>
       </section>
     </div>

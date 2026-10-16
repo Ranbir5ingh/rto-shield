@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { AuthFrame } from '@/components/AuthFrame';
 import { DemoButton } from '@/components/DemoButton';
-import { Button, Field, inputClass } from '@/components/ui';
+import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import type { PublicUser } from '@/lib/types';
 
@@ -19,6 +19,14 @@ function LoginForm() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email, like asha@shop.in.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Use at least 8 characters.');
+      return;
+    }
     setPending(true);
     setError('');
     try {
@@ -36,14 +44,14 @@ function LoginForm() {
 
   return (
     <AuthFrame title="Log in" lede="Your shop, scores, and confirmation queue.">
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} noValidate className="space-y-4">
         <Field label="Email">
           <input className={inputClass} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </Field>
         <Field label="Password">
           <input className={inputClass} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-risk">{error}</p> : null}
+        {error ? <Notice>{error}</Notice> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Checking…' : 'Log in'}
         </Button>

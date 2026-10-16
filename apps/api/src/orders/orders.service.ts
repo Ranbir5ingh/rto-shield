@@ -35,10 +35,12 @@ import {
   scoreWithRules,
   type PreparedSampleOrder,
 } from './rules-score';
+import { buyerSignal, phoneLedger, pinLedger, pinSignal } from './shop-signals';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
+  private readonly upgrading = new Set<string>();
 
   constructor(
     @InjectModel(Order.name) private readonly orders: Model<Order>,
@@ -227,29 +229,38 @@ export class OrdersService {
       warnings: staged.score.warnings,
     });
     const scored = docs.filter((doc) => doc.riskScore !== null && doc.stage === 'pending').length;
+    this.startUpgrade(user);
     return {
       scored,
       notice: scored ? null : 'Sample orders are in the shop. Score them once the model is awake.',
+      upgrading: true,
     };
   }
 
   private async demoScore(orders: PreparedSampleOrder[]): Promise<PredictResponse> {
     const history = orders.filter((order) => order.stage === 'history').slice(-DEMO_FAST_HISTORY);
     const pending = orders.filter((order) => order.stage === 'pending');
-    const toPayload = (order: PreparedSampleOrder) =>
-      toMlOrder({
+    const pins = pinLedger(orders.filter((order) => order.stage === 'history'));
+    const phones = phoneLedger(orders.filter((order) => order.stage === 'history'));
+    const toPayload = (order: PreparedSampleOrder) => {
+      const buyer = buyerSignal(phones, order.phone, order.priorOrders, order.priorRtos);
+      const pin = pinSignal(pins, order.pincode);
+      return toMlOrder({
         id: order.externalOrderId,
         orderValue: order.orderValue,
         paymentType: order.paymentType,
         hour: order.hour,
-        priorOrders: order.priorOrders,
-        priorRtos: order.priorRtos,
+        priorOrders: buyer.priorOrders,
+        priorRtos: buyer.priorRtos,
         address: order.address,
         city: order.city,
         state: order.state,
         pincode: order.pincode,
         outcome: order.outcome,
+        sellerPinN: pin.sellerPinN,
+        sellerPinRtoRate: pin.sellerPinRtoRate,
       });
+    };
     try {
       const score = await this.ml.predict(history.map(toPayload), pending.map(toPayload), {
         speed: 'fast',
@@ -297,14 +308,40 @@ export class OrdersService {
 
   async markOutcome(user: UserDocument, id: string, outcome: 'confirmed' | 'cancelled' | 'no_response') {
     const order = await this.findOwned(user, id);
-    if (order.stage !== 'pending') throw new BadRequestException('Only pending orders can be updated');
+    if (order.stage !== 'pending') return this.toDetail(user, order);
     order.outcome = outcome;
     order.stage = 'closed';
     await order.save();
     return this.toDetail(user, order);
   }
 
-  async score(user: UserDocument, options?: { fast?: boolean }) {
+  isUpgrading(userId: string) {
+    return this.upgrading.has(userId);
+  }
+
+  /** Fast scores return to the shop. The full model replaces them when it finishes. */
+  startUpgrade(user: UserDocument) {
+    const id = String(user._id);
+    if (this.upgrading.has(id)) return;
+    this.upgrading.add(id);
+    setImmediate(() => {
+      void this.runUpgrade(user).finally(() => this.upgrading.delete(id));
+    });
+  }
+
+  private async runUpgrade(user: UserDocument) {
+    try {
+      const latest = await this.latestModel(user);
+      if (!latest || latest.model === 'rules-prior') {
+        await this.score(user, { fast: true, timeoutMs: 20_000 });
+      }
+      await this.score(user, { fast: false, timeoutMs: 55_000 });
+    } catch (error) {
+      this.logger.warn(`Background score stopped: ${error instanceof Error ? error.name : 'error'}`);
+    }
+  }
+
+  async score(user: UserDocument, options?: { fast?: boolean; timeoutMs?: number }) {
     const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
     if (!pending.length) {
       const latest = await this.latestModel(user);
@@ -318,8 +355,21 @@ export class OrdersService {
       .sort({ orderedAt: -1 })
       .limit(5000);
 
-    const historyPayload = history.map((order) =>
-      toMlOrder({
+    const labelled = history.map((order) => ({
+      pincode: order.pincode,
+      outcome: order.outcome,
+      phone: this.crypto.decrypt(order.phoneEnc),
+    }));
+    const pins = pinLedger(labelled);
+    const phones = phoneLedger(labelled);
+    const signalFor = (order: OrderDocument) => {
+      const buyer = buyerSignal(phones, this.crypto.decrypt(order.phoneEnc), order.priorOrders, order.priorRtos);
+      const pin = pinSignal(pins, order.pincode);
+      return { ...buyer, ...pin };
+    };
+    const historyPayload = (options?.fast ? history.slice(0, 120) : history).map((order) => {
+      const signal = signalFor(order);
+      return toMlOrder({
         id: String(order._id),
         orderValue: order.orderValue,
         paymentType: order.paymentType,
@@ -331,29 +381,63 @@ export class OrdersService {
         state: order.state,
         pincode: order.pincode,
         outcome: order.outcome,
-      }),
-    );
-    const pendingPayload = pending.map((order) =>
-      toMlOrder({
+        sellerPinN: signal.sellerPinN,
+        sellerPinRtoRate: signal.sellerPinRtoRate,
+      });
+    });
+    const pendingPayload = pending.map((order) => {
+      const signal = signalFor(order);
+      return toMlOrder({
         id: String(order._id),
         orderValue: order.orderValue,
         paymentType: order.paymentType,
         hour: order.hour,
-        priorOrders: order.priorOrders,
-        priorRtos: order.priorRtos,
+        priorOrders: signal.priorOrders,
+        priorRtos: signal.priorRtos,
         address: this.crypto.decrypt(order.addressEnc),
         city: order.city,
         state: order.state,
         pincode: order.pincode,
         outcome: null,
-      }),
-    );
+        sellerPinN: signal.sellerPinN,
+        sellerPinRtoRate: signal.sellerPinRtoRate,
+      });
+    });
 
     const fast = options?.fast === true;
-    const result = await this.ml.predict(historyPayload, pendingPayload, {
-      speed: fast ? 'fast' : 'full',
-      timeoutMs: fast ? 12_000 : 60_000,
-    });
+    let result: PredictResponse;
+    try {
+      result = await this.ml.predict(historyPayload, pendingPayload, {
+        speed: fast ? 'fast' : 'full',
+        timeoutMs: options?.timeoutMs ?? (fast ? 8_000 : 55_000),
+      });
+    } catch (error) {
+      if (!fast) throw error;
+      this.logger.warn(`Fast score missed: ${error instanceof Error ? error.name : 'error'}`);
+      const prepared: PreparedSampleOrder[] = [...history, ...pending].map((order) => {
+        const signal = signalFor(order);
+        return {
+          externalOrderId: String(order._id),
+          buyerName: '',
+          phone: this.crypto.decrypt(order.phoneEnc),
+          address: this.crypto.decrypt(order.addressEnc),
+          city: order.city,
+          state: order.state,
+          pincode: order.pincode,
+          orderValue: order.orderValue,
+          paymentType: order.paymentType,
+          orderedAt: order.orderedAt,
+          hour: order.hour,
+          priorOrders: signal.priorOrders,
+          priorRtos: signal.priorRtos,
+          productName: order.productName,
+          courier: order.courier,
+          stage: order.stage,
+          outcome: order.outcome,
+        };
+      });
+      result = scoreWithRules(prepared);
+    }
     const byId = new Map(result.predictions.map((row) => [row.id, row]));
     const risky = pending.filter((order) => {
       const band = byId.get(String(order._id))?.band;

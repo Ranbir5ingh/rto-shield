@@ -30,7 +30,7 @@ export function AuthFrame({
             {[
               ['S1042 · ₹2,458 · COD', 'CLEAR', 'go'],
               ['S1047 · ₹1,299 · COD', 'RTO RISK', 'red'],
-              ['S1051 · ₹1,899 · PREPAID', 'WATCH', 'banana'],
+              ['S1051 · ₹1,899 · PREPAID', 'MEDIUM', 'banana'],
             ].map(([id, flag, tone]) => (
               <div key={id} className="datarow">
                 <span className="text-ink/70">{id}</span>

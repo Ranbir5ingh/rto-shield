@@ -10,7 +10,7 @@ import math
 import random
 from typing import Any
 
-from app.features import probability_from_logit
+from app.features import feature_dict, prior_rto_logit, probability_from_logit
 
 FIRST = [
     "Aarav", "Ananya", "Rohan", "Priya", "Mohammed", "Fatima", "Sneha", "Vikram",
@@ -38,26 +38,16 @@ LANDMARKS = ["Hanuman mandir", "SBI ATM", "purana bus stand", "paani ki tanki", 
 STREETS = ["Gali no 4", "Lane 2, Shastri Nagar", "Main Market", "Sector 7", "Teachers Colony", "Rajiv Chowk"]
 
 
+def pin_tendency(pincode: str) -> float:
+    """Synthetic spread for this shop's own past. Not a public pincode blacklist."""
+    bucket = sum(ord(char) for char in pincode) % 5
+    return (0.12, 0.22, 0.28, 0.4, 0.55)[bucket]
+
+
 def _logit(order: dict[str, Any]) -> float:
-    is_cod = 1.0 if order["is_cod"] else 0.0
-    prior = order["prior_orders"]
-    rate = (order["prior_rtos"] / prior) if prior else 0.0
-    value = order["order_value"]
-    z = -1.55
-    z += 1.45 * is_cod
-    z += 0.95 * (1.0 if is_cod and value >= 1500 else 0.0)
-    z += 0.85 * (1.0 if prior == 0 and is_cod else 0.0)
-    z += 1.15 * rate * (1.0 if prior else 0.0)
-    z += 0.85 * float(order["addr_incomplete"])
-    z += 0.75 * float(order["addr_landmark"])
-    z += 1.25 * float(order["addr_junk"])
-    z += 0.55 * float(order["addr_mismatch"])
-    hour = order["hour"]
-    z += 0.35 * (1.0 if hour >= 22 or hour <= 5 else 0.0)
-    z -= 1.1 * (1 - is_cod)
-    if prior >= 3 and rate < 0.15 and order["addr_quality"] >= 0.7:
-        z -= 0.45
-    return z
+    row = dict(order)
+    row.setdefault("seller_pin_rto_rate", pin_tendency(str(order.get("pincode") or "")))
+    return prior_rto_logit(feature_dict(row))
 
 
 def generate(n_history: int = 360, n_pending: int = 24, seed: int = 42) -> dict[str, list[dict[str, Any]]]:

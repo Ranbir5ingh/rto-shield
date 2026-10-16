@@ -14,6 +14,8 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
+  const [saving, setSaving] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -25,6 +27,7 @@ export default function OrderDetailPage() {
   async function voice() {
     if (!order) return;
     setError('');
+    setVoiceState('playing');
     try {
       const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
         `/orders/${order.id}/voice`,
@@ -32,11 +35,36 @@ export default function OrderDetailPage() {
       );
       if (result.audioBase64 && result.mime) {
         await new Audio(`data:${result.mime};base64,${result.audioBase64}`).play();
+        setVoiceState('played');
       } else if (result.notice) {
+        setVoiceState('idle');
         setNote(`${result.notice} ${result.script}`);
+      } else {
+        setVoiceState('played');
       }
     } catch (err) {
+      setVoiceState('idle');
       setError(err instanceof ApiError ? err.message : 'Voice failed');
+    }
+  }
+
+  async function mark(value: 'confirmed' | 'cancelled' | 'no_response') {
+    if (!order || order.stage === 'closed' || saving) return;
+    const previous = order;
+    setSaving(value);
+    setError('');
+    setOrder({ ...order, stage: 'closed', outcome: value });
+    try {
+      const next = await api<OrderDetail>(`/orders/${order.id}/outcome`, {
+        method: 'PATCH',
+        body: JSON.stringify({ outcome: value }),
+      });
+      setOrder(next);
+    } catch (err) {
+      setOrder(previous);
+      setError(err instanceof ApiError ? err.message : 'Could not save the outcome');
+    } finally {
+      setSaving('');
     }
   }
 
@@ -82,7 +110,7 @@ export default function OrderDetailPage() {
       </div>
       {error ? <Notice>{error}</Notice> : null}
       <article className="panel p-5">
-        <h2 className="font-semibold">Why this score</h2>
+        <h2 className="font-semibold">Top factors</h2>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
           {order.reasons.length ? order.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Not scored yet.</li>}
         </ul>
@@ -108,8 +136,8 @@ export default function OrderDetailPage() {
                 Open WhatsApp
               </a>
             ) : null}
-            <Button type="button" tone="ghost" onClick={voice}>
-              Play Hindi script
+            <Button type="button" tone="ghost" onClick={voice} disabled={voiceState === 'playing'}>
+              {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
             </Button>
             <Button type="button" tone="ghost" onClick={pin}>
               Pincode context
@@ -118,6 +146,18 @@ export default function OrderDetailPage() {
           {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
         </article>
       ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={() => mark('confirmed')} disabled={order.stage === 'closed' || Boolean(saving)}>
+          {saving === 'confirmed' ? 'Saving…' : 'Confirmed'}
+        </Button>
+        <Button type="button" tone="danger" onClick={() => mark('cancelled')} disabled={order.stage === 'closed' || Boolean(saving)}>
+          {saving === 'cancelled' ? 'Saving…' : 'Cancelled'}
+        </Button>
+        <Button type="button" tone="ghost" onClick={() => mark('no_response')} disabled={order.stage === 'closed' || Boolean(saving)}>
+          No response
+        </Button>
+      </div>
+      {order.stage === 'closed' ? <p className="text-sm text-ink/70">Closed as {order.outcome}.</p> : null}
     </div>
   );
 }

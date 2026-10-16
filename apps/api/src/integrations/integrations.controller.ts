@@ -23,9 +23,29 @@ export class IntegrationsController {
   ) {}
 
   @Get('integrations')
-  async status() {
+  async status(@CurrentUser() user: UserDocument) {
     const ml = await this.ml.health(4_000);
+    if (!vendorPanel(user.email)) {
+      return {
+        sellerView: true,
+        encryption: this.crypto.mode,
+        mongodb: process.env.MONGODB_MODE === 'memory' ? 'memory' : 'configured',
+        sentry: false,
+        elevenlabs: false,
+        serpapi: false,
+        ml: {
+          reachable: Boolean(ml),
+          activePredictor: null,
+          tabpfnToken: false,
+          gemini: false,
+          ollama: false,
+          tabpfnClientInstalled: false,
+          tabpfnLocalInstalled: false,
+        },
+      };
+    }
     return {
+      sellerView: false,
       encryption: this.crypto.mode,
       mongodb: process.env.MONGODB_MODE === 'memory' ? 'memory' : 'configured',
       sentry: Boolean(this.config.get<string>('SENTRY_DSN')),
@@ -68,4 +88,13 @@ export class IntegrationsController {
     const script = order.messages?.voice_script_hi || safeVoiceScript(user.shopName, order.orderValue);
     return this.voices.synthesize(script, user.shopName, order.orderValue);
   }
+}
+
+function vendorPanel(email: string) {
+  const allow = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (allow.includes(email.toLowerCase())) return true;
+  return process.env.NODE_ENV !== 'production';
 }

@@ -74,9 +74,19 @@ def test_rules_rank_risky_above_safe():
 
 
 def test_sample_cod_returns_more_than_prepaid():
-    data = generate(360, 10, seed=42)
+    data = generate(360, 24, seed=42)
     rates = outcome_rates(data["history"])
     assert rates["cod_rto_rate"] > rates["prepaid_rto_rate"] + 0.15
+    overall = sum(int(row["label"] or 0) for row in data["history"]) / len(data["history"])
+    assert 0.25 <= overall <= 0.35
+    result = score_orders(data["history"], data["pending"], fast=True)
+    cod_low = [
+        pred
+        for pred, order in zip(result["predictions"], data["pending"], strict=False)
+        if order["is_cod"] and pred["band"] == "Low"
+    ]
+    assert cod_low
+    assert any(pred["band"] in {"Medium", "High"} for pred in result["predictions"])
 
 
 def test_fast_score_does_not_call_tabpfn(monkeypatch):

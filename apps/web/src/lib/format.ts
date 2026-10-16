@@ -1,9 +1,11 @@
 export function inr(value: number) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(value);
+  const rounded = Math.round(Number(value) || 0);
+  const sign = rounded < 0 ? '-' : '';
+  const digits = Math.abs(rounded).toString();
+  const tail = digits.slice(-3);
+  const head = digits.length > 3 ? digits.slice(0, -3) : '';
+  const groupedHead = head.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return `${sign}₹${head ? `${groupedHead},${tail}` : tail}`;
 }
 
 export function bandClass(band: string | null) {

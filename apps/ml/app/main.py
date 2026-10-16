@@ -58,6 +58,8 @@ class OrderIn(BaseModel):
     city: str = Field(default="", max_length=80)
     state: str = Field(default="", max_length=80)
     pincode: str = Field(default="", max_length=12)
+    seller_pin_rto_rate: float = Field(default=0.3, ge=0, le=1)
+    seller_pin_n: int = Field(default=0, ge=0, le=100_000)
     label: int | None = Field(default=None, ge=0, le=1)
 
 

@@ -236,19 +236,30 @@ export function Tr({ children, className = '' }: { children: ReactNode; classNam
 }
 
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   return (
     <button
       type="button"
+      aria-live="polite"
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1600);
-        });
+        const done = (next: 'copied' | 'failed') => {
+          setState(next);
+          window.setTimeout(() => setState('idle'), 1600);
+        };
+        if (!navigator.clipboard?.writeText) {
+          done('failed');
+          return;
+        }
+        void navigator.clipboard.writeText(text).then(
+          () => done('copied'),
+          () => done('failed'),
+        );
       }}
-      className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink underline decoration-hl decoration-2 underline-offset-4 transition hover:decoration-ink"
+      className={`font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink underline decoration-hl decoration-2 underline-offset-4 transition hover:decoration-ink ${
+        state === 'copied' ? 'border-2 border-ink bg-lime px-2 py-1 no-underline' : ''
+      }`}
     >
-      {copied ? 'Copied' : label}
+      {state === 'copied' ? 'Copied' : state === 'failed' ? 'Could not copy' : label}
     </button>
   );
 }

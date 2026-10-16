@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { inr } from '@/lib/format';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Plus } from 'lucide-react';
 import { DemoButton } from '@/components/DemoButton';
@@ -211,7 +212,9 @@ function TryModel() {
             <div>
               <div className="flex items-center justify-between">
                 <p className="font-mono text-[11px] font-bold uppercase tracking-[0.22em]">Order value</p>
-                <p className="bg-hl border-2 border-ink px-3 py-1 font-mono text-sm font-bold tabular-nums">₹{value.toLocaleString('en-IN')}</p>
+                <p className="bg-hl border-2 border-ink px-3 py-1 font-mono text-sm font-bold tabular-nums" suppressHydrationWarning>
+                  {inr(value)}
+                </p>
               </div>
               <input
                 type="range"
@@ -258,7 +261,7 @@ function TryModel() {
             <div className="pointer-events-none absolute inset-x-0 top-8 z-10 flex justify-center">
               <div ref={stampRef} className="stamp px-5 py-2">
                 <span className="font-display text-2xl font-black uppercase tracking-tight">
-                  {band === 'High' ? 'High risk' : band === 'Medium' ? 'Watch it' : 'Ship it'}
+                  {band === 'High' ? 'High risk' : band === 'Medium' ? 'Medium' : 'Ship it'}
                 </span>
               </div>
             </div>
@@ -600,6 +603,7 @@ export function Landing() {
             <div className="flex gap-8">
               <Link href="/login" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Log in</Link>
               <Link href="/privacy" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Privacy</Link>
+              <Link href="/terms" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Terms</Link>
             </div>
           </div>
         </div>

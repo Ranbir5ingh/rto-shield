@@ -46,6 +46,11 @@ function mulberry32(seed: number) {
   };
 }
 
+function pinTendency(pincode: string): number {
+  const bucket = [...pincode].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 5;
+  return [0.12, 0.22, 0.28, 0.4, 0.55][bucket] ?? 0.28;
+}
+
 function sigmoid(z: number): number {
   if (z >= 0) return 1 / (1 + Math.exp(-z));
   const ez = Math.exp(z);
@@ -98,18 +103,21 @@ export function generateSample(seed = 42, historyCount = 360, pendingCount = 24)
     const hour = pick([11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 0, 1]);
     const stage = i < historyCount ? 'history' : 'pending';
     const rate = priorOrders ? priorRtos / priorOrders : 0;
-    let z = -1.55;
-    z += 1.45 * (isCod ? 1 : 0);
-    z += 0.95 * (isCod && orderValue >= 1500 ? 1 : 0);
-    z += 0.85 * (priorOrders === 0 && isCod ? 1 : 0);
-    z += 1.15 * rate * (priorOrders ? 1 : 0);
-    z += 0.85 * addrIncomplete;
-    z += 0.75 * addrLandmark;
-    z += 1.25 * addrJunk;
-    z += 0.55 * addrMismatch;
-    z += 0.35 * (hour >= 22 || hour <= 5 ? 1 : 0);
-    z -= 1.1 * (isCod ? 0 : 1);
-    if (priorOrders >= 3 && rate < 0.15 && addrQuality >= 0.7) z -= 0.45;
+    const pincode = pick(pins);
+    const pinRate = pinTendency(pincode);
+    let z = -2.2;
+    z += 0.4 * (isCod ? 1 : 0);
+    z += 0.9 * (isCod && orderValue >= 1500 ? 1 : 0);
+    z += 0.5 * (priorOrders === 0 && isCod ? 1 : 0);
+    z += 2.0 * rate * (priorOrders ? 1 : 0);
+    z += 1.15 * addrJunk;
+    z += 0.6 * addrIncomplete;
+    z += 0.45 * addrLandmark;
+    z += 0.4 * addrMismatch;
+    z += 0.5 * ((hour >= 22 || hour <= 5) && isCod ? 1 : 0);
+    z += 1.15 * (pinRate - 0.3);
+    z -= 0.45 * (isCod ? 0 : 1);
+    if (priorOrders >= 2 && rate < 0.15 && addrQuality >= 0.7) z -= 0.95;
     const label = rand() < sigmoid(z);
     const orderedAt =
       stage === 'history'
@@ -122,7 +130,7 @@ export function generateSample(seed = 42, historyCount = 360, pendingCount = 24)
       address,
       city,
       state,
-      pincode: pick(pins),
+      pincode,
       orderValue,
       paymentType: isCod ? 'cod' : 'prepaid',
       orderedAt,

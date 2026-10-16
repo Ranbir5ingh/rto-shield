@@ -19,6 +19,8 @@ export function toMlOrder(input: {
   state: string;
   pincode: string;
   outcome: string | null;
+  sellerPinRtoRate?: number;
+  sellerPinN?: number;
 }): MlOrder {
   const label = trainingLabel(input.outcome);
   return {
@@ -32,6 +34,8 @@ export function toMlOrder(input: {
     city: input.city,
     state: input.state,
     pincode: input.pincode,
+    seller_pin_rto_rate: input.sellerPinRtoRate ?? 0.3,
+    seller_pin_n: input.sellerPinN ?? 0,
     ...(label === undefined ? {} : { label }),
   };
 }

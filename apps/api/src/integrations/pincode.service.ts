@@ -33,7 +33,7 @@ export class PincodeService {
   async lookup(pincode: string): Promise<PincodeView> {
     const cached = await this.cache.findOne({ pincode, expiresAt: { $gt: new Date() } }).lean();
     if (cached?.payload) {
-      return { ...(cached.payload as unknown as PincodeView), source: 'cache' };
+      return stripPhones({ ...(cached.payload as unknown as PincodeView), source: 'cache' });
     }
     const embedded = embeddedLocality(pincode);
     const base: PincodeView = {
@@ -48,14 +48,14 @@ export class PincodeService {
     };
     const apiKey = this.config.get<string>('SERPAPI_KEY');
     if (!apiKey) {
-      return {
+      return stripPhones({
         ...base,
         notice: 'Live courier-issue search needs SERPAPI_KEY. Showing public locality context only.',
-      };
+      });
     }
     try {
       const snippets = await traceSpan('serpapi.pincode', 'http.client', { pincode }, () => this.search(pincode, apiKey));
-      const view: PincodeView = { ...base, snippets, source: 'serpapi', notice: null };
+      const view: PincodeView = stripPhones({ ...base, snippets, source: 'serpapi', notice: null });
       await this.cache.updateOne(
         { pincode },
         { $set: { payload: view, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } },
@@ -64,7 +64,7 @@ export class PincodeService {
       return view;
     } catch (error) {
       this.logger.warn(`SerpApi failed: ${error instanceof Error ? error.name : 'error'}`);
-      return { ...base, notice: 'SerpApi lookup failed. Showing public locality context only.' };
+      return stripPhones({ ...base, notice: 'SerpApi lookup failed. Showing public locality context only.' });
     }
   }
 
@@ -80,4 +80,26 @@ export class PincodeService {
       snippet: String(item.snippet || '').slice(0, 280),
     }));
   }
+}
+
+function stripContactPhones(text: string): string {
+  return text
+    .replace(/(?:\+?\s*91[\s-]*)?[6-9](?:[\s-]*\d){9}/g, '')
+    .replace(/\b(?:phone|ph|mob|mobile|call|contact)\s*[:\-]?\s*[\d\s+-]{8,}/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function stripPhones(view: PincodeView): PincodeView {
+  return {
+    ...view,
+    locality: view.locality ? stripContactPhones(view.locality) : view.locality,
+    notice: view.notice ? stripContactPhones(view.notice) : view.notice,
+    snippets: view.snippets
+      .map((item) => ({
+        title: stripContactPhones(item.title),
+        snippet: stripContactPhones(item.snippet),
+      }))
+      .filter((item) => item.title || item.snippet),
+  };
 }

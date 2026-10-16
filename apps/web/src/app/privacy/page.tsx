@@ -18,9 +18,10 @@ export default function PrivacyPage() {
           masked in lists. Logs are not supposed to contain phones, addresses, passwords, or tokens.
         </p>
         <p>
-          The model sees numbers: order value, COD or prepaid, time of day, prior orders, and address-quality flags.
-          It does not see the phone, the buyer’s name, or the pincode as a risk feature. A pincode can be shown as
-          courier context. It is never a ban.
+          The model sees numbers: order value, COD or prepaid, time of day, how often this buyer has ordered and
+          returned, address-quality flags, and how often your own earlier orders to that pincode came back. It does
+          not see the phone, the buyer’s name, or the pincode itself. A pincode can be shown as courier context. It
+          is never a ban.
         </p>
         <p>
           Phone numbers are not sent to TabPFN, Gemma, SerpApi, or ElevenLabs. The Hindi voice script is shop name

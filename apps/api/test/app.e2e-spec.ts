@@ -212,8 +212,15 @@ describe('RTO Shield API', () => {
       .send({ outcome: 'cancelled' })
       .expect(200);
     expect(updated.body.stage).toBe('closed');
+    const again = await agent
+      .patch(`/api/orders/${top.id}/outcome`)
+      .set('x-csrf-token', csrfToken)
+      .send({ outcome: 'cancelled' })
+      .expect(200);
+    expect(again.body.outcome).toBe('cancelled');
     const dashboard = await agent.get('/api/dashboard').expect(200);
     expect(dashboard.body.savedInr).toBeGreaterThan(0);
+    expect(dashboard.body.exposureInr).toBeGreaterThanOrEqual(0);
     expect(dashboard.body.rtoRate).not.toBeNull();
     const pin = await agent.get('/api/pincode/560038').expect(200);
     expect(pin.body.fairness).toMatch(/never a ban/i);

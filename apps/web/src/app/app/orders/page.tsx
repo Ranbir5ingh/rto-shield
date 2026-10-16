@@ -27,7 +27,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [pending, setPending] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'fast' | 'upgrade' | 'done'>('idle');
   const [ready, setReady] = useState(false);
 
   async function load() {
@@ -67,16 +67,36 @@ export default function OrdersPage() {
   }
 
   async function score() {
-    setPending(true);
+    setPhase('fast');
     setError('');
+    setInfo('Scoring a fast pass. The full model follows.');
     try {
-      const result = await api<{ scored: number; modelLabel: string; warnings: string[] }>('/orders/score', { method: 'POST' });
-      setInfo(`Scored ${result.scored}. ${result.modelLabel || ''} ${(result.warnings || []).join(' ')}`);
+      const result = await api<{ scored: number; modelLabel: string; warnings: string[]; upgrading?: boolean }>('/orders/score', {
+        method: 'POST',
+      });
+      setInfo(`Fast scores are in for ${result.scored} orders. ${result.modelLabel || ''}`.trim());
       await load();
+      if (!result.upgrading) {
+        setPhase('done');
+        return;
+      }
+      setPhase('upgrade');
+      const started = Date.now();
+      while (Date.now() - started < 55_000) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        const status = await api<{ upgrading: boolean; model: { modelLabel?: string; model?: string } | null }>('/orders/score-status');
+        if (!status.upgrading) {
+          setPhase('done');
+          setInfo(`Full model is in. ${status.model?.modelLabel || ''}`.trim());
+          await load();
+          return;
+        }
+      }
+      setPhase('done');
+      setInfo('Fast scores are ready. The full model is still catching up.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Scoring failed');
-    } finally {
-      setPending(false);
+      setPhase('idle');
     }
   }
 
@@ -87,10 +107,15 @@ export default function OrdersPage() {
           <h1 className="font-display font-medium text-display-2">Score pending orders</h1>
           <p className="mt-2 text-sm text-ink/70">Low scores can ship. Medium and High go to the confirmation queue.</p>
         </div>
-        <Button type="button" onClick={score} disabled={pending}>
-          {pending ? 'Scoring…' : 'Score pending orders'}
+        <Button type="button" onClick={score} disabled={phase === 'fast' || phase === 'upgrade'}>
+          {phase === 'fast' ? 'Fast pass…' : phase === 'upgrade' ? 'Upgrading the full model…' : 'Score pending orders'}
         </Button>
       </div>
+      {phase === 'fast' || phase === 'upgrade' ? (
+        <div className="h-2 w-full border-2 border-ink bg-paper" role="progressbar" aria-valuetext={phase === 'fast' ? 'Fast pass' : 'Full model'}>
+          <div className={`h-full bg-hl ${phase === 'fast' ? 'w-1/3' : 'w-2/3'}`} />
+        </div>
+      ) : null}
       {info ? <Notice tone="good">{info}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
       <form onSubmit={createOrder} className="panel grid gap-3 p-5 shadow-card md:grid-cols-2">
@@ -146,7 +171,7 @@ export default function OrdersPage() {
               <th>Buyer</th>
               <th>Value</th>
               <th>Score</th>
-              <th>Why</th>
+              <th>Top factors</th>
             </tr>
           </thead>
           <tbody>

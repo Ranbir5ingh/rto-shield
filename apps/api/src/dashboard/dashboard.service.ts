@@ -14,19 +14,22 @@ export class DashboardService {
 
   async summary(user: UserDocument) {
     const sellerId = user._id;
-    const [delivered, rto, history, pending, closed, highPending, prevented, distribution, trend, reasonDocs, model] =
+    const [delivered, rto, history, pending, closed, highPendingOrders, preventedOrders, distribution, trend, reasonDocs, model] =
       await Promise.all([
         this.orders.countDocuments({ sellerId, outcome: 'delivered' }),
         this.orders.countDocuments({ sellerId, outcome: 'rto' }),
         this.orders.countDocuments({ sellerId, stage: 'history' }),
         this.orders.countDocuments({ sellerId, stage: 'pending' }),
         this.orders.countDocuments({ sellerId, stage: 'closed' }),
-        this.orders.countDocuments({ sellerId, stage: 'pending', riskBand: 'High' }),
-        this.orders.countDocuments({
-          sellerId,
-          outcome: 'cancelled',
-          riskBand: { $in: ['High', 'Medium'] },
-        }),
+        this.orders.find({ sellerId, stage: 'pending', riskBand: 'High' }).select('orderValue').lean(),
+        this.orders
+          .find({
+            sellerId,
+            outcome: 'cancelled',
+            riskBand: { $in: ['High', 'Medium'] },
+          })
+          .select('orderValue')
+          .lean(),
         this.orders.aggregate<{ _id: string; count: number }>([
           { $match: { sellerId, stage: 'pending', riskBand: { $in: ['Low', 'Medium', 'High'] } } },
           { $group: { _id: '$riskBand', count: { $sum: 1 } } },
@@ -69,11 +72,12 @@ export class DashboardService {
       rtoRate: denom ? Math.round((rto / denom) * 1000) / 10 : null,
       delivered,
       rto,
-      savedInr: prevented * user.rtoCostInr,
-      prevented,
+      savedInr: moneyAtRisk(preventedOrders, user.rtoCostInr),
+      prevented: preventedOrders.length,
       rtoCostInr: user.rtoCostInr,
-      exposureInr: highPending * user.rtoCostInr,
-      highPending,
+      exposureInr: moneyAtRisk(highPendingOrders, user.rtoCostInr),
+      highPending: highPendingOrders.length,
+      upgrading: this.orderService.isUpgrading(String(user._id)),
       trend: trend.map((row) => {
         const total = row.delivered + row.rto;
         return {
@@ -89,4 +93,8 @@ export class DashboardService {
       counts: { history, pending, closed },
     };
   }
+}
+
+function moneyAtRisk(orders: Array<{ orderValue?: number }>, shippingBothWays: number) {
+  return orders.reduce((sum, order) => sum + (order.orderValue || 0) + shippingBothWays, 0);
 }
