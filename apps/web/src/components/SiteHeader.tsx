@@ -15,14 +15,6 @@ const links = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -33,64 +25,65 @@ export function SiteHeader() {
 
   return (
     <>
-      <header
-        className={`fixed inset-x-0 top-0 z-[80] transition-all ${
-          scrolled ? 'border-b-2 border-ink bg-paper/90 shadow-sticker-sm backdrop-blur-md' : 'bg-transparent'
-        }`}
-      >
-        <div className="mx-auto flex max-w-page items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="RTO Shield home">
-            <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
+      <header className="fixed inset-x-0 top-3 z-[80] flex justify-center px-4 sm:top-5">
+        <div
+          data-nav-pill
+          className="flex items-center gap-1 rounded-full border-2 border-ink bg-paper/95 py-2 pl-3 pr-2 shadow-sticker backdrop-blur-md"
+        >
+          <Link href="/" className="mr-1 flex items-center gap-2.5" aria-label="RTO Shield home">
+            <LogoMark size={30} />
             <span className="font-display text-sm font-black uppercase tracking-[0.08em]">RTO Shield</span>
           </Link>
-          <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
+          <nav className="hidden items-center md:flex" aria-label="Primary">
             {links.map(([href, label]) => (
               <a
                 key={href}
                 href={href}
-                className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-inksoft transition hover:text-ink hover:underline hover:decoration-hl hover:decoration-2 hover:underline-offset-4"
+                className="rounded-full px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft transition hover:bg-hl hover:text-ink"
               >
                 {label}
               </a>
             ))}
           </nav>
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-1 pl-2 md:flex">
             <Link
               href="/login"
-              className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-inksoft transition hover:text-ink"
+              className="rounded-full px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft transition hover:text-ink"
             >
               Log in
             </Link>
-            <Link href="/signup" className="btn-go !px-5 !py-3 !text-[11px]">
+            <Link href="/signup" className="btn-go !rounded-full !px-5 !py-2.5 !text-[11px]">
               Get started <ArrowRight size={14} />
             </Link>
           </div>
           <button
             type="button"
-            className="grid h-10 w-10 place-items-center border-2 border-ink bg-white shadow-sticker-sm md:hidden"
+            className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink bg-white shadow-sticker-sm md:hidden"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
         </div>
       </header>
 
       {open && (
         <div className="fixed inset-0 z-[100] flex flex-col bg-paper" role="dialog" aria-label="Menu">
-          <div className="flex items-center justify-between px-5 py-4">
-            <span className="flex items-center gap-3">
-              <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
-              <span className="font-display text-sm font-black uppercase tracking-[0.08em]">RTO Shield</span>
-            </span>
-            <button
-              type="button"
-              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white shadow-sticker-sm"
-              onClick={() => setOpen(false)}
-              aria-label="Close menu"
-            >
-              <X size={22} />
-            </button>
+          <div className="flex justify-center px-4 pt-3 sm:pt-5">
+            <div className="flex w-auto items-center gap-1 rounded-full border-2 border-ink bg-paper py-2 pl-3 pr-2 shadow-sticker">
+              <span className="mr-1 flex items-center gap-2.5">
+                <LogoMark size={30} />
+                <span className="font-display text-sm font-black uppercase tracking-[0.08em]">RTO Shield</span>
+              </span>
+              <button
+                type="button"
+                className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink bg-white"
+                onClick={() => setOpen(false)}
+                aria-label="Close menu"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
           <nav className="flex flex-1 flex-col justify-center gap-2 px-8" aria-label="Mobile">
             {links.map(([href, label], i) => (

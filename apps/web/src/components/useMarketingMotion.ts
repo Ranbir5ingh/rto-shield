@@ -64,6 +64,11 @@ export function useMarketingMotion(enabled: boolean) {
           { y: 28, autoAlpha: 0, duration: 0.9, stagger: 0.1, ease: 'power3.out' },
           '-=1.1'
         )
+        .from(
+          '[data-nav-pill]',
+          { y: -90, autoAlpha: 0, rotation: -4, duration: 1, ease: 'back.out(1.5)' },
+          0.55
+        )
         .fromTo(
           '[data-hero-starburst]',
           { scale: 3.2, rotation: 24, autoAlpha: 0 },
@@ -151,7 +156,9 @@ export function useMarketingMotion(enabled: boolean) {
         gsap.set(scan, { left: '100%' });
         gsap.set(flags, { scale: 0.5, autoAlpha: 0 });
         const tl = gsap.timeline({
-          scrollTrigger: { trigger: wipe, start: 'top 78%', end: 'bottom 40%', scrub: 1 },
+          // The wipe completes while the panel is centered in view — the full
+          // "after" state holds on screen instead of arriving half-scrolled-past.
+          scrollTrigger: { trigger: wipe, start: 'top 80%', end: 'center center', scrub: 1 },
         });
         tl.to(over, { clipPath: 'inset(0 0 0 0%)', ease: 'none', duration: 1 }, 0);
         if (scan) tl.to(scan, { left: '0%', ease: 'none', duration: 1 }, 0);
