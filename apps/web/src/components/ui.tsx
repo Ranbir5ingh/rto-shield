@@ -178,7 +178,7 @@ export function Dropdown({
           {options.map((o, i) => {
             const active = o.value === value;
             return (
-              <li key={o.value} role="option" aria-selected={active}>
+              <li key={o.value} role="option" aria-selected={active} className="opt-in" style={{ animationDelay: `${i * 35}ms` }}>
                 <button
                   type="button"
                   onClick={() => pick(o.value)}

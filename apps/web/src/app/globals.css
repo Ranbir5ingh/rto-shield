@@ -438,6 +438,209 @@ body {
   border: 2px solid #1b1712;
 }
 
+/* ---------- custom hand-drawn cursor (fine pointers only) ---------- */
+.fine-pointer body,
+.fine-pointer a,
+.fine-pointer button,
+.fine-pointer [role='button'],
+.fine-pointer .lever,
+.fine-pointer input[type='range'] {
+  cursor: none;
+}
+
+.fine-pointer input[type='text'],
+.fine-pointer input[type='email'],
+.fine-pointer input[type='password'],
+.fine-pointer input[type='number'],
+.fine-pointer textarea,
+.fine-pointer select {
+  cursor: auto;
+}
+
+.cur-dot,
+.cur-wrap {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.cur-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #1b1712;
+}
+
+.cur-wrap {
+  width: 52px;
+  height: 52px;
+}
+
+.cur-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: cur-spin 14s linear infinite;
+}
+
+.cur-ring {
+  fill: rgba(255, 208, 47, 0);
+  stroke: #1b1712;
+  stroke-width: 2.4;
+  stroke-dasharray: 7 6;
+  stroke-linecap: round;
+  transition: fill 0.25s ease;
+}
+
+.cur-wrap[data-hot='1'] .cur-ring {
+  fill: rgba(255, 208, 47, 0.5);
+}
+
+.cur-wrap[data-view='1'] .cur-ring {
+  fill: rgba(255, 77, 141, 0.35);
+  stroke-dasharray: none;
+}
+
+.cur-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #1b1712;
+}
+
+@keyframes cur-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- sticker button press ---------- */
+.btn-go,
+.btn-pink,
+.btn-ghost {
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s ease;
+}
+
+.btn-go:active,
+.btn-pink:active,
+.btn-ghost:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 #1b1712;
+}
+
+/* ---------- FAQ accordion (no snap) ---------- */
+.faq-a {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.faq-a > div {
+  overflow: hidden;
+}
+
+.faq-item[data-open='1'] .faq-a {
+  grid-template-rows: 1fr;
+}
+
+.faq-inner {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.35s ease 0.1s, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.05s;
+}
+
+.faq-item[data-open='1'] .faq-inner {
+  opacity: 1;
+  transform: none;
+}
+
+.faq-icon {
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
+}
+
+.faq-item[data-open='1'] .faq-icon {
+  transform: rotate(135deg);
+  background: #ffd02f;
+}
+
+/* ---------- dropdown option stagger ---------- */
+@keyframes opt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) rotate(-1deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.opt-in {
+  animation: opt-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------- highlighter word scrub ---------- */
+.hlw {
+  background-image: linear-gradient(#ffd02f, #ffd02f);
+  background-repeat: no-repeat;
+  background-size: 0% 82%;
+  background-position: 0 62%;
+  padding: 0 0.08em;
+}
+
+/* ---------- stamp slam ---------- */
+.stamp {
+  border: 5px double #ff3b30;
+  color: #ff3b30;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 4px 4px 0 rgba(27, 23, 18, 0.9);
+  backdrop-filter: blur(1px);
+}
+
+/* ---------- doodle helpers ---------- */
+.doodle {
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translateY(-14px) rotate(var(--rot, 0deg));
+  }
+}
+
+.floaty {
+  animation: floaty 5s ease-in-out infinite;
+}
+
+@keyframes burst-wiggle {
+  0%,
+  100% {
+    transform: rotate(-4deg) scale(1);
+  }
+  50% {
+    transform: rotate(4deg) scale(1.04);
+  }
+}
+
+.burst-wiggle {
+  animation: burst-wiggle 4s ease-in-out infinite;
+  transform-origin: center;
+}
+
 /* ---------- doodles ---------- */
 .doodle-star {
   color: #ff4d8d;

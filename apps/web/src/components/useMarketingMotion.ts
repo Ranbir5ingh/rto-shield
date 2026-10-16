@@ -63,6 +63,12 @@ export function useMarketingMotion(enabled: boolean) {
           '[data-hero-item]',
           { y: 28, autoAlpha: 0, duration: 0.9, stagger: 0.1, ease: 'power3.out' },
           '-=1.1'
+        )
+        .fromTo(
+          '[data-hero-starburst]',
+          { scale: 3.2, rotation: 24, autoAlpha: 0 },
+          { scale: 1, rotation: -10, autoAlpha: 1, duration: 0.7, ease: 'back.out(1.4)' },
+          '-=0.7'
         );
 
       // Scramble labels: mono text resolves from noise.
@@ -212,14 +218,89 @@ export function useMarketingMotion(enabled: boolean) {
         });
       });
 
-      // Fade-up reveals.
+      // Reveals — each section gets its own technique via data-reveal.
+      // rise: classic fade-up · pop: sticker pop-in · slap: sticker slap-down
+      // fan: cards fan in with alternating rotation · wipe-x: clip-path wipe
+      // spin-in: rotate + scale entrance.
       gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((node) => {
-        gsap.from(node, {
-          y: 36,
-          autoAlpha: 0,
-          duration: 0.9,
-          ease: 'power3.out',
-          scrollTrigger: { trigger: node, start: 'top 88%' },
+        const kind = node.dataset.reveal || 'rise';
+        const delay = Number(node.dataset.delay || '0');
+        const trigger = { trigger: node, start: 'top 88%' };
+        if (kind === 'pop') {
+          gsap.from(node, {
+            scale: 0.4,
+            rotation: -8,
+            autoAlpha: 0,
+            duration: 0.7,
+            delay,
+            ease: 'back.out(1.8)',
+            scrollTrigger: trigger,
+          });
+        } else if (kind === 'slap') {
+          gsap.from(node, {
+            scale: 1.7,
+            rotation: gsap.utils.random(-14, 14),
+            autoAlpha: 0,
+            duration: 0.55,
+            delay,
+            ease: 'back.out(1.5)',
+            scrollTrigger: trigger,
+          });
+        } else if (kind === 'fan') {
+          gsap.from(node, {
+            y: 90,
+            rotation: delay % 0.24 < 0.12 ? 10 : -10,
+            autoAlpha: 0,
+            duration: 0.85,
+            delay,
+            ease: 'back.out(1.1)',
+            scrollTrigger: trigger,
+          });
+        } else if (kind === 'wipe-x') {
+          gsap.fromTo(
+            node,
+            { clipPath: 'inset(0 100% 0 0)' },
+            {
+              clipPath: 'inset(0 0% 0 0)',
+              duration: 1,
+              delay,
+              ease: 'power3.inOut',
+              scrollTrigger: trigger,
+            },
+          );
+        } else if (kind === 'spin-in') {
+          gsap.from(node, {
+            scale: 0.5,
+            rotation: 120,
+            autoAlpha: 0,
+            duration: 0.9,
+            delay,
+            ease: 'back.out(1.3)',
+            scrollTrigger: trigger,
+          });
+        } else {
+          gsap.from(node, {
+            y: 36,
+            autoAlpha: 0,
+            duration: 0.9,
+            delay,
+            ease: 'power3.out',
+            scrollTrigger: trigger,
+          });
+        }
+      });
+
+      // Highlighter word scrub — words get marked up one by one as you scroll.
+      gsap.utils.toArray<HTMLElement>('[data-scrub="highlight"]').forEach((node) => {
+        const words = node.textContent?.trim().split(/\s+/) ?? [];
+        node.setAttribute('aria-label', words.join(' '));
+        node.innerHTML = words.map((w) => `<span class="hlw" aria-hidden="true">${w}</span>`).join(' ');
+        const spans = node.querySelectorAll('.hlw');
+        gsap.to(spans, {
+          backgroundSize: '100% 82%',
+          ease: 'none',
+          stagger: 0.12,
+          scrollTrigger: { trigger: node, start: 'top 78%', end: 'bottom 45%', scrub: 0.6 },
         });
       });
 

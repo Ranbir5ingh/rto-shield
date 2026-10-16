@@ -2,13 +2,31 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Minus, Plus } from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import { DemoButton } from '@/components/DemoButton';
 import { LogoMark } from '@/components/Logo';
 import { OrderRain } from '@/components/OrderRain';
 import { SiteHeader } from '@/components/SiteHeader';
 import { DoodleArrow, DoodleStar, Eyebrow, Flag, LabelChip, Tape } from '@/components/ui';
 import { useMarketingMotion } from '@/components/useMarketingMotion';
+import gsap from 'gsap';
+
+/** Jagged starburst sticker with centered content. */
+function Starburst({ className = '', children }: { className?: string; children: React.ReactNode }) {
+  const pts = Array.from({ length: 36 }, (_, i) => {
+    const a = (i / 36) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? 49 : 39;
+    return `${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`;
+  }).join(' ');
+  return (
+    <div className={`relative ${className}`} aria-hidden="true">
+      <svg viewBox="0 0 100 100" className="burst-wiggle h-full w-full">
+        <polygon points={pts} fill="#FF4D8D" stroke="#1B1712" strokeWidth="2.2" strokeLinejoin="round" />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center p-[22%] text-center">{children}</div>
+    </div>
+  );
+}
 
 function Statement({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
@@ -117,8 +135,8 @@ function Pillars() {
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
         <Eyebrow data-scramble>/How it works/</Eyebrow>
         <div className="mt-12 grid gap-8 lg:grid-cols-3">
-          {items.map(([n, title, body, bg, tilt]) => (
-            <div key={n} data-reveal className={`sticker sticker-hover relative ${tilt} p-8`}>
+          {items.map(([n, title, body, bg, tilt], i) => (
+            <div key={n} data-reveal="fan" data-delay={(i * 0.12).toFixed(2)} className={`sticker sticker-hover relative ${tilt} p-8`}>
               <Tape className="-top-3 left-8 -rotate-6" pink={n === '02'} sky={n === '03'} />
               <span className={`inline-block px-3 py-1 font-mono text-sm font-bold tracking-[0.2em] ${bg} border-2 border-ink`}>{n}</span>
               <h3 className="statement mt-6 text-3xl">{title}</h3>
@@ -136,6 +154,9 @@ function TryModel() {
   const [pay, setPay] = useState<'cod' | 'prepaid'>('cod');
   const [pin, setPin] = useState<'metro' | 'town' | 'remote'>('town');
   const [buyer, setBuyer] = useState<'first' | 'repeat' | 'rto'>('first');
+  const stampRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const firstBand = useRef(true);
 
   let score = 18;
   if (pay === 'cod') score += 22;
@@ -146,6 +167,28 @@ function TryModel() {
   if (value > 3000) score += 8;
   score = Math.max(3, Math.min(97, score));
   const band = score >= 65 ? 'High' : score >= 40 ? 'Medium' : 'Low';
+
+  // Stamp slam: every time the verdict band changes, a rubber stamp slams down.
+  useEffect(() => {
+    if (firstBand.current) {
+      firstBand.current = false;
+      if (stampRef.current) gsap.set(stampRef.current, { rotation: -12 });
+      return;
+    }
+    if (!stampRef.current) return;
+    gsap
+      .timeline()
+      .fromTo(
+        stampRef.current,
+        { scale: 2.6, rotation: -26, autoAlpha: 0 },
+        { scale: 1, rotation: -12, autoAlpha: 1, duration: 0.3, ease: 'power4.in' }
+      )
+      .to(stampRef.current, { scale: 1.08, duration: 0.1, ease: 'power2.out' })
+      .to(stampRef.current, { scale: 1, duration: 0.16, ease: 'power2.inOut' });
+    if (cardRef.current) {
+      gsap.fromTo(cardRef.current, { x: 0 }, { x: 5, duration: 0.05, repeat: 3, yoyo: true, clearProps: 'x' });
+    }
+  }, [band]);
 
   const seg = (active: boolean) => ({
     className: `border-2 border-ink px-5 py-3 font-mono text-[11px] font-bold uppercase tracking-[0.18em] transition ${
@@ -161,7 +204,7 @@ function TryModel() {
           Drag the levers.<br />Watch the verdict move.
         </h2>
 
-        <div data-reveal className="sticker relative mt-16 grid lg:grid-cols-[1fr_320px]">
+        <div ref={cardRef} data-reveal className="sticker relative mt-16 grid lg:grid-cols-[1fr_320px]">
           <Tape className="-top-3 left-12 rotate-3" lime />
           <Tape className="-top-3 right-12 -rotate-2" pink />
           <div className="space-y-10 p-8 sm:p-12">
@@ -178,6 +221,7 @@ function TryModel() {
                 value={value}
                 onChange={(e) => setValue(Number(e.target.value))}
                 className="lever mt-5"
+                data-cursor="drag"
                 aria-label="Order value"
               />
             </div>
@@ -210,7 +254,14 @@ function TryModel() {
               ILLUSTRATIVE — YOUR SHOP'S REAL SCORE TRAINS ON YOUR OWN HISTORY.
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center border-t-2 border-dashed border-ink/20 bg-paperdeep/60 p-8 sm:p-12 lg:border-l lg:border-t-0">
+          <div className="relative flex flex-col items-center justify-center overflow-hidden border-t-2 border-dashed border-ink/20 bg-paperdeep/60 p-8 sm:p-12 lg:border-l lg:border-t-0">
+            <div className="pointer-events-none absolute inset-x-0 top-8 z-10 flex justify-center">
+              <div ref={stampRef} className="stamp px-5 py-2">
+                <span className="font-display text-2xl font-black uppercase tracking-tight">
+                  {band === 'High' ? 'High risk' : band === 'Medium' ? 'Watch it' : 'Ship it'}
+                </span>
+              </div>
+            </div>
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.28em]">Score</p>
             <p
               className={`mt-4 font-display text-[7rem] font-black tabular-nums leading-none ${
@@ -241,7 +292,7 @@ function WhatsAppChapter() {
           You send the message. Not us.
         </h2>
         <div className="mt-16 grid gap-8 lg:grid-cols-2">
-          <div data-reveal className="sticker relative -rotate-1 p-8 sm:p-10">
+          <div data-reveal="pop" className="sticker relative -rotate-1 p-8 sm:p-10">
             <Tape className="-top-3 left-10 rotate-6" sky />
             <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The queue</p>
             <div className="mt-6">
@@ -249,8 +300,8 @@ function WhatsAppChapter() {
                 ['S1047 · ₹1,299', 'RTO RISK'],
                 ['S1049 · ₹4,599', 'FAKE ADDRESS'],
                 ['S1052 · ₹2,799', 'GHOST BUYER'],
-              ].map(([id, flag]) => (
-                <div key={id} className="datarow">
+              ].map(([id, flag], i) => (
+                <div key={id} data-reveal="slap" data-delay={(i * 0.1).toFixed(2)} className="datarow">
                   <span className="font-bold">{id}</span>
                   <Flag tone="red">{flag}</Flag>
                 </div>
@@ -260,7 +311,7 @@ function WhatsAppChapter() {
               Medium and High orders wait here. One tap opens WhatsApp with the draft ready.
             </p>
           </div>
-          <div data-reveal className="sticker relative rotate-1 bg-lime/25 p-8 sm:p-10">
+          <div data-reveal="pop" data-delay="0.15" className="sticker relative rotate-1 bg-lime/25 p-8 sm:p-10">
             <Tape className="-top-3 right-10 -rotate-3" pink />
             <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The draft — Hindi</p>
             <p className="mt-6 font-dev text-lg leading-8">
@@ -289,7 +340,7 @@ function Pricing() {
         <h2 data-scrub-words className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">
           One plan.<br />No fine print.
         </h2>
-        <div data-reveal className="sticker sticker-hover relative mt-16 grid lg:grid-cols-[1fr_auto] lg:items-center">
+        <div data-reveal="pop" className="sticker sticker-hover relative mt-16 grid lg:grid-cols-[1fr_auto] lg:items-center">
           <Tape className="-top-3 left-1/4 -rotate-2" />
           <Tape className="-top-3 right-1/4 rotate-3" pink />
           <div className="p-8 sm:p-12">
@@ -328,7 +379,7 @@ function Faq() {
         <h2 data-scrub-words className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">Questions.</h2>
         <div data-reveal className="mt-12">
           {FAQS.map(([q, a], i) => (
-            <div key={q} className={`sticker-sm mb-4 ${open === i ? '' : ''}`}>
+            <div key={q} data-open={open === i ? '1' : '0'} className="faq-item sticker-sm mb-4">
               <button
                 type="button"
                 onClick={() => setOpen(open === i ? -1 : i)}
@@ -336,11 +387,15 @@ function Faq() {
                 aria-expanded={open === i}
               >
                 <span className="font-display text-xl font-extrabold tracking-tight sm:text-2xl">{q}</span>
-                <span className="grid h-10 w-10 shrink-0 place-items-center border-2 border-ink bg-hl">
-                  {open === i ? <Minus size={16} /> : <Plus size={16} />}
+                <span className="faq-icon grid h-10 w-10 shrink-0 place-items-center border-2 border-ink bg-white">
+                  <Plus size={16} />
                 </span>
               </button>
-              {open === i && <p className="max-w-3xl px-6 pb-6 text-[15px] leading-7 text-inksoft">{a}</p>}
+              <div className="faq-a">
+                <div>
+                  <p className="faq-inner max-w-3xl px-6 pb-6 text-[15px] leading-7 text-inksoft">{a}</p>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -371,13 +426,46 @@ export function Landing() {
 
   useEffect(() => {
     const el = heroRef.current;
-    if (!el) return;
+    if (!el || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const layers = Array.from(el.querySelectorAll<HTMLElement>('[data-depth]')).map((n) => ({
+      x: gsap.quickTo(n, 'x', { duration: 0.7, ease: 'power2.out' }),
+      y: gsap.quickTo(n, 'y', { duration: 0.7, ease: 'power2.out' }),
+      depth: parseFloat(n.dataset.depth || '0'),
+    }));
+    const card = el.querySelector<HTMLElement>('[data-tilt]');
+    if (card) gsap.set(card, { transformPerspective: 900 });
+    const rX = card ? gsap.quickTo(card, 'rotationX', { duration: 0.6, ease: 'power2.out' }) : null;
+    const rY = card ? gsap.quickTo(card, 'rotationY', { duration: 0.6, ease: 'power2.out' }) : null;
     const onMove = (e: MouseEvent) => {
       const r = el.getBoundingClientRect();
-      el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width - 0.5) * 20}px`);
+      const nx = (e.clientX - r.left) / r.width - 0.5;
+      const ny = (e.clientY - r.top) / r.height - 0.5;
+      layers.forEach((l) => {
+        l.x(nx * l.depth);
+        l.y(ny * l.depth);
+      });
+      if (card && rX && rY) {
+        const cr = card.getBoundingClientRect();
+        const cx = (e.clientX - cr.left) / cr.width - 0.5;
+        const cy = (e.clientY - cr.top) / cr.height - 0.5;
+        rX(-cy * 12);
+        rY(cx * 14);
+      }
     };
-    window.addEventListener('mousemove', onMove, { passive: true });
-    return () => window.removeEventListener('mousemove', onMove);
+    const onLeave = () => {
+      layers.forEach((l) => {
+        l.x(0);
+        l.y(0);
+      });
+      rX?.(0);
+      rY?.(0);
+    };
+    el.addEventListener('mousemove', onMove, { passive: true });
+    el.addEventListener('mouseleave', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+    };
   }, []);
 
   return (
@@ -388,8 +476,31 @@ export function Landing() {
       {/* HERO */}
       <section ref={heroRef} className="relative flex min-h-screen flex-col justify-end overflow-hidden pb-16 pt-36">
         <div data-hero-scan className="pointer-events-none absolute inset-y-0 w-[3px] bg-risk opacity-0 shadow-[0_0_32px_4px_rgba(255,59,48,0.5)]" aria-hidden="true" />
-        <DoodleStar className="doodle-star absolute right-[12%] top-28 h-10 w-10 rotate-12" />
-        <DoodleStar className="absolute left-[6%] top-[42%] h-6 w-6 -rotate-12 text-sky" />
+
+        {/* parallax doodle layers (outer = parallax, inner = idle float) */}
+        <div data-depth="40" className="absolute right-[9%] top-24 hidden sm:block" aria-hidden="true">
+          <img src="/doodles/doodle-star.png" alt="" className="doodle floaty w-12" style={{ '--rot': '12deg' } as React.CSSProperties} />
+        </div>
+        <div data-depth="24" className="absolute left-[3%] top-[36%] hidden sm:block" aria-hidden="true">
+          <img src="/doodles/doodle-arrow-curve.png" alt="" className="doodle floaty w-24 sm:w-32" style={{ '--rot': '-8deg' } as React.CSSProperties} />
+        </div>
+        <div data-depth="52" className="absolute bottom-[38%] right-[3%] hidden md:block" aria-hidden="true">
+          <img src="/doodles/doodle-lightning.png" alt="" className="doodle floaty w-10" style={{ '--rot': '6deg' } as React.CSSProperties} />
+        </div>
+        <div data-depth="18" className="absolute bottom-28 left-[44%] hidden lg:block" aria-hidden="true">
+          <img src="/doodles/doodle-spiral.png" alt="" className="doodle floaty w-16 opacity-70" />
+        </div>
+        <div data-depth="30" className="absolute right-[1%] top-[46%] hidden xl:block" aria-hidden="true">
+          <img src="/doodles/shield-mascot.png" alt="/Shield mascot" className="doodle floaty w-44" style={{ '--rot': '4deg' } as React.CSSProperties} />
+        </div>
+
+        {/* starburst slam */}
+        <div data-hero-starburst className="absolute left-[52%] top-28 z-10 hidden w-40 md:block lg:left-[56%] lg:w-48" aria-hidden="true">
+          <Starburst>
+            <span className="hand text-xl leading-tight text-white lg:text-2xl">most RTO is predictable!</span>
+          </Starburst>
+        </div>
+
         <div className="relative mx-auto w-full max-w-page px-5 sm:px-8">
           <p data-hero-item data-scramble className="font-mono text-sm font-bold tracking-[0.1em]">/Introducing/</p>
           <h1 className="wordmark mt-6 text-[clamp(4rem,14vw,13rem)]" aria-label="RTO Shield">
@@ -412,7 +523,7 @@ export function Landing() {
               </p>
               <div data-hero-item className="mt-8 flex flex-wrap gap-4">
                 <DemoButton className="btn-go" label="Open the demo shop" />
-                <a data-magnetic href="#gap" className="btn-ghost">
+                <a data-magnetic data-cursor="view" href="#gap" className="btn-ghost">
                   See how it works <ArrowRight size={14} />
                 </a>
               </div>
@@ -420,16 +531,18 @@ export function Landing() {
                 psst — drag the levers below, it's fun →
               </p>
             </div>
-            <div data-hero-item className="sticker relative rotate-2">
-              <Tape className="-top-3 left-10 -rotate-6" />
-              <Tape className="-top-3 right-10 rotate-3" pink />
-              <div className="flex items-center justify-between border-b-2 border-dashed border-ink/20 px-5 py-3.5">
-                <span className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em]">
-                  <span className="live-dot" /> Live scan
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-inksoft">Simulated</span>
+            <div data-hero-item className="rotate-2">
+              <div data-tilt data-cursor="view" className="sticker relative">
+                <Tape className="-top-3 left-10 -rotate-6" />
+                <Tape className="-top-3 right-10 rotate-3" pink />
+                <div className="flex items-center justify-between border-b-2 border-dashed border-ink/20 px-5 py-3.5">
+                  <span className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em]">
+                    <span className="live-dot" /> Live scan
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-inksoft">Simulated</span>
+                </div>
+                <LiveScan />
               </div>
-              <LiveScan />
             </div>
           </div>
         </div>
@@ -450,9 +563,14 @@ export function Landing() {
 
       <Pillars />
 
-      <Statement>
-        Predict returns<br />before they <span className="hl-lime hl">happen.</span>
-      </Statement>
+      <section className="relative">
+        <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
+          <p data-scrub="highlight" className="statement max-w-5xl text-[clamp(2.2rem,6vw,5.5rem)]">
+            Predict returns before they happen. Score every order, confirm the risky ones, ship the rest with proof.
+          </p>
+          <p className="hand mt-8 rotate-[-2deg] text-2xl text-inksoft">watch the words get marked up as you scroll ↓</p>
+        </div>
+      </section>
 
       <TryModel />
       <WhatsAppChapter />

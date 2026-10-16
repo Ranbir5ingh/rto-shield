@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
+import gsap from 'gsap';
 import { Distribution, TrendChart } from '@/components/Charts';
 import { Eyebrow, Flag, Skeleton, Stat } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -13,6 +14,23 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [wire, setWire] = useState<OrderSummary[] | null>(null);
   const [error, setError] = useState('');
+
+  // Sticker pop-in for the stat cards once data lands.
+  useEffect(() => {
+    if (!data) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.querySelectorAll<HTMLElement>('[data-reveal="pop"]').forEach((n) => {
+      gsap.from(n, {
+        scale: 0.5,
+        rotation: -5,
+        autoAlpha: 0,
+        duration: 0.6,
+        delay: Number(n.dataset.delay || 0),
+        ease: 'back.out(1.7)',
+        clearProps: 'transform,opacity,visibility',
+      });
+    });
+  }, [data]);
 
   useEffect(() => {
     api<DashboardData>('/dashboard')
@@ -53,28 +71,28 @@ export default function DashboardPage() {
       </div>
 
       <section aria-label="Key metrics" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+        <div data-reveal="pop">
           <Stat
             label="RTO rate"
             value={data.rtoRate === null ? '—' : `${data.rtoRate}%`}
             hint={`${data.rto} returned · ${data.delivered} delivered`}
           />
         </div>
-        <div>
+        <div data-reveal="pop" data-delay="0.08">
           <Stat
             label="₹ saved estimate"
             value={inr(data.savedInr)}
             hint={`${data.prevented} risky orders cancelled`}
           />
         </div>
-        <div>
+        <div data-reveal="pop" data-delay="0.16">
           <Stat
             label="High-risk pending"
             value={String(data.highPending)}
             hint={`${inr(data.exposureInr)} exposure if they all return`}
           />
         </div>
-        <div>
+        <div data-reveal="pop" data-delay="0.24">
           <Stat
             label="Orders on file"
             value={String(data.counts.history + data.counts.pending + data.counts.closed)}
