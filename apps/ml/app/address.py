@@ -251,19 +251,19 @@ def _model_names() -> list[str]:
 
 
 def _bodies(prompt: str) -> list[dict[str, Any]]:
-    # The documented plain turn is first. A thinkingConfig body is a second request,
-    # and a shop of notes was burning the rate limit on that extra 400.
+    # Gemma 4 thinks by default. A plain turn ran past the client timeout, so the
+    # first body asks for the short trace. A 400 falls through to the documented turn.
     part = {"text": prompt}
     return [
-        {"contents": [{"parts": [part]}]},
         {
             "contents": [{"parts": [part]}],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 4096,
+                "maxOutputTokens": 2048,
                 "thinkingConfig": {"thinkingLevel": "minimal"},
             },
         },
+        {"contents": [{"parts": [part]}]},
         {"contents": [{"role": "user", "parts": [part]}]},
     ]
 
@@ -323,7 +323,7 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
     headers = {"x-goog-api-key": settings.gemini_api_key}
     bodies = _bodies(prompt)
     last: httpx.Response | None = None
-    async with httpx.AsyncClient(timeout=45) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
         tried_list = _listed_models is not None
         names = _model_names()
         index = 0
@@ -332,12 +332,17 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
             index += 1
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             for body in bodies:
-                response = await _post(client, url, headers, body)
+                try:
+                    response = await _post(client, url, headers, body)
+                except httpx.TimeoutException:
+                    last = None
+                    continue
                 last = response
                 if response.status_code == 400:
                     continue
                 break
-            assert last is not None
+            if last is None:
+                raise httpx.ReadTimeout("gemma timed out")
             if _model_missing(last):
                 if not tried_list:
                     tried_list = True
