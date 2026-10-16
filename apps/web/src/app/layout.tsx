@@ -1,14 +1,22 @@
 import type { Metadata } from 'next';
-import { Pixelify_Sans, Space_Grotesk, Space_Mono, Noto_Sans } from 'next/font/google';
+import { Syne, Instrument_Serif, Space_Grotesk, JetBrains_Mono, Noto_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
 
-const pixel = Pixelify_Sans({
+const syne = Syne({
   subsets: ['latin'],
-  variable: '--font-pixel',
-  weight: ['400', '500', '600', '700'],
+  variable: '--font-syne',
+  weight: ['700', '800'],
+  display: 'swap',
+});
+
+const instr = Instrument_Serif({
+  subsets: ['latin'],
+  variable: '--font-instr',
+  weight: ['400'],
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 
@@ -19,10 +27,10 @@ const grotesk = Space_Grotesk({
   display: 'swap',
 });
 
-const spacemono = Space_Mono({
+const jbmono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-spacemono',
-  weight: ['400', '700'],
+  variable: '--font-jbmono',
+  weight: ['400', '500', '700'],
   display: 'swap',
 });
 
@@ -42,11 +50,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${pixel.variable} ${grotesk.variable} ${spacemono.variable} ${hindi.variable} bg-void font-sans text-ink antialiased`}>
+      <body className={`${syne.variable} ${instr.variable} ${grotesk.variable} ${jbmono.variable} ${hindi.variable} bg-void font-sans text-ink antialiased`}>
         <Script id="wake-backends" strategy="beforeInteractive">
           {landingWakeScript()}
         </Script>
-        <div className="scanlines" aria-hidden="true" />
+        <div className="grain" aria-hidden="true" />
         <WakeGate>{children}</WakeGate>
       </body>
     </html>

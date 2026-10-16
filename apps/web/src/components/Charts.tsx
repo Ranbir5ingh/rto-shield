@@ -18,15 +18,23 @@ export function TrendChart({
     return { x, y, label: point.week.slice(5) };
   });
   const d = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const area = `${d} L ${width - pad} ${height - pad} L ${pad} ${height - pad} Z`;
   const labelEvery = coords.length > 8 ? Math.ceil(coords.length / 6) : 1;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Weekly RTO rate">
-      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#b4ff39" strokeWidth="2" />
+      <defs>
+        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e8b34a" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#e8b34a" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#trendFill)" />
+      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#e8b34a" strokeWidth="2.5" strokeLinecap="round" />
       {coords.map((point, index) => (
         <g key={point.label + point.x}>
-          <circle cx={point.x} cy={point.y} r="3.5" fill="#b4ff39" />
+          <circle cx={point.x} cy={point.y} r="3.5" fill="#e8b34a" />
           {index % labelEvery === 0 ? (
-            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#8b8b9e">
+            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#9a958a" fontFamily="monospace">
               {point.label}
             </text>
           ) : null}
