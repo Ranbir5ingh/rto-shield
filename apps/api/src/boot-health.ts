@@ -3,6 +3,8 @@ import { createServer, type Server } from 'http';
 const HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, OPTIONS',
 };
 
 /**
@@ -12,7 +14,12 @@ const HEADERS = {
 export function startBootHealth(port: number): Promise<Server> {
   const server = createServer((req, res) => {
     const path = (req.url || '').split('?')[0];
-    if (req.method === 'GET' && path === '/api/health') {
+    if (path === '/api/health' && (req.method === 'GET' || req.method === 'OPTIONS')) {
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, HEADERS);
+        res.end();
+        return;
+      }
       res.writeHead(200, HEADERS);
       res.end(JSON.stringify({ ok: true, service: 'rto-shield-api' }));
       return;

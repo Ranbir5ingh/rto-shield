@@ -14,7 +14,13 @@ export function webOrigins(raw = process.env.WEB_ORIGIN): string[] {
 
 export function configureApp(app: INestApplication) {
   app.setGlobalPrefix('api');
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Health checks are read from www.rtoshield.tech. Helmet's default
+      // same-origin policy would hide that JSON from the browser.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(cookieParser());
   app.use(json({ limit: process.env.JSON_LIMIT || '6mb' }));
   app.enableCors({ origin: webOrigins(), credentials: true });

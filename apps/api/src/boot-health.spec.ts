@@ -8,6 +8,7 @@ describe('boot health', () => {
     try {
       const health = await fetch(`http://127.0.0.1:${port}/api/health`);
       expect(health.status).toBe(200);
+      expect(health.headers.get('access-control-allow-origin')).toBe('*');
       await expect(health.json()).resolves.toEqual({ ok: true, service: 'rto-shield-api' });
       const deep = await fetch(`http://127.0.0.1:${port}/api/health/deep`);
       expect(deep.status).toBe(503);

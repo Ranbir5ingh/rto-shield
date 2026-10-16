@@ -52,7 +52,7 @@ Taken from the live page at 1440×900 and 390×844. Their motion is GSAP 3.15 an
 
 | Detail | What the reference does | What we play |
 | --- | --- | --- |
-| Preloader | None. | Wake screen on login, signup, and the app. Full-viewport paper, wordmark, status, hairline progress. It leaves over 0.7s with `cubic-bezier(0.16, 1, 0.3, 1)` once both health checks are ok. |
+| Preloader | None. | Wake screen on the production host and on login, signup, and the app. It leaves over 0.7s once both health checks are ok. |
 | Hero entrance | White fullscreen hero, headline weight 500, 56px / 58.8px, tracking −1.6px. GSAP is on the page. | Masked line reveal, 1.15s, `power4.out`, 0.07s stagger, 0.12s delay. Supporting lines rise 1.05s, `power3.out`. |
 | Text masks | SplitText is loaded. | `SplitText` lines with `mask: 'lines'`, `yPercent: 112`. |
 | Image reveals | Project photos sit in 32px-radius frames, parent `overflow: hidden`, about 640×480. | `clip-path` from `inset(12%)` plus scale 1.12 → 1, 1.35–1.5s, `expo.out`. |

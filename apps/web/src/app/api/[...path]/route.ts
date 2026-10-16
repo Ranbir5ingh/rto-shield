@@ -16,8 +16,12 @@ const HOP = new Set([
 ]);
 
 const UPSTREAM_MS = 55_000;
-/** Health polls must return while Render is still booting, so the next ping can fire. */
-const HEALTH_UPSTREAM_MS = 3_500;
+/**
+ * Readiness only. The browser wakes Render directly and holds that connection
+ * open; this proxy must not be the thing that keeps the cold start alive.
+ * Stay under the 10s hobby limit so a sleeping upstream cannot kill the function first.
+ */
+const HEALTH_UPSTREAM_MS = 9_000;
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
@@ -46,7 +50,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   } catch {
     return NextResponse.json(
       { ok: false, error: 'The API did not respond. It may still be waking up.' },
-      { status: 504 },
+      { status: 504, headers: { 'cache-control': 'no-store' } },
     );
   } finally {
     clearTimeout(timer);
@@ -57,6 +61,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     if (key.toLowerCase() === 'set-cookie' || HOP.has(key.toLowerCase())) return;
     responseHeaders.set(key, value);
   });
+  responseHeaders.set('cache-control', 'no-store');
   const response = new NextResponse(upstream.body, {
     status: upstream.status,
     headers: responseHeaders,

@@ -1,11 +1,22 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { runInNewContext } from 'node:vm';
 import {
+  ONRENDER_API_HEALTH,
+  ONRENDER_ML_HEALTH,
+  PRODUCTION_API_HEALTH,
+  PRODUCTION_ML_HEALTH,
+  WAKE_HOLD_MS,
   WAKE_TIMEOUT_MS,
   formatElapsed,
+  hostShouldGate,
   initialWake,
   landingWakeScript,
   probeWake,
+  resetWakeHolds,
   responseIsUp,
   routeNeedsApi,
+  shouldWakeDirect,
   stepWake,
   wakeDelayMs,
   wakeMessage,
@@ -20,19 +31,27 @@ function json(status: number, body: unknown): Response {
 }
 
 describe('wake helpers', () => {
-  const previous = process.env.NEXT_PUBLIC_ML_HEALTH_URL;
+  const previousMl = process.env.NEXT_PUBLIC_ML_HEALTH_URL;
+  const previousApi = process.env.NEXT_PUBLIC_API_HEALTH_URL;
 
   afterEach(() => {
-    if (previous === undefined) delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
-    else process.env.NEXT_PUBLIC_ML_HEALTH_URL = previous;
+    resetWakeHolds();
+    if (previousMl === undefined) delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
+    else process.env.NEXT_PUBLIC_ML_HEALTH_URL = previousMl;
+    if (previousApi === undefined) delete process.env.NEXT_PUBLIC_API_HEALTH_URL;
+    else process.env.NEXT_PUBLIC_API_HEALTH_URL = previousApi;
   });
 
-  it('gates login, signup, and the app, and leaves the landing page open', () => {
+  it('gates login, signup, and the app, and leaves a local landing page open', () => {
     expect(routeNeedsApi('/')).toBe(false);
     expect(routeNeedsApi('/privacy')).toBe(false);
     expect(routeNeedsApi('/login')).toBe(true);
     expect(routeNeedsApi('/signup')).toBe(true);
     expect(routeNeedsApi('/app/queue')).toBe(true);
+    expect(hostShouldGate('localhost')).toBe(false);
+    expect(hostShouldGate('www.rtoshield.tech')).toBe(true);
+    expect(hostShouldGate('rto-shield-teal.vercel.app')).toBe(true);
+    expect(shouldWakeDirect('127.0.0.1')).toBe(false);
   });
 
   it('backs off from 3 seconds to 5', () => {
@@ -98,52 +117,180 @@ describe('wake helpers', () => {
     expect(step.machine.phase).toBe('ready');
   });
 
-  it('counts a direct ML health ping when the pass-through is still cold', async () => {
-    process.env.NEXT_PUBLIC_ML_HEALTH_URL = 'https://ml.rtoshield.tech/health';
-    const seen: string[] = [];
-    const snap = await probeWake(async (input) => {
-      const url = String(input);
-      seen.push(url);
-      if (url === '/api/health') return json(200, { ok: true });
-      if (url === '/api/health/ml') return json(503, '<html>502</html>');
-      if (url === 'https://ml.rtoshield.tech/health') return json(200, { ok: true });
-      throw new Error(url);
-    });
-    expect(seen).toEqual(['/api/health', '/api/health/ml', 'https://ml.rtoshield.tech/health']);
+  it('wakes both services directly on the production host, even when the proxy is still cold', async () => {
+    delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
+    delete process.env.NEXT_PUBLIC_API_HEALTH_URL;
+    const seen: Array<{ url: string; mode?: string; keepalive?: boolean }> = [];
+    const snap = await probeWake(
+      async (input, init) => {
+        const url = String(input);
+        seen.push({ url, mode: init?.mode, keepalive: init?.keepalive });
+        if (url === '/api/health') return json(502, '<html>bad gateway</html>');
+        if (url === '/api/health/ml') return json(503, '<html>502</html>');
+        if (
+          url === PRODUCTION_API_HEALTH ||
+          url === PRODUCTION_ML_HEALTH ||
+          url === ONRENDER_API_HEALTH ||
+          url === ONRENDER_ML_HEALTH
+        ) {
+          if (init?.mode === 'no-cors') return json(0, null);
+          return json(200, { ok: true });
+        }
+        throw new Error(url);
+      },
+      { hostname: 'www.rtoshield.tech' },
+    );
+    const wakes = seen.filter((call) => call.mode === 'no-cors');
+    expect(wakes.map((call) => call.url)).toEqual([
+      PRODUCTION_API_HEALTH,
+      PRODUCTION_ML_HEALTH,
+      ONRENDER_API_HEALTH,
+      ONRENDER_ML_HEALTH,
+    ]);
+    expect(wakes.every((call) => call.keepalive)).toBe(true);
     expect(snap).toEqual({ api: true, ml: true });
   });
 
-  it('stays down when the API returns 502 and the ML ping times out', async () => {
-    process.env.NEXT_PUBLIC_ML_HEALTH_URL = 'https://ml.rtoshield.tech/health';
-    const snap = await probeWake(async (input) => {
-      const url = String(input);
-      if (url === '/api/health') return json(502, '<html>bad gateway</html>');
-      if (url === '/api/health/ml') return json(200, { ok: false });
-      const error = new Error('The operation was aborted');
-      error.name = 'TimeoutError';
-      throw error;
-    });
-    expect(snap).toEqual({ api: false, ml: false });
-  });
-
-  it('wakes ML through the pass-through when no public URL is set', async () => {
+  it('does not ping production from localhost when the public URL is unset', async () => {
     delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
     const seen: string[] = [];
-    const snap = await probeWake(async (input) => {
-      const url = String(input);
-      seen.push(url);
-      if (url === '/api/health') return json(200, { ok: true });
-      return json(200, { ok: true });
-    });
+    const snap = await probeWake(
+      async (input) => {
+        const url = String(input);
+        seen.push(url);
+        if (url === '/api/health') return json(200, { ok: true });
+        return json(200, { ok: true });
+      },
+      { hostname: 'localhost' },
+    );
     expect(seen).toEqual(['/api/health', '/api/health/ml']);
     expect(snap).toEqual({ api: true, ml: true });
   });
 
-  it('fires the API and ML pings from the landing script', () => {
-    const script = landingWakeScript('https://ml.rtoshield.tech/health');
-    expect(script).toContain("fetch('/api/health'");
-    expect(script).toContain("fetch('/api/health/ml'");
-    expect(script).toContain('https://ml.rtoshield.tech/health');
-    expect(landingWakeScript('')).not.toContain('ml.rtoshield.tech');
+  it('stays down when every ping fails or times out', async () => {
+    const snap = await probeWake(
+      async () => {
+        const error = new Error('The operation was aborted');
+        error.name = 'TimeoutError';
+        throw error;
+      },
+      { hostname: 'www.rtoshield.tech' },
+    );
+    expect(snap).toEqual({ api: false, ml: false });
+  });
+
+  it('embeds direct no-cors wakes for both Render URLs in the first-paint script', () => {
+    delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
+    delete process.env.NEXT_PUBLIC_API_HEALTH_URL;
+    const script = landingWakeScript();
+    expect(script).toContain(PRODUCTION_API_HEALTH);
+    expect(script).toContain(PRODUCTION_ML_HEALTH);
+    expect(script).toContain(ONRENDER_API_HEALTH);
+    expect(script).toContain(ONRENDER_ML_HEALTH);
+    expect(script).toContain("mode:'no-cors'");
+    expect(script).toContain('keepalive:true');
+    expect(script).toContain(String(WAKE_HOLD_MS));
+    expect(script).toContain("host==='localhost'");
+    expect(script).toContain("endsWith('.rtoshield.tech')");
+    expect(firedHosts('www.rtoshield.tech')).toEqual([
+      PRODUCTION_API_HEALTH,
+      PRODUCTION_ML_HEALTH,
+      ONRENDER_API_HEALTH,
+      ONRENDER_ML_HEALTH,
+    ]);
+    expect(firedHosts('localhost')).toEqual([]);
+    expect(firedHosts('example.com')).toEqual([]);
+  });
+
+  it('a short abort does not wake a cold service, and a held request does', async () => {
+    const sleeper = await startSleeper(400);
+    try {
+      const aborted = new AbortController();
+      const early = setTimeout(() => aborted.abort(), 80);
+      await fetch(sleeper.url, { signal: aborted.signal }).catch(() => undefined);
+      clearTimeout(early);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      expect(sleeper.isAwake()).toBe(false);
+
+      const snap = await probeWake(fetch, {
+        hostname: 'localhost',
+        targets: { api: sleeper.url, ml: sleeper.url },
+        readTimeoutMs: 80,
+        holdTimeoutMs: 2_000,
+      });
+      expect(snap).toEqual({ api: false, ml: false });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(sleeper.isAwake()).toBe(true);
+
+      resetWakeHolds();
+      const ready = await probeWake(fetch, {
+        hostname: 'localhost',
+        targets: { api: sleeper.url, ml: sleeper.url },
+        readTimeoutMs: 1_000,
+        holdTimeoutMs: 2_000,
+      });
+      expect(ready).toEqual({ api: true, ml: true });
+    } finally {
+      resetWakeHolds();
+      await sleeper.close();
+    }
   });
 });
+
+function firedHosts(hostname: string): string[] {
+  const urls: string[] = [];
+  runInNewContext(landingWakeScript(), {
+    location: { hostname },
+    fetch: (url: string) => {
+      urls.push(url);
+      return Promise.resolve();
+    },
+    setInterval: () => 0,
+    clearInterval: () => undefined,
+    AbortSignal: { timeout: () => ({}) },
+  });
+  return urls;
+}
+
+function startSleeper(holdMs: number): Promise<{ url: string; isAwake: () => boolean; close: () => Promise<void> }> {
+  let awake = false;
+  const server = createServer((req, res) => {
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (awake) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    let finished = false;
+    const timer = setTimeout(() => {
+      finished = true;
+      awake = true;
+      res.writeHead(200);
+      res.end(JSON.stringify({ ok: true }));
+    }, holdMs);
+    const cancel = () => {
+      if (!finished) clearTimeout(timer);
+    };
+    req.on('aborted', cancel);
+    req.on('close', cancel);
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as AddressInfo).port;
+      resolve({
+        url: `http://127.0.0.1:${port}/health`,
+        isAwake: () => awake,
+        close: () =>
+          new Promise((done) => {
+            server.close(() => done());
+          }),
+      });
+    });
+  });
+}

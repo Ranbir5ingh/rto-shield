@@ -16,12 +16,14 @@ export class HealthController {
   }
 
   /**
-   * Same-origin pass-through for the ML service. Always 200: a cold Render 502/503 or a timeout
-   * becomes `{ ok: false }` so the wake-up loader can keep polling.
+   * Backup wake for the ML service once this API is already up.
+   * The browser also calls ML directly. This hold is long on purpose:
+   * a 3 second abort never kept Render's free instance spinning.
+   * Always 200: a cold 502/503 or a timeout becomes `{ ok: false }`.
    */
   @Get('ml')
   async mlPassThrough() {
-    const ml = await this.ml.health(3_000);
+    const ml = await this.ml.health(45_000);
     return { ok: Boolean(ml?.ok) };
   }
 

@@ -7,8 +7,10 @@ import {
   WAKE_GRACE_MS,
   WAKE_TIMEOUT_MS,
   formatElapsed,
+  hostShouldGate,
   initialWake,
   probeWake,
+  resetWakeHolds,
   routeNeedsApi,
   stepWake,
   wakeMessage,
@@ -86,6 +88,7 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
   const [armed, setArmed] = useState(false);
   const [shown, setShown] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [gateHost, setGateHost] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,10 +132,15 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearTimeout(grace);
       clearInterval(clock);
+      resetWakeHolds();
     };
   }, [attempt]);
 
-  const block = needsApi && phase !== 'ready' && (phase === 'failed' || armed);
+  useEffect(() => {
+    setGateHost(hostShouldGate(window.location.hostname));
+  }, []);
+
+  const block = (needsApi || gateHost) && phase !== 'ready' && (phase === 'failed' || armed);
 
   useEffect(() => {
     if (block) {
