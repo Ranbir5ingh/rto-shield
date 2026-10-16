@@ -48,7 +48,7 @@ export class OrdersController {
   @Post('orders/score')
   async score(@CurrentUser() user: UserDocument) {
     const result = await this.orders.score(user, { fast: true });
-    this.orders.startUpgrade(user);
+    this.orders.startUpgrade(user, { full: true });
     return { ...result, upgrading: true };
   }
 

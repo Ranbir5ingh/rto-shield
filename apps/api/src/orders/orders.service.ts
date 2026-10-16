@@ -319,23 +319,27 @@ export class OrdersService {
     return this.upgrading.has(userId);
   }
 
-  /** Fast scores return to the shop. The full model replaces them when it finishes. */
-  startUpgrade(user: UserDocument) {
+  /**
+   * Fast scores return to the shop. Demo landing trains scikit-learn only.
+   * An explicit Score also starts TabPFN afterwards.
+   */
+  startUpgrade(user: UserDocument, options?: { full?: boolean }) {
     const id = String(user._id);
     if (this.upgrading.has(id)) return;
     this.upgrading.add(id);
+    const full = options?.full === true;
     setImmediate(() => {
-      void this.runUpgrade(user).finally(() => this.upgrading.delete(id));
+      void this.runUpgrade(user, full).finally(() => this.upgrading.delete(id));
     });
   }
 
-  private async runUpgrade(user: UserDocument) {
+  private async runUpgrade(user: UserDocument, full: boolean) {
     try {
       const latest = await this.latestModel(user);
       if (!latest || latest.model === 'rules-prior') {
         await this.score(user, { fast: true, timeoutMs: 40_000 });
       }
-      await this.score(user, { fast: false, timeoutMs: 55_000 });
+      if (full) await this.score(user, { fast: false, timeoutMs: 55_000 });
     } catch (error) {
       this.logger.warn(`Background score stopped: ${error instanceof Error ? error.name : 'error'}`);
     }
