@@ -96,16 +96,25 @@ async def generate_messages(shop: str, orders: list[dict[str, Any]]) -> tuple[li
         )
         try:
             text, origin = await _llm(prompt, "confirmation_messages")
-            parsed = _parse_json(text)
+            try:
+                parsed = _parse_json(text)
+            except json.JSONDecodeError:
+                text, origin = await _llm(prompt + "\nReturn ONLY the JSON array.", "confirmation_messages")
+                parsed = _parse_json(text)
             if isinstance(parsed, dict):
                 parsed = parsed.get("messages") or parsed.get("orders") or []
-            for item in parsed:
-                if not isinstance(item, dict) or "id" not in item:
+            items = [item for item in parsed if isinstance(item, dict)]
+            paired: list[tuple[str, dict[str, Any]]] = []
+            for item in items:
+                if "id" not in item:
                     continue
                 oid = str(item["id"])
-                base = templates.get(oid)
-                if base is None:
-                    continue
+                if oid in templates:
+                    paired.append((oid, item))
+            if not paired and len(items) == len(chunk):
+                paired = [(str(order["id"]), item) for order, item in zip(chunk, items, strict=True)]
+            for oid, item in paired:
+                base = templates[oid]
                 amount = int(round(float(next(order["order_value"] for order in orders if str(order["id"]) == oid))))
                 seen.add(oid)
                 source = origin

@@ -6,6 +6,7 @@ Phone numbers are never part of this payload. The caller must not send them.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -204,6 +205,18 @@ def _quality_from(item: dict[str, Any], origin: str) -> dict[str, Any]:
     }
 
 
+async def _post(client: httpx.AsyncClient, url: str, headers: dict[str, str], body: dict[str, Any]) -> httpx.Response:
+    """Retry a brief rate limit. A 429 used to drop the rest of a shop's notes."""
+    response: httpx.Response | None = None
+    for attempt in range(3):
+        response = await client.post(url, headers=headers, json=body)
+        if response.status_code not in (429, 500, 503) or attempt == 2:
+            return response
+        await asyncio.sleep(1.5 * (attempt + 1))
+    assert response is not None
+    return response
+
+
 def _model_missing(response: httpx.Response) -> bool:
     if response.status_code == 404:
         return True
@@ -313,7 +326,7 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
             index += 1
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             for body in bodies:
-                response = await client.post(url, headers=headers, json=body)
+                response = await _post(client, url, headers, body)
                 last = response
                 if response.status_code == 400:
                     continue
@@ -439,7 +452,14 @@ async def annotate(
         chunk = orders[start : start + batch_size]
         try:
             text, origin = await _llm(_address_prompt(chunk), "address_quality")
-            parsed = _parse_json(text)
+            try:
+                parsed = _parse_json(text)
+            except json.JSONDecodeError:
+                text, origin = await _llm(
+                    _address_prompt(chunk) + "\nReturn ONLY the JSON array.",
+                    "address_quality",
+                )
+                parsed = _parse_json(text)
             if isinstance(parsed, dict):
                 parsed = parsed.get("addresses") or parsed.get("results") or [parsed]
             items = [item for item in parsed if isinstance(item, dict)]

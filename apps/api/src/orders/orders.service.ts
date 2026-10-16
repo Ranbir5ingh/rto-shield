@@ -26,7 +26,7 @@ import { Order, type OrderDocument } from '../database/order.schema';
 import type { UserDocument } from '../database/user.schema';
 import { MlService } from '../ml/ml.service';
 import { toMlOrder } from '../ml/payload';
-import type { PredictResponse, Prediction } from '../ml/ml.types';
+import type { AddressQuality, PredictResponse, Prediction } from '../ml/ml.types';
 import {
   DEMO_FAST_HISTORY,
   DEMO_FAST_TIMEOUT_MS,
@@ -358,31 +358,45 @@ export class OrdersService {
       if (!health?.gemini && !health?.ollama_configured) return;
       const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(80);
       if (!pending.length) return;
-      const noted = await this.ml.addressNotes(
-        pending.map((order) => ({
-          id: String(order._id),
-          address: this.crypto.decrypt(order.addressEnc),
-          city: order.city,
-          state: order.state,
-          pincode: order.pincode,
-        })),
-      );
-      const notes = new Map(noted.addresses.map((row) => [row.id, row.address_quality]));
+      // One batch per request so a rate limit on a later batch still keeps the notes already written.
+      const notes = new Map<string, AddressQuality>();
+      for (let index = 0; index < pending.length; index += 8) {
+        const slice = pending.slice(index, index + 8);
+        try {
+          const noted = await this.ml.addressNotes(
+            slice.map((order) => ({
+              id: String(order._id),
+              address: this.crypto.decrypt(order.addressEnc),
+              city: order.city,
+              state: order.state,
+              pincode: order.pincode,
+            })),
+          );
+          for (const row of noted.addresses) notes.set(row.id, row.address_quality);
+        } catch (error) {
+          this.logger.warn(`Gemma address batch missed: ${error instanceof Error ? error.name : 'error'}`);
+        }
+      }
       const risky = pending.filter((order) => order.riskBand === 'High' || order.riskBand === 'Medium');
       const drafts = new Map<string, DraftMessage>();
-      if (risky.length) {
-        const generated = await this.ml.messages(
-          user.shopName,
-          risky.map((order) => ({
-            id: String(order._id),
-            first_name: this.firstName(order),
-            order_value: order.orderValue,
-            product_name: order.productName || 'order',
-            payment_type: order.paymentType,
-          })),
-        );
-        for (const message of generated.messages) {
-          if (message.source === 'gemini' || message.source === 'ollama') drafts.set(message.id, message);
+      for (let index = 0; index < risky.length; index += 6) {
+        const slice = risky.slice(index, index + 6);
+        try {
+          const generated = await this.ml.messages(
+            user.shopName,
+            slice.map((order) => ({
+              id: String(order._id),
+              first_name: this.firstName(order),
+              order_value: order.orderValue,
+              product_name: order.productName || 'order',
+              payment_type: order.paymentType,
+            })),
+          );
+          for (const message of generated.messages) {
+            if (message.source === 'gemini' || message.source === 'ollama') drafts.set(message.id, message);
+          }
+        } catch (error) {
+          this.logger.warn(`Gemma draft batch missed: ${error instanceof Error ? error.name : 'error'}`);
         }
       }
       const now = new Date();

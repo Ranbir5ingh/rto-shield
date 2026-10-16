@@ -116,6 +116,91 @@ def test_annotate_keeps_notes_when_the_model_rewrites_ids(monkeypatch):
     assert quality["junk"] is False
 
 
+def test_messages_follow_rewritten_ids(monkeypatch):
+    from app import messages
+
+    monkeypatch.setattr(messages.settings, "gemini_api_key", "test-key")
+    monkeypatch.setattr(messages.settings, "ollama_base_url", "")
+
+    async def fake_llm(prompt, purpose):
+        return (
+            json.dumps(
+                [
+                    {
+                        "id": "rewritten",
+                        "hindi": "हाँ",
+                        "hinglish": "haan ji",
+                        "english": "yes",
+                        "prepaid_nudge": "upi",
+                    }
+                ]
+            ),
+            "gemini",
+        )
+
+    monkeypatch.setattr(messages, "_llm", fake_llm)
+    rows, source, warnings = asyncio.run(
+        messages.generate_messages(
+            "Neem Studio",
+            [
+                {
+                    "id": "order-1",
+                    "first_name": "Asha",
+                    "order_value": 499,
+                    "product_name": "kurti",
+                    "payment_type": "cod",
+                }
+            ],
+        )
+    )
+    assert warnings == []
+    assert source == "gemini"
+    assert rows[0]["id"] == "order-1"
+    assert rows[0]["source"] == "gemini"
+    assert rows[0]["hinglish"] == "haan ji"
+    assert "499" in rows[0]["voice_script_hi"]
+
+
+def test_gemini_retries_a_rate_limit(monkeypatch):
+    monkeypatch.setattr(address.settings, "gemini_api_key", "test-key")
+    monkeypatch.setattr(address.settings, "gemma_model", "gemma-4-26b-a4b-it")
+    monkeypatch.setattr(address.settings, "ollama_base_url", "")
+    monkeypatch.setattr(address, "_working_model", None)
+    monkeypatch.setattr(address, "_listed_models", [])
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(address.asyncio, "sleep", no_sleep)
+    posts = {"n": 0}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            posts["n"] += 1
+            if posts["n"] == 1:
+                return _response(429, {"error": {"status": "RESOURCE_EXHAUSTED"}}, url)
+            return _response(
+                200,
+                {"candidates": [{"content": {"parts": [{"text": "ok"}]}}], "usageMetadata": {}},
+                url,
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+    text, tokens = asyncio.run(address._gemini("ok"))
+    assert text == "ok"
+    assert posts["n"] == 2
+    assert tokens["gen_ai.request.model"] == "gemma-4-26b-a4b-it"
+
+
 def test_gemma_ready_tracks_whether_a_call_answered(monkeypatch):
     monkeypatch.setattr(address.settings, "gemini_api_key", "test-key")
     monkeypatch.setattr(address.settings, "ollama_base_url", "")
