@@ -42,8 +42,16 @@ export class AuthController {
   @Public()
   @Post('demo')
   async demo(@Res({ passthrough: true }) res: Response) {
-    const [{ session, user }, prepared] = await Promise.all([this.auth.createDemo(), this.orders.prepareDemo()]);
-    const result = await this.orders.persistDemo(user, prepared);
+    const started = Date.now();
+    const [{ session, user }, staged] = await Promise.all([this.auth.createDemo(), this.orders.stageDemo()]);
+    const stagedMs = Date.now() - started;
+    const insertStarted = Date.now();
+    const result = await this.orders.persistDemo(user, staged);
+    const insertMs = Date.now() - insertStarted;
+    res.setHeader(
+      'Server-Timing',
+      `stage;dur=${stagedMs}, ml;dur=${staged.mlMs}, encrypt;dur=${staged.encryptMs}, insert;dur=${insertMs}`,
+    );
     this.auth.writeSession(res, session);
     return {
       user: session.user,

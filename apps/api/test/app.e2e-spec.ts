@@ -234,7 +234,8 @@ describe('RTO Shield API', () => {
     expect(opened.body.user.email).toMatch(/@demo\.rtoshield\.tech$/);
     expect(opened.body.scored).toBe(true);
     const demoCall = fakeMl.predict.mock.calls.at(-1);
-    expect(demoCall?.[2]).toEqual(expect.objectContaining({ speed: 'fast', timeoutMs: 3_000 }));
+    expect(demoCall?.[2]).toEqual(expect.objectContaining({ speed: 'fast', timeoutMs: 1_500 }));
+    expect(demoCall?.[0]).toHaveLength(90);
     const orders = await agent.get('/api/orders?stage=pending&limit=50').expect(200);
     expect(orders.body.orders.length).toBeGreaterThan(0);
     expect(orders.body.orders.every((order: { riskScore: number | null; riskBand: string | null }) => order.riskScore !== null && order.riskBand)).toBe(true);

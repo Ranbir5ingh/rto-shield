@@ -30,7 +30,9 @@ export const RULES_LABEL =
   'Local rules score for this demo open. It uses cash on delivery, buyer history, and address checks. Press Score to run the full model.';
 
 /** How long demo opening waits for the fast model before scoring locally. */
-export const DEMO_FAST_TIMEOUT_MS = 3_000;
+export const DEMO_FAST_TIMEOUT_MS = 1_500;
+/** Recent labelled rows are enough for a demo fit. The full 360 still land in the shop. */
+export const DEMO_FAST_HISTORY = 90;
 
 function heuristicAddress(address: string, pincode: string, city: string, state: string): AddressQuality {
   const text = (address || '').trim();

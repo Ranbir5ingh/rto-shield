@@ -28,6 +28,7 @@ import { MlService } from '../ml/ml.service';
 import { toMlOrder } from '../ml/payload';
 import type { PredictResponse, Prediction } from '../ml/ml.types';
 import {
+  DEMO_FAST_HISTORY,
   DEMO_FAST_TIMEOUT_MS,
   scoreWithRules,
   type PreparedSampleOrder,
@@ -138,13 +139,91 @@ export class OrdersService {
   }
 
   /**
-   * Score the canonical demo set before it is written. The fast model gets a
-   * short budget. If it is cold or slow, local rules still fill every pending
-   * order so the shop never opens empty.
+   * Score and encrypt the canonical demo set before the account exists.
+   * The fast model sees a short history and a 1.5s budget. Encryption runs
+   * beside that call. If the model is cold or slow, local rules still fill
+   * every pending order so the shop never opens empty.
    */
-  async prepareDemo(): Promise<{ orders: PreparedSampleOrder[]; score: PredictResponse }> {
+  async stageDemo(): Promise<{
+    orders: PreparedSampleOrder[];
+    secrets: Array<{ buyerNameEnc: string; phoneEnc: string; phoneMasked: string; addressEnc: string }>;
+    score: PredictResponse;
+    mlMs: number;
+    encryptMs: number;
+  }> {
     const orders = generateSample().map((order) => ({ ...order, hour: hourInKolkata(order.orderedAt) }));
-    const history = orders.filter((order) => order.stage === 'history');
+    const mlStarted = Date.now();
+    const scorePromise = this.demoScore(orders);
+    const encryptStarted = Date.now();
+    const secrets = this.encryptSampleSecrets(orders);
+    const encryptMs = Date.now() - encryptStarted;
+    const score = await scorePromise;
+    return { orders, secrets, score, mlMs: Date.now() - mlStarted, encryptMs };
+  }
+
+  async persistDemo(
+    user: UserDocument,
+    staged: {
+      orders: PreparedSampleOrder[];
+      secrets: Array<{ buyerNameEnc: string; phoneEnc: string; phoneMasked: string; addressEnc: string }>;
+      score: PredictResponse;
+    },
+  ) {
+    await this.orders.deleteMany({ sellerId: user._id, source: 'sample' });
+    const byId = new Map(staged.score.predictions.map((row) => [row.id, row]));
+    const docs = staged.orders.map((order, index) => {
+      const secret = staged.secrets[index]!;
+      const base = {
+        sellerId: user._id,
+        externalOrderId: order.externalOrderId,
+        buyerNameEnc: secret.buyerNameEnc,
+        phoneEnc: secret.phoneEnc,
+        phoneMasked: secret.phoneMasked,
+        addressEnc: secret.addressEnc,
+        city: order.city,
+        state: order.state,
+        pincode: order.pincode,
+        orderValue: order.orderValue,
+        paymentType: order.paymentType,
+        orderedAt: order.orderedAt,
+        hour: order.hour,
+        priorOrders: order.priorOrders,
+        priorRtos: order.priorRtos,
+        productName: order.productName,
+        courier: order.courier,
+        stage: order.stage,
+        outcome: order.outcome,
+        source: 'sample' as const,
+        riskScore: null as number | null,
+        riskBand: null as 'Low' | 'Medium' | 'High' | null,
+        reasons: [] as string[],
+        addressQuality: null as Record<string, unknown> | null,
+        messages: null,
+        predictor: null as string | null,
+      };
+      if (order.stage !== 'pending') return base;
+      const prediction = byId.get(order.externalOrderId);
+      if (!prediction) return base;
+      return { ...base, ...this.scoredFields(user, order, prediction, staged.score.model) };
+    });
+    if (docs.length) await this.orders.insertMany(docs, { ordered: false });
+    await this.runs.create({
+      sellerId: user._id,
+      model: staged.score.model,
+      modelLabel: staged.score.model_label,
+      metrics: staged.score.metrics,
+      addressSource: staged.score.address_source,
+      warnings: staged.score.warnings,
+    });
+    const scored = docs.filter((doc) => doc.riskScore !== null && doc.stage === 'pending').length;
+    return {
+      scored,
+      notice: scored ? null : 'Sample orders are in the shop. Score them once the model is awake.',
+    };
+  }
+
+  private async demoScore(orders: PreparedSampleOrder[]): Promise<PredictResponse> {
+    const history = orders.filter((order) => order.stage === 'history').slice(-DEMO_FAST_HISTORY);
     const pending = orders.filter((order) => order.stage === 'pending');
     const toPayload = (order: PreparedSampleOrder) =>
       toMlOrder({
@@ -166,39 +245,20 @@ export class OrdersService {
         timeoutMs: DEMO_FAST_TIMEOUT_MS,
       });
       if (score.predictions.length < pending.length) throw new Error('incomplete demo score');
-      return { orders, score };
+      return score;
     } catch (error) {
       this.logger.warn(`Demo fast score missed: ${error instanceof Error ? error.name : 'error'}`);
-      return { orders, score: scoreWithRules(orders) };
+      return scoreWithRules(orders);
     }
   }
 
-  async persistDemo(user: UserDocument, prepared: { orders: PreparedSampleOrder[]; score: PredictResponse }) {
-    await this.orders.deleteMany({ sellerId: user._id, source: 'sample' });
-    const byId = new Map(prepared.score.predictions.map((row) => [row.id, row]));
-    const docs = prepared.orders.map((order) => {
-      const base = this.encryptFields(user, { ...order, source: 'sample' });
-      if (order.stage !== 'pending') return base;
-      const prediction = byId.get(order.externalOrderId);
-      if (!prediction) return base;
-      return { ...base, ...this.scoredFields(user, order, prediction, prepared.score.model) };
-    });
-    if (docs.length) await this.orders.insertMany(docs);
-    await this.runs.create({
-      sellerId: user._id,
-      model: prepared.score.model,
-      modelLabel: prepared.score.model_label,
-      metrics: prepared.score.metrics,
-      addressSource: prepared.score.address_source,
-      warnings: prepared.score.warnings,
-    });
-    const scored = docs.filter((doc) => doc.riskScore !== null && doc.stage === 'pending').length;
-    return {
-      history: prepared.orders.filter((order) => order.stage === 'history').length,
-      pending: prepared.orders.length - prepared.orders.filter((order) => order.stage === 'history').length,
-      scored,
-      notice: scored ? null : 'Sample orders are in the shop. Score them once the model is awake.',
-    };
+  private encryptSampleSecrets(orders: PreparedSampleOrder[]) {
+    return orders.map((order) => ({
+      buyerNameEnc: this.crypto.encrypt(order.buyerName),
+      phoneEnc: this.crypto.encrypt(order.phone),
+      phoneMasked: maskPhone(order.phone),
+      addressEnc: this.crypto.encrypt(order.address),
+    }));
   }
 
   async list(user: UserDocument, stage: string | undefined, limit: number, offset: number) {
