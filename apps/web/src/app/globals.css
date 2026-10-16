@@ -197,6 +197,19 @@ body {
   will-change: transform;
 }
 
+.hero-char {
+  display: inline-block;
+  will-change: transform, filter;
+}
+
+.scrub-word {
+  display: inline;
+}
+
+[data-velocity-marquee] {
+  animation: none;
+}
+
 .count-glow {
   text-shadow: 0 0 60px rgba(253, 1, 0, 0.45);
 }

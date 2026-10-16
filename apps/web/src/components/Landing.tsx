@@ -5,13 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Minus, Plus } from 'lucide-react';
 import { DemoButton } from '@/components/DemoButton';
 import { OrderRain } from '@/components/OrderRain';
+import { SiteHeader } from '@/components/SiteHeader';
 import { Eyebrow, Flag, LabelChip } from '@/components/ui';
 import { useMarketingMotion } from '@/components/useMarketingMotion';
 
 function Statement({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <section className="relative mx-auto max-w-page px-5 py-28 sm:px-8 sm:py-40">
-      <p data-reveal className={`statement text-[clamp(2.4rem,7vw,6rem)] ${className}`}>
+      <p data-scrub-words className={`statement text-[clamp(2.4rem,7vw,6rem)] ${className}`}>
         {children}
       </p>
     </section>
@@ -33,51 +34,69 @@ const SEEN_ROWS: [string, string, string, string, string][] = [
 ];
 
 function DataGap() {
+  const panel = (variant: 'under' | 'over') => {
+    const isOver = variant === 'over';
+    const rows = isOver ? SEEN_ROWS : RULES_ROWS;
+    return (
+      <div className={`absolute inset-0 ${isOver ? 'bg-panel' : 'bg-black'} p-8 sm:p-12`}>
+        <div className="flex items-center justify-between">
+          <p className={`font-mono text-xs font-medium uppercase tracking-[0.22em] ${isOver ? 'text-white' : 'text-muted'}`}>
+            {isOver ? 'What RTO Shield sees' : 'What your rules see'}
+          </p>
+          <LabelChip>{isOver ? 'Complete view' : 'Fragmented view'}</LabelChip>
+        </div>
+        <div className="mt-8">
+          {rows.map((row) => {
+            const [id, amt, pay, pin] = row;
+            const flag = row[4] as string | undefined;
+            return (
+              <div key={id} className={`datarow ${isOver ? '' : 'text-muted'}`}>
+                <span className={isOver && flag !== 'CLEAR' ? 'text-white' : 'text-muted'}>
+                  {id} · {amt} · {pay} · {pin}
+                </span>
+                {isOver ? (
+                  flag === 'CLEAR' ? (
+                    <span data-wipe-flag className="inline-block"><Flag tone="go">Clear</Flag></span>
+                  ) : (
+                    <span data-wipe-flag className="inline-block"><Flag tone="red">{flag}</Flag></span>
+                  )
+                ) : (
+                  <Flag tone="ghost">—</Flag>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-8 max-w-md font-mono text-xs leading-6 text-muted">
+          {isOver
+            ? 'The same four orders — with every hidden pattern surfaced before the tape gun comes out.'
+            : 'Four orders. Four parcels packed. Two of them are already lost — and nothing on this screen says so.'}
+        </p>
+      </div>
+    );
+  };
+
   return (
     <section id="gap" className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/The problem/</Eyebrow>
-        <h2 data-reveal className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">
+        <Eyebrow data-scramble>/The problem/</Eyebrow>
+        <h2 data-scrub-words className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">
           Closing the<br />data gap.
         </h2>
 
-        <div className="mt-16 grid gap-px bg-line lg:grid-cols-2">
-          <div data-reveal className="bg-black p-8 sm:p-12">
-            <div className="flex items-center justify-between">
-              <p className="font-mono text-xs font-medium uppercase tracking-[0.22em] text-muted">What your rules see</p>
-              <LabelChip>Fragmented view</LabelChip>
-            </div>
-            <div className="mt-8">
-              {RULES_ROWS.map(([id, amt, pay, pin]) => (
-                <div key={id} className="datarow text-muted">
-                  <span>{id} · {amt} · {pay} · {pin}</span>
-                  <Flag tone="ghost">—</Flag>
-                </div>
-              ))}
-            </div>
-            <p className="mt-8 font-mono text-xs leading-6 text-muted">
-              Four orders. Four parcels packed. Two of them are already lost — and nothing on this screen says so.
-            </p>
+        <div data-wipe className="relative mt-16 h-[600px] overflow-hidden border border-line sm:h-[560px]">
+          {panel('under')}
+          <div data-wipe-over className="absolute inset-0">
+            {panel('over')}
           </div>
-          <div data-reveal className="bg-panel p-8 sm:p-12">
-            <div className="flex items-center justify-between">
-              <p className="font-mono text-xs font-medium uppercase tracking-[0.22em] text-white">What RTO Shield sees</p>
-              <LabelChip>Complete view</LabelChip>
-            </div>
-            <div className="mt-8">
-              {SEEN_ROWS.map(([id, amt, pay, pin, flag]) => (
-                <div key={id} className="datarow">
-                  <span className={flag === 'CLEAR' ? 'text-muted' : 'text-white'}>
-                    {id} · {amt} · {pay} · {pin}
-                  </span>
-                  {flag === 'CLEAR' ? <Flag tone="go">Clear</Flag> : <Flag tone="red">{flag}</Flag>}
-                </div>
-              ))}
-            </div>
-            <p className="mt-8 font-mono text-xs leading-6 text-muted">
-              The same four orders — with every hidden pattern surfaced before the tape gun comes out.
-            </p>
-          </div>
+          <div
+            data-wipe-scan
+            className="pointer-events-none absolute inset-y-0 w-[2px] bg-go shadow-[0_0_28px_3px_rgba(0,230,118,0.65)]"
+            aria-hidden="true"
+          />
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.32em] text-muted">
+            Scroll — the signal scans
+          </p>
         </div>
       </div>
     </section>
@@ -93,7 +112,7 @@ function Pillars() {
   return (
     <section id="chapters" className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/How it works/</Eyebrow>
+        <Eyebrow data-scramble>/How it works/</Eyebrow>
         <div className="mt-12">
           {items.map(([n, title, body]) => (
             <div key={n} data-reveal className="faq-item grid gap-4 py-10 sm:grid-cols-[120px_1fr_1.4fr] sm:items-baseline">
@@ -133,7 +152,7 @@ function TryModel() {
   return (
     <section id="model" className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/Try the model/</Eyebrow>
+        <Eyebrow data-scramble>/Try the model/</Eyebrow>
         <h2 data-reveal className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">
           Drag the levers.<br />Watch the verdict move.
         </h2>
@@ -211,7 +230,7 @@ function WhatsAppChapter() {
   return (
     <section className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/The confirmation/</Eyebrow>
+        <Eyebrow data-scramble>/The confirmation/</Eyebrow>
         <h2 data-reveal className="statement mt-6 max-w-4xl text-[clamp(2rem,5vw,4.5rem)]">
           You send the message. Not us.
         </h2>
@@ -258,7 +277,7 @@ function Pricing() {
   return (
     <section id="pricing" className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/Pricing/</Eyebrow>
+        <Eyebrow data-scramble>/Pricing/</Eyebrow>
         <h2 data-reveal className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">
           One plan.<br />No fine print.
         </h2>
@@ -292,7 +311,7 @@ function Faq() {
   return (
     <section id="faq" className="relative border-t border-line">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-reveal>/FAQ/</Eyebrow>
+        <Eyebrow data-scramble>/FAQ/</Eyebrow>
         <h2 data-reveal className="statement mt-6 text-[clamp(2rem,5vw,4.5rem)]">Questions.</h2>
         <div data-reveal className="mt-12">
           {FAQS.map(([q, a], i) => (
@@ -322,7 +341,7 @@ function Ticker() {
   const row = [...items, ...items];
   return (
     <div className="relative overflow-hidden border-y border-line py-4" aria-hidden="true">
-      <div className="marquee-track gap-12">
+      <div className="marquee-track gap-12" data-velocity-marquee>
         {row.map((t, i) => (
           <span key={i} className="flex items-center gap-12 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.24em] text-muted">
             {t} <span className="text-signal">●</span>
@@ -350,38 +369,40 @@ export function Landing() {
 
   return (
     <div className="relative bg-black text-white">
+      <SiteHeader />
       <OrderRain columns={9} />
 
       {/* HERO */}
       <section ref={heroRef} className="relative flex min-h-screen flex-col justify-end overflow-hidden pb-16 pt-36">
+        <div data-hero-scan className="pointer-events-none absolute inset-y-0 w-[2px] bg-go opacity-0 shadow-[0_0_32px_4px_rgba(0,230,118,0.55)]" aria-hidden="true" />
         <div className="relative mx-auto w-full max-w-page px-5 sm:px-8">
-          <p data-reveal className="font-mono text-sm tracking-[0.1em] text-white">/Introducing/</p>
+          <p data-hero-item data-scramble className="font-mono text-sm tracking-[0.1em] text-white">/Introducing/</p>
           <h1 className="wordmark mt-6 text-[clamp(4.5rem,15vw,14rem)]" aria-label="RTO Shield">
             <span className="reveal-mask"><span data-hero-line className="reveal-line">RTO</span></span>
             <span className="reveal-mask"><span data-hero-line className="reveal-line">SHIELD</span></span>
           </h1>
-          <div data-reveal className="mt-8 flex flex-wrap gap-3">
+          <div data-hero-item className="mt-8 flex flex-wrap gap-3">
             <LabelChip>COD risk intelligence</LabelChip>
             <LabelChip>Built for Bharat</LabelChip>
           </div>
           <div className="mt-12 grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-end">
             <div>
-              <p data-reveal className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+              <p data-hero-item className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
                 The complete COD Risk Score.
               </p>
-              <p data-reveal className="mt-5 max-w-xl text-lg leading-8 text-muted">
+              <p data-hero-item className="mt-5 max-w-xl text-lg leading-8 text-muted">
                 80% of COD losses come from orders your rules can't see.{' '}
                 <strong className="text-white">RTO Shield reads all of it</strong> — every order, every address,
                 every pattern — turning checkout data into a ship-or-stop insight.
               </p>
-              <div data-reveal className="mt-8 flex flex-wrap gap-4">
+              <div data-hero-item className="mt-8 flex flex-wrap gap-4">
                 <DemoButton className="btn-go" label="Open the demo shop" />
-                <a href="#gap" className="btn-ghost">
+                <a data-magnetic href="#gap" className="btn-ghost">
                   See how it works <ArrowRight size={14} />
                 </a>
               </div>
             </div>
-            <div data-reveal className="panel">
+            <div data-hero-item className="panel">
               <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
                 <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
                   <span className="live-dot" /> Live scan
@@ -420,7 +441,7 @@ export function Landing() {
       {/* FOOTER */}
       <footer className="relative border-t border-line">
         <div className="overflow-hidden py-10" aria-hidden="true">
-          <div className="marquee-track">
+          <div className="marquee-track" data-velocity-marquee>
             {Array.from({ length: 8 }, (_, i) => (
               <span key={i} className="wordmark whitespace-nowrap pr-16 text-[clamp(4rem,10vw,9rem)] text-white/[0.07]">
                 RTO SHIELD
