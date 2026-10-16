@@ -46,7 +46,7 @@ export default function SignupPage() {
         <Field label="Password (8+)">
           <input className={inputClass} type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => set('password', event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-high">{error}</p> : null}
+        {error ? <p className="text-sm text-signal">{error}</p> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Creating…' : 'Create account'}
         </Button>

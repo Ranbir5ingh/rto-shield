@@ -104,7 +104,7 @@ export default function OrderDetailPage() {
           <p className="mt-2 text-sm text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {wa ? (
-              <a className="btn btn-primary" href={wa} target="_blank" rel="noreferrer">
+              <a className="btn-go" href={wa} target="_blank" rel="noreferrer">
                 Open WhatsApp
               </a>
             ) : null}

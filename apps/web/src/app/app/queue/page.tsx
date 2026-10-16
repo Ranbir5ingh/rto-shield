@@ -122,7 +122,7 @@ export default function QueuePage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {waLink(order, textFor(order)) ? (
-                  <a className="btn btn-primary" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
+                  <a className="btn-go" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
                     Open WhatsApp
                   </a>
                 ) : null}

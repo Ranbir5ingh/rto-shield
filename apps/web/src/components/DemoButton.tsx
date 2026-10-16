@@ -23,10 +23,10 @@ export function DemoButton({ className = '', label = 'Open the demo shop' }: { c
 
   return (
     <div>
-      <button type="button" onClick={open} disabled={pending} data-magnetic className={`btn btn-primary disabled:opacity-60 ${className}`}>
+      <button type="button" onClick={open} disabled={pending} data-magnetic className={`btn-go disabled:opacity-60 ${className}`}>
         {pending ? 'Opening Asha Studio…' : label}
       </button>
-      {error ? <p className="mt-2 text-sm text-high">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-signal">{error}</p> : null}
     </div>
   );
 }

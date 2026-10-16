@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { OrderRain } from '@/components/OrderRain';
+import { Eyebrow, Flag, LabelChip } from '@/components/ui';
 
 export function AuthFrame({
   title,
@@ -11,44 +13,45 @@ export function AuthFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-      <aside className="relative hidden overflow-hidden border-r border-white/10 bg-panel lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div className="aurora" aria-hidden="true">
-          <span className="aurora-gold drift left-[-10%] top-[10%] h-[24rem] w-[24rem]" />
-        </div>
-        <Link href="/" className="relative flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-goldlight to-accent-deep font-display text-sm font-extrabold text-void">R</span>
-          <span className="font-display text-base font-bold tracking-tight">RTO Shield</span>
+    <div className="relative grid min-h-screen bg-black lg:grid-cols-[1.05fr_0.95fr]">
+      <OrderRain columns={6} />
+      <aside className="relative hidden border-r border-line lg:flex lg:flex-col lg:justify-between lg:p-12">
+        <Link href="/" className="relative flex items-center gap-3">
+          <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+          <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
         </Link>
         <div className="relative max-w-md">
-          <p className="font-mono text-xs tracking-[0.22em] text-gold">BEFORE THE TAPE GUN</p>
-          <p className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
-            Score the order. <em className="accent-serif font-normal text-gold">Confirm</em> the risky ones. Ship the rest.
+          <Eyebrow>/Before the tape gun/</Eyebrow>
+          <p className="statement mt-6 text-5xl">
+            Score the order.<br />Confirm the <span className="text-signal">risky</span> ones.<br />Ship the rest.
           </p>
-          <div className="card mt-10 divide-y divide-white/6 overflow-hidden">
+          <div className="mt-10 border-t border-line">
             {[
-              ['S1042', 'HIGH', '78', 'text-signal'],
-              ['S1048', 'LOW', '22', 'text-low'],
-              ['S1051', 'MED', '51', 'text-warn'],
-            ].map(([id, band, score, color]) => (
-              <div key={id} className="flex items-center justify-between px-5 py-3.5">
-                <span className="font-mono text-xs text-muted">{id}</span>
-                <span className={`font-mono text-xs font-bold tracking-widest ${color}`}>{band}</span>
-                <span className="font-display text-2xl font-bold tabular-nums">{score}</span>
+              ['S1042 · ₹2,458 · COD', 'CLEAR', 'go'],
+              ['S1047 · ₹1,299 · COD', 'RTO RISK', 'red'],
+              ['S1051 · ₹1,899 · PREPAID', 'WATCH', 'banana'],
+            ].map(([id, flag, tone]) => (
+              <div key={id} className="datarow">
+                <span className="text-white/70">{id}</span>
+                <Flag tone={tone as 'red' | 'banana' | 'go'}>{flag}</Flag>
               </div>
             ))}
           </div>
         </div>
-        <p className="relative font-mono text-xs text-muted">₹499 / MONTH SUGGESTED · NO CARD NEEDED</p>
+        <div className="relative flex gap-3">
+          <LabelChip>₹499 / month suggested</LabelChip>
+          <LabelChip>No card needed</LabelChip>
+        </div>
       </aside>
-      <div className="flex flex-col justify-center px-5 py-12 sm:px-12">
-        <Link href="/" className="mb-10 flex items-center gap-2.5 lg:hidden">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-goldlight to-accent-deep font-display text-sm font-extrabold text-void">R</span>
-          <span className="font-display text-base font-bold tracking-tight">RTO Shield</span>
+      <div className="relative flex flex-col justify-center px-5 py-12 sm:px-12">
+        <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden">
+          <span className="grid h-8 w-8 place-items-center bg-go font-display text-sm font-black text-black">R</span>
+          <span className="font-display text-sm font-extrabold uppercase tracking-[0.08em]">RTO Shield</span>
         </Link>
         <div className="mx-auto w-full max-w-md">
-          <h1 className="font-display text-4xl font-extrabold tracking-tight">{title}</h1>
-          <p className="mt-3 leading-7 text-muted">{lede}</p>
+          <Eyebrow>/Enter/</Eyebrow>
+          <h1 className="statement mt-4 text-5xl">{title}</h1>
+          <p className="mt-4 leading-7 text-muted">{lede}</p>
           <div className="mt-8">{children}</div>
         </div>
       </div>

@@ -29,10 +29,11 @@ export function useMarketingMotion(enabled: boolean) {
 
     const ctx = gsap.context(() => {
       // Hero entrance.
+      gsap.set('[data-hero-line]', { yPercent: 115 });
       const heroTl = gsap.timeline({ delay: 0.15 });
       heroTl
-        .from('[data-hero-line]', {
-          yPercent: 115,
+        .to('[data-hero-line]', {
+          yPercent: 0,
           duration: 1.1,
           stagger: 0.12,
           ease: 'power4.out',
@@ -46,8 +47,9 @@ export function useMarketingMotion(enabled: boolean) {
       // Grouped masked line reveals on scroll.
       gsap.utils.toArray<HTMLElement>('[data-reveal-group]').forEach((group) => {
         const lines = group.querySelectorAll('.reveal-line');
-        gsap.from(lines, {
-          yPercent: 115,
+        gsap.set(lines, { yPercent: 115 });
+        gsap.to(lines, {
+          yPercent: 0,
           duration: 1,
           stagger: 0.1,
           ease: 'power4.out',
@@ -58,8 +60,9 @@ export function useMarketingMotion(enabled: boolean) {
       // Standalone masked lines.
       gsap.utils.toArray<HTMLElement>('.reveal-line:not([data-reveal-group] .reveal-line)').forEach((line) => {
         if (line.closest('[data-reveal-group]') || line.hasAttribute('data-hero-line')) return;
-        gsap.from(line, {
-          yPercent: 115,
+        gsap.set(line, { yPercent: 115 });
+        gsap.to(line, {
+          yPercent: 0,
           duration: 1,
           ease: 'power4.out',
           scrollTrigger: { trigger: line, start: 'top 88%' },

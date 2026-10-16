@@ -43,7 +43,7 @@ function LoginForm() {
         <Field label="Password">
           <input className={inputClass} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </Field>
-        {error ? <p className="text-sm text-high">{error}</p> : null}
+        {error ? <p className="text-sm text-signal">{error}</p> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Checking…' : 'Log in'}
         </Button>

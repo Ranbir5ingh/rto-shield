@@ -8,7 +8,7 @@ export function TrendChart({
   const pad = 24;
   const usable = points.filter((point) => point.rate !== null);
   if (!usable.length) {
-    return <p className="text-sm text-ink/60">Upload delivered and RTO history to see a weekly rate.</p>;
+    return <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Upload delivered and RTO history to see a weekly rate.</p>;
   }
   const max = 100;
   const step = usable.length === 1 ? 0 : (width - pad * 2) / (usable.length - 1);
@@ -24,17 +24,17 @@ export function TrendChart({
     <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full" role="img" aria-label="Weekly RTO rate">
       <defs>
         <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e8b34a" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#e8b34a" stopOpacity="0" />
+          <stop offset="0%" stopColor="#fd0100" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#fd0100" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#trendFill)" />
-      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#e8b34a" strokeWidth="2.5" strokeLinecap="round" />
+      <path className="chart-line" d={d} pathLength={1} fill="none" stroke="#fd0100" strokeWidth="2.5" strokeLinecap="round" />
       {coords.map((point, index) => (
         <g key={point.label + point.x}>
-          <circle cx={point.x} cy={point.y} r="3.5" fill="#e8b34a" />
+          <circle cx={point.x} cy={point.y} r="3.5" fill="#fd0100" />
           {index % labelEvery === 0 ? (
-            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#9a958a" fontFamily="monospace">
+            <text x={point.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#8a8a8a" fontFamily="monospace">
               {point.label}
             </text>
           ) : null}
@@ -47,20 +47,20 @@ export function TrendChart({
 export function Distribution({ bands }: { bands: { Low: number; Medium: number; High: number } }) {
   const total = bands.Low + bands.Medium + bands.High || 1;
   const rows = [
-    ['Low', bands.Low, 'bg-low'],
-    ['Medium', bands.Medium, 'bg-mid'],
-    ['High', bands.High, 'bg-high'],
+    ['Low', bands.Low, '#00e676'],
+    ['Medium', bands.Medium, '#faed8f'],
+    ['High', bands.High, '#fd0100'],
   ] as const;
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {rows.map(([label, count, color]) => (
         <div key={label}>
-          <div className="mb-1 flex justify-between text-sm">
-            <span>{label}</span>
-            <span className="tabular-nums">{count}</span>
+          <div className="mb-2 flex justify-between font-mono text-[11px] uppercase tracking-[0.2em]">
+            <span className="text-muted">{label}</span>
+            <span className="tabular-nums text-white">{count}</span>
           </div>
-          <div className="h-2 rounded-full bg-line">
-            <div className={`bar-fill h-2 rounded-full ${color}`} style={{ width: `${(count / total) * 100}%` }} />
+          <div className="h-[3px] bg-white/10">
+            <div className="bar-fill h-[3px]" style={{ width: `${(count / total) * 100}%`, background: color }} />
           </div>
         </div>
       ))}

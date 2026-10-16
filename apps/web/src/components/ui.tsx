@@ -1,81 +1,150 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { bandClass } from '@/lib/format';
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`skeleton ${className}`} aria-hidden="true" />;
+  return <div className={`animate-pulse bg-white/5 ${className}`} aria-hidden="true" />;
 }
 
-export function RiskBadge({ band }: { band: string | null }) {
-  return (
-    <span className={`risk-pill ${bandClass(band)}`}>
-      {band || 'Unscored'}
-    </span>
-  );
+export function Eyebrow({ children, className = '', ...props }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={`eyebrow ${className}`} {...props}>{children}</p>;
 }
 
-export function Notice({ tone = 'warn', children }: { tone?: 'warn' | 'info' | 'good'; children: ReactNode }) {
-  const tones = {
-    warn: 'border-warn/50 text-warn',
-    info: 'border-cyan/50 text-cyan',
-    good: 'border-low/50 text-low',
-  };
-  return <div className={`rounded-2xl border bg-panel px-5 py-4 font-mono text-sm leading-6 ${tones[tone]}`}>{children}</div>;
+export function LabelChip({ children, className = '', ...props }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLSpanElement>) {
+  return <span className={`label-chip ${className}`} {...props}>{children}</span>;
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-2 block font-mono text-[0.72rem] font-medium uppercase tracking-[0.16em] text-gold">{label}</span>
-      {children}
-    </label>
-  );
+export function Flag({ tone = 'red', children }: { tone?: 'red' | 'banana' | 'go' | 'ghost'; children: ReactNode }) {
+  const cls = tone === 'red' ? 'flag' : tone === 'banana' ? 'flag flag-banana' : tone === 'go' ? 'flag flag-go' : 'flag flag-ghost';
+  return <span className={cls}>{children}</span>;
 }
 
-export const inputClass =
-  'w-full rounded-xl border border-line bg-void px-4 py-3 font-mono text-sm text-ink outline-none transition placeholder:text-muted/60 focus:border-gold';
+export function RiskBadge({ band }: { band: 'Low' | 'Medium' | 'High' | null }) {
+  if (band === 'High') return <Flag tone="red">High</Flag>;
+  if (band === 'Medium') return <Flag tone="banana">Medium</Flag>;
+  if (band === 'Low') return <Flag tone="go">Low</Flag>;
+  return <Flag tone="ghost">—</Flag>;
+}
 
 export function Button({
   children,
-  tone = 'primary',
+  variant = 'go',
+  tone,
+  className = '',
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'electric' | 'ghost' | 'danger' }) {
-  const tones = {
-    primary: 'btn-primary',
-    electric: 'btn-electric',
-    ghost: 'btn-ghost',
-    danger: 'btn-danger',
-  };
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'go' | 'ghost' | 'dark'; tone?: 'ghost' | 'danger' }) {
+  const v = tone === 'ghost' ? 'ghost' : tone === 'danger' ? 'danger' : variant;
+  const cls =
+    v === 'go'
+      ? 'btn-go'
+      : v === 'danger'
+        ? 'btn-ghost !text-signal hover:!border-signal'
+        : 'btn-ghost';
   return (
-    <button {...props} className={`btn ${tones[tone]} ${props.className || ''}`}>
+    <button type="button" className={`${cls} disabled:opacity-50 ${className}`} {...props}>
       {children}
     </button>
   );
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <article className={`card spotlight p-5 ${className}`}>{children}</article>;
+  return <div className={`panel ${className}`}>{children}</div>;
 }
 
-export function CopyButton({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
+export function Notice({ children, tone = 'warn' }: { children: ReactNode; tone?: 'warn' | 'good' }) {
+  return (
+    <div className={`panel px-5 py-4 ${tone === 'good' ? 'border-l-2 border-l-go' : 'border-l-2 border-l-signal'}`} role="status">
+      <div className="font-mono text-xs leading-6 text-ink/80">{children}</div>
+    </div>
+  );
+}
 
+export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+  return (
+    <div className="panel px-6 py-14 text-center">
+      <p className="eyebrow">EMPTY</p>
+      <p className="mt-4 font-display text-2xl font-extrabold uppercase tracking-tight">{title}</p>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">{body}</p>
+      {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="panel-flat pt-5">
+      <p className="eyebrow">{label}</p>
+      <p className="mt-3 font-display text-5xl font-extrabold tabular-nums tracking-tight">{value}</p>
+      {hint ? <p className="mt-2 font-mono text-xs leading-5 text-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <label className="block">
+      <span className="eyebrow">{label}</span>
+      <div className="mt-2.5">{children}</div>
+      {hint ? <span className="mt-2 block font-mono text-xs leading-5 text-muted">{hint}</span> : null}
+    </label>
+  );
+}
+
+export function FormGrid({ children }: { children: ReactNode }) {
+  return <div className="grid gap-6 sm:grid-cols-2">{children}</div>;
+}
+
+const inputCls =
+  'w-full bg-black border border-line px-4 py-3.5 text-[15px] text-ink placeholder:text-muted/50 outline-none transition focus:border-go';
+
+export const inputClass = inputCls;
+
+export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={`${inputCls} ${props.className ?? ''}`} />;
+}
+
+export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={`${inputCls} ${props.className ?? ''}`} />;
+}
+
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={`${inputCls} ${props.className ?? ''}`} />;
+}
+
+export function TableWrap({ children }: { children: ReactNode }) {
+  return <div className="overflow-x-auto">{children}</div>;
+}
+
+export function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <th className={`whitespace-nowrap px-4 py-3 text-left font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+export function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <td className={`px-4 py-3.5 align-top text-sm ${className}`}>{children}</td>;
+}
+
+export function Tr({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <tr className={`border-t border-line transition hover:bg-white/[0.03] ${className}`}>{children}</tr>;
+}
+
+export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
-      className="btn btn-ghost px-2.5 py-1 text-xs"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setDone(true);
-          window.setTimeout(() => setDone(false), 1600);
-        } catch {
-          setDone(false);
-        }
+      onClick={() => {
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        });
       }}
+      className="font-mono text-[11px] uppercase tracking-[0.18em] text-go transition hover:brightness-125"
     >
-      {done ? 'Copied' : 'Copy'}
+      {copied ? 'Copied' : label}
     </button>
   );
 }

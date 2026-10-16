@@ -86,7 +86,7 @@ export default function SettingsPage() {
         </Field>
         <Button type="submit">Save</Button>
       </form>
-      <section className="card p-5 text-sm">
+      <section className="panel p-5 text-sm">
         <h2 className="font-medium">Integrations</h2>
         <dl className="mt-4 divide-y divide-line">
           {[
