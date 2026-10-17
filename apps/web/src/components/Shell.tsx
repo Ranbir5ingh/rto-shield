@@ -186,11 +186,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
           onClick={() => setCollapsed((v) => !v)}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
-          className="absolute -right-[19px] top-[4.7rem] z-30 grid h-9 w-9 place-items-center border-2 border-ink bg-hl text-ink shadow-sticker-sm transition hover:rotate-[-8deg]"
+          className="absolute -right-[19px] top-1/2 z-30 grid h-9 w-9 -translate-y-1/2 place-items-center border-2 border-ink bg-hl text-ink shadow-sticker-sm transition hover:rotate-[-8deg]"
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
-        <div className={`flex items-center border-b-2 border-ink py-5 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
+        <div className={`flex h-16 items-center border-b-2 border-ink ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
           <Link
             href="/app"
             className="flex shrink-0 items-center gap-3"
@@ -231,7 +231,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 }}
                 onBlur={() => setTip(null)}
                 className={`relative flex items-center border-2 transition ${
-                  collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3.5 py-3'
+                  collapsed ? 'mx-auto h-11 w-11 justify-center' : 'gap-3 px-3.5 py-3'
                 } ${
                   active
                     ? 'border-ink bg-lime shadow-sticker-sm'
@@ -244,12 +244,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 )}
                 {badge ? (
                   collapsed ? (
-                    <span className="absolute right-1.5 top-1.5 grid h-5 min-w-5 place-items-center border border-ink bg-risk px-1 font-mono text-[9px] font-bold text-white">
-                      {queueCount}
+                    <span className="absolute -right-2 -top-2 z-10 grid h-5 min-w-5 place-items-center border-2 border-ink bg-risk px-1 font-mono text-[9px] font-bold leading-none text-white">
+                      {queueCount > 99 ? '99+' : queueCount}
                     </span>
                   ) : (
                     <span className="ml-auto border-2 border-ink bg-risk px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
-                      {queueCount}
+                      {queueCount > 99 ? '99+' : queueCount}
                     </span>
                   )
                 ) : null}
