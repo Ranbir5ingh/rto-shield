@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -7,8 +7,10 @@ import { whatsappNumber } from '../common/phone';
 import { VaultService } from '../common/vault.service';
 import { AuditEvent } from '../database/audit.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
+import { PlatformFlag, WHATSAPP_WEBHOOK_VERIFIED_KEY } from '../database/platform.schema';
 import { User, type UserDocument, type WhatsAppLink } from '../database/user.schema';
 import { ShopifyService } from '../shopify/shopify.service';
+import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
   ORDER_CONFIRMATION_EN,
   TEMPLATE_REJECTED,
@@ -32,6 +34,7 @@ export class WhatsAppService {
     @InjectModel(User.name) private readonly users: Model<User>,
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     @InjectModel(AuditEvent.name) private readonly audit: Model<AuditEvent>,
+    @InjectModel(PlatformFlag.name) private readonly platform: Model<PlatformFlag>,
   ) {}
 
   verifyToken() {
@@ -43,7 +46,7 @@ export class WhatsAppService {
     return `${app}/api/whatsapp/webhook`;
   }
 
-  status(user: UserDocument) {
+  async status(user: UserDocument) {
     const link = user.whatsapp;
     return {
       configured: Boolean(link?.tokenEnvelope && link.phoneNumberId && link.wabaId),
@@ -57,7 +60,71 @@ export class WhatsAppService {
       templateLanguage: link?.templateLanguage || user.messageLanguage,
       callbackUrl: this.callbackUrl(),
       verifyTokenName: 'WHATSAPP_VERIFY_TOKEN',
+      verifyToken: user.role === 'staff' ? '' : this.verifyToken(),
+      webhookVerified: Boolean(await this.webhookVerifiedAt()),
     };
+  }
+
+  async markWebhookVerified() {
+    try {
+      await this.platform.updateOne(
+        { key: WHATSAPP_WEBHOOK_VERIFIED_KEY },
+        { $set: { value: new Date().toISOString() } },
+        { upsert: true },
+      );
+    } catch (error) {
+      this.logger.warn(`WhatsApp verify flag missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+  }
+
+  async webhookVerifiedAt() {
+    const row = await this.platform.findOne({ key: WHATSAPP_WEBHOOK_VERIFIED_KEY }).lean();
+    return row?.value || '';
+  }
+
+  async testConnection(user: UserDocument) {
+    if (user.role === 'staff') throw new ForbiddenException('Only the shop owner can test the WhatsApp connection');
+    const link = user.whatsapp;
+    const hasToken = Boolean(link?.tokenEnvelope);
+    const hasPhone = Boolean(link?.phoneNumberId);
+    const hasWaba = Boolean(link?.wabaId);
+    let phone: ProbeResult = 'skipped';
+    let waba: ProbeResult = 'skipped';
+    let templateStatus: string | null = 'missing';
+    if (hasToken && link?.tokenEnvelope && (hasPhone || hasWaba)) {
+      const token = this.vault.open(link.tokenEnvelope);
+      if (hasPhone) phone = await this.probeGraph(`${link.phoneNumberId}?fields=id,display_phone_number,verified_name`, token);
+      if (hasWaba) {
+        waba = await this.probeGraph(`${link.wabaId}?fields=id,name`, token);
+        const expected = expectedTemplate(user.messageLanguage);
+        const listed = await this.templateState(link, token, expected);
+        templateStatus = listed === null ? null : listed || 'missing';
+        if (listed) {
+          user.whatsapp = {
+            ...link,
+            templateName: expected.name,
+            templateLanguage: expected.language,
+            templateStatus: listed,
+          };
+          await user.save();
+        }
+      }
+    }
+    const report = connectionReport({
+      hasToken,
+      hasPhone,
+      hasWaba,
+      phone,
+      waba,
+      templateStatus,
+      webhookVerified: Boolean(await this.webhookVerifiedAt()),
+    });
+    await this.audit.create({
+      sellerId: user._id,
+      action: 'whatsapp.test_connection',
+      meta: { ok: report.ok },
+    });
+    return report;
   }
 
   async save(
@@ -338,6 +405,28 @@ export class WhatsAppService {
       next = metaNextPage(body?.paging?.next);
     }
     return pickTemplateStatus(rows, expected);
+  }
+
+  private async probeGraph(pathAndQuery: string, token: string): Promise<ProbeResult> {
+    try {
+      const response = await fetch(`https://graph.facebook.com/${GRAPH}/${pathAndQuery}`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const text = await response.text();
+      if (!response.ok) return 'rejected';
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(text) as unknown;
+      } catch {
+        return 'rejected';
+      }
+      const id = parsed && typeof parsed === 'object' ? (parsed as { id?: unknown }).id : '';
+      return typeof id === 'string' && id.length > 0 ? 'ok' : 'rejected';
+    } catch (error) {
+      this.logger.warn(`WhatsApp probe missed: ${error instanceof Error ? error.name : 'error'}`);
+      return 'unreachable';
+    }
   }
 
   private async graphSend(user: UserDocument, body: Record<string, unknown>) {

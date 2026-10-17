@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SecretField } from '@/components/SecretField';
 import { useToast } from '@/components/Toaster';
+import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
@@ -26,6 +27,16 @@ interface WhatsAppStatus {
   templateStatus: string;
   callbackUrl: string;
   verifyTokenName: string;
+  verifyToken: string;
+  webhookVerified: boolean;
+}
+
+interface ConnectionCheck {
+  id: string;
+  ok: boolean;
+  label: string;
+  detail: string;
+  hint: string;
 }
 
 interface GeminiStatus {
@@ -52,6 +63,7 @@ export function Connections() {
   const [geminiDraft, setGeminiDraft] = useState<string | null>(null);
   const [geminiError, setGeminiError] = useState('');
   const [secretEpoch, setSecretEpoch] = useState(0);
+  const [connectionChecks, setConnectionChecks] = useState<ConnectionCheck[] | null>(null);
 
   async function load() {
     const [shopBody, waBody, gemBody] = await Promise.all([
@@ -182,7 +194,21 @@ export function Connections() {
       </section>
 
       <section className="panel space-y-3 p-5 shadow-card">
-        <h2 className="font-display text-2xl">WhatsApp</h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-display text-2xl">WhatsApp</h2>
+          <WhatsAppSetupGuide
+            callbackUrl={whatsapp?.callbackUrl || ''}
+            verifyToken={whatsapp?.verifyToken || ''}
+            progress={{
+              phoneNumberId: whatsapp?.phoneNumberId,
+              wabaId: whatsapp?.wabaId,
+              tokenLast4: whatsapp?.tokenLast4,
+              appSecretLast4: whatsapp?.appSecretLast4,
+              templateStatus: whatsapp?.templateStatus,
+              webhookVerified: whatsapp?.webhookVerified,
+            }}
+          />
+        </div>
         <p className="text-sm leading-6 text-ink/70">Your own Cloud API number. Templates only, until the buyer replies.</p>
         <form
           className="space-y-3"
@@ -240,8 +266,23 @@ export function Connections() {
           <div className="space-y-2 text-sm">
             <p>Template order_confirmation: {whatsapp.templateStatus}</p>
             <p className="break-all font-mono text-xs">Callback {whatsapp.callbackUrl}</p>
-            <p className="font-mono text-xs">Verify token env {whatsapp.verifyTokenName}</p>
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() =>
+                  void run(async () => {
+                    const body = await api<{ ok: boolean; checks: ConnectionCheck[] }>('/whatsapp/test-connection', { method: 'POST' });
+                    setConnectionChecks(body.checks);
+                    const fresh = await api<WhatsAppStatus>('/whatsapp');
+                    setWhatsapp(fresh);
+                    toast[body.ok ? 'success' : 'info'](
+                      body.ok ? 'WhatsApp connection looks ready.' : 'WhatsApp still needs a fix. The checks are listed below.',
+                    );
+                  })
+                }
+              >
+                Test connection
+              </Button>
               <Button
                 type="button"
                 tone="ghost"
@@ -282,6 +323,19 @@ export function Connections() {
               </Field>
               <Button type="submit">Send test message</Button>
             </form>
+            {connectionChecks ? (
+              <ul className="space-y-2">
+                {connectionChecks.map((check) => (
+                  <li key={check.id} className={`sticker-sm px-4 py-3 ${check.ok ? '!bg-lime/30' : '!bg-hl/40'}`}>
+                    <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">
+                      {check.ok ? 'Ready' : 'Needs a fix'} · {check.label}
+                    </p>
+                    <p className="mt-1 text-sm leading-6">{check.detail}</p>
+                    {check.ok ? null : <p className="mt-1 text-sm leading-6 text-ink/75">{check.hint}</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null}
       </section>

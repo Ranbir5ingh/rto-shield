@@ -602,6 +602,7 @@ export function Landing() {
             </p>
             <div className="flex gap-8">
               <Link href="/login" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Log in</Link>
+              <Link href="/guides/whatsapp" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">WhatsApp guide</Link>
               <Link href="/privacy" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Privacy</Link>
               <Link href="/terms" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Terms</Link>
             </div>

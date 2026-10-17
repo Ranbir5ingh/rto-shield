@@ -48,7 +48,26 @@ export async function GET(request: NextRequest) {
   if (mode !== 'subscribe' || !expected || token !== expected || !challenge) {
     return new NextResponse('forbidden', { status: 403 });
   }
+  await markWebhookVerified();
   return new NextResponse(challenge, { status: 200, headers: { 'content-type': 'text/plain' } });
+}
+
+async function markWebhookVerified() {
+  const uri = process.env.MONGODB_URI?.trim();
+  if (!uri) return;
+  try {
+    if (!client) {
+      client = new MongoClient(uri);
+      await client.connect();
+    }
+    await client.db().collection('platform').updateOne(
+      { key: 'whatsapp.webhookVerifiedAt' },
+      { $set: { key: 'whatsapp.webhookVerifiedAt', value: new Date().toISOString() } },
+      { upsert: true },
+    );
+  } catch {
+    // Meta still needs the challenge. The seller can verify again.
+  }
 }
 
 export async function POST(request: NextRequest) {

@@ -362,6 +362,92 @@ describe('RTO Shield API', () => {
     expect(dumped).not.toContain(password);
   });
 
+  it('checks the WhatsApp connection in plain language and records a webhook verify', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const created = await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', token)
+      .send({ email: 'wa-guide@shop.test', password: 'supersecret', name: 'Asha', shopName: 'Asha Studio' })
+      .expect(201);
+    const session = created.body.csrfToken as string;
+    const status = await agent.get('/api/whatsapp').expect(200);
+    expect(status.body.verifyToken).toBe('whatsapp-verify-test');
+    expect(status.body.webhookVerified).toBe(false);
+    expect(String(status.headers['cache-control'])).toContain('no-store');
+
+    const early = await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(200);
+    expect(early.body.ok).toBe(false);
+    expect(early.body.checks.find((check: { id: string }) => check.id === 'webhook').ok).toBe(false);
+    expect(early.body.checks.find((check: { id: string }) => check.id === 'token').hint).toMatch(/whatsapp_business_messaging/);
+    expect(JSON.stringify(early.body)).not.toContain('whatsapp-verify-test');
+
+    await request(app.getHttpServer())
+      .get('/api/whatsapp/webhook')
+      .query({ 'hub.mode': 'subscribe', 'hub.verify_token': 'nope', 'hub.challenge': '999' })
+      .expect(403);
+    const still = await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(200);
+    expect(still.body.checks.find((check: { id: string }) => check.id === 'webhook').ok).toBe(false);
+
+    const verified = await request(app.getHttpServer())
+      .get('/api/whatsapp/webhook')
+      .query({ 'hub.mode': 'subscribe', 'hub.verify_token': 'whatsapp-verify-test', 'hub.challenge': '123' })
+      .expect(200);
+    expect(verified.text).toBe('123');
+
+    const accessToken = 'EAAGtesttokenvalue123456a1B2';
+    const appSecret = 'app-secret-value-ZZ99';
+    await agent
+      .post('/api/whatsapp')
+      .set('x-csrf-token', session)
+      .send({ accessToken, phoneNumberId: '123456789012345', wabaId: '223456789012345', appSecret })
+      .expect(201);
+
+    const original = global.fetch;
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.includes('graph.facebook.com')) return original(input, init);
+      if (url.includes('message_templates')) {
+        return new Response(
+          JSON.stringify({ data: [{ name: 'order_confirmation_hinglish', language: 'en', status: 'APPROVED' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('223456789012345')) {
+        return new Response(JSON.stringify({ id: '223456789012345', name: 'Asha Studio' }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ id: '123456789012345', display_phone_number: '919800001111', verified_name: 'Asha' }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    try {
+      const ready = await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(200);
+      expect(ready.body.ok).toBe(true);
+      const dumped = JSON.stringify(ready.body);
+      expect(dumped).not.toContain(accessToken);
+      expect(dumped).not.toContain(appSecret);
+      expect(dumped).not.toContain('whatsapp-verify-test');
+      expect(dumped).not.toContain('919800001111');
+      expect(ready.body.checks.every((check: { ok: boolean; hint: string }) => check.ok && check.hint)).toBe(true);
+    } finally {
+      global.fetch = original;
+    }
+
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    await users.updateOne({ email: 'wa-guide@shop.test' }, { $set: { role: 'staff' } });
+    const hidden = await agent.get('/api/whatsapp').expect(200);
+    expect(hidden.body.verifyToken).toBe('');
+    await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(403);
+
+    const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
+    const rows = await audits.find({ action: 'whatsapp.test_connection' }).lean();
+    const auditDump = JSON.stringify(rows);
+    expect(auditDump).not.toContain(accessToken);
+    expect(auditDump).not.toContain('whatsapp-verify-test');
+  });
+
   it('rejects a bad login with the same message', async () => {
     const agent = request.agent(app.getHttpServer());
     const token = await csrf(agent);

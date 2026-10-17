@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { useToast } from '@/components/Toaster';
+import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
+import type { GuideProgressInput } from '@/lib/whatsapp-guide';
 import { ApiError, api } from '@/lib/api';
 
 interface ShopifyStatus {
@@ -22,6 +24,9 @@ function StartForm() {
   const [samplePending, setSamplePending] = useState(false);
   const toast = useToast();
   const [link, setLink] = useState<ShopifyStatus | null>(null);
+  const [whatsapp, setWhatsapp] = useState<
+    (GuideProgressInput & { callbackUrl?: string; verifyToken?: string }) | null
+  >(null);
 
   useEffect(() => {
     if (params?.get('shopify') === 'error') toast.error('Shopify did not finish the install. Start again from the shop domain.');
@@ -32,9 +37,13 @@ function StartForm() {
     let timer = 0;
     async function pull() {
       try {
-        const body = await api<ShopifyStatus>('/shopify');
+        const [body, wa] = await Promise.all([
+          api<ShopifyStatus>('/shopify'),
+          api<GuideProgressInput & { callbackUrl?: string; verifyToken?: string }>('/whatsapp').catch(() => null),
+        ]);
         if (stop) return;
         setLink(body);
+        if (wa) setWhatsapp(wa);
         if (body.connected && body.backfill.status === 'running') timer = window.setTimeout(() => void pull(), 2000);
       } catch {
         if (!stop) setLink(null);
@@ -124,6 +133,22 @@ function StartForm() {
           </Button>
         </form>
       )}
+      <article className="panel p-5">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-display text-2xl">WhatsApp</h2>
+          <WhatsAppSetupGuide
+            callbackUrl={whatsapp?.callbackUrl || ''}
+            verifyToken={whatsapp?.verifyToken || ''}
+            progress={whatsapp || {}}
+          />
+        </div>
+        <p className="mt-2 text-sm leading-6 text-ink/70">
+          Your own Cloud API number. The setup guide walks through Meta, then you paste the token in Settings.
+        </p>
+        <Link href="/app/settings" className="btn btn-ghost mt-4">
+          Open WhatsApp settings
+        </Link>
+      </article>
       <div className="grid gap-4 sm:grid-cols-2">
         <article className="panel p-5">
           <h2 className="font-display text-2xl">CSV, if you must</h2>

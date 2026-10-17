@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Header,
   Headers,
   HttpCode,
   Inject,
@@ -48,6 +49,8 @@ export class WhatsAppController {
   ) {}
 
   @Get('whatsapp')
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Pragma', 'no-cache')
   status(@CurrentUser() user: UserDocument) {
     return this.whatsapp.status(user);
   }
@@ -60,6 +63,15 @@ export class WhatsAppController {
     body: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string },
   ) {
     return this.whatsapp.save(user, body);
+  }
+
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Pragma', 'no-cache')
+  @HttpCode(200)
+  @Post('whatsapp/test-connection')
+  testConnection(@CurrentUser() user: UserDocument) {
+    return this.whatsapp.testConnection(user);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
@@ -94,7 +106,7 @@ export class WhatsAppController {
   @Public()
   @SkipThrottle()
   @Get('whatsapp/webhook')
-  verify(
+  async verify(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
     @Query('hub.challenge') challenge: string,
@@ -104,6 +116,7 @@ export class WhatsAppController {
     if (mode !== 'subscribe' || !expected || token !== expected || !challenge) {
       throw new ForbiddenException('WhatsApp verify token did not match');
     }
+    await this.whatsapp.markWebhookVerified();
     res.status(200).type('text/plain').send(challenge);
   }
 
