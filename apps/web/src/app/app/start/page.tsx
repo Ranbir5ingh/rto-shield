@@ -90,7 +90,7 @@ function StartForm() {
         Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted.
       </p>
       {link?.connected ? (
-        <article className="panel p-5">
+        <article className="panel p-5" data-tour="shopify-connected">
           <h2 className="font-display text-2xl">{link.demo ? 'Demo store' : link.shop}</h2>
           <p className="mt-2 text-sm text-ink/70">
             {link.backfill.status === 'running'
@@ -116,7 +116,7 @@ function StartForm() {
           ) : null}
         </article>
       ) : (
-        <form onSubmit={connect} className="panel space-y-3 p-5">
+        <form onSubmit={connect} className="panel space-y-3 p-5" data-tour="shopify-connect">
           <h2 className="font-display text-2xl">Connect Shopify</h2>
           <Field label="Shop domain">
             <input
@@ -133,7 +133,7 @@ function StartForm() {
           </Button>
         </form>
       )}
-      <article className="panel p-5">
+      <article className="panel p-5" data-tour="whatsapp-card">
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-display text-2xl">WhatsApp</h2>
           <WhatsAppSetupGuide
@@ -149,7 +149,7 @@ function StartForm() {
           Open WhatsApp settings
         </Link>
       </article>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2" data-tour="import-alternatives">
         <article className="panel p-5">
           <h2 className="font-display text-2xl">CSV, if you must</h2>
           <p className="mt-2 text-sm leading-6 text-ink/70">A Shopify export, a Meesho-style file, or the generic template.</p>

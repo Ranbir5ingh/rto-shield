@@ -7,6 +7,7 @@ import { CryptoService } from '../common/crypto.service';
 import { VaultService } from '../common/vault.service';
 import { hourInKolkata } from '../common/hour';
 import { maskPhone } from '../common/phone';
+import { effectiveRole } from '../demo/demo.policy';
 import { AuditEvent } from '../database/audit.schema';
 import { OauthState } from '../database/oauth-state.schema';
 import { Order } from '../database/order.schema';
@@ -559,7 +560,7 @@ export class ShopifyService {
   }
 
   private assertOwner(user: UserDocument) {
-    if (user.role === 'staff') throw new BadRequestException('Only the shop owner can change connections');
+    if (effectiveRole(user) !== 'owner') throw new BadRequestException('Only the shop owner can change connections');
   }
 }
 

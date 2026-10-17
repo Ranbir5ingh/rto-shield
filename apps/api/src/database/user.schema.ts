@@ -64,6 +64,9 @@ export class User {
   @Prop({ default: false })
   isDemo!: boolean;
 
+  @Prop({ type: Date, default: null })
+  sellerTourSeenAt!: Date | null;
+
   @Prop({ type: Object, default: null })
   shopify!: ShopifyLink | null;
 

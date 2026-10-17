@@ -8,6 +8,8 @@ import { AccountModule } from './account/account.module';
 import { AuthModule } from './auth/auth.module';
 import { CryptoModule } from './common/crypto.module';
 import { CsrfGuard, JwtAuthGuard } from './common/guards';
+import { DemoModule } from './demo/demo.module';
+import { DemoWriteGuard } from './demo/demo.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
 import { GeminiModule } from './gemini/gemini.module';
@@ -55,11 +57,13 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
     WhatsAppModule,
     InboxModule,
     GeminiModule,
+    DemoModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
+    { provide: APP_GUARD, useClass: DemoWriteGuard },
   ],
 })
 export class AppModule {}

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditEvent, AuditSchema } from './audit.schema';
+import { DemoBaseline, DemoBaselineSchema } from './demo-baseline.schema';
+import { DemoSession, DemoSessionSchema } from './demo-session.schema';
 import { InboxEvent, InboxSchema } from './inbox.schema';
 import { ModelRun, ModelRunSchema } from './model-run.schema';
 import { OauthState, OauthStateSchema } from './oauth-state.schema';
@@ -20,6 +22,8 @@ import { User, UserSchema } from './user.schema';
       { name: AuditEvent.name, schema: AuditSchema },
       { name: OauthState.name, schema: OauthStateSchema },
       { name: PlatformFlag.name, schema: PlatformSchema },
+      { name: DemoSession.name, schema: DemoSessionSchema },
+      { name: DemoBaseline.name, schema: DemoBaselineSchema },
     ]),
   ],
   exports: [MongooseModule],

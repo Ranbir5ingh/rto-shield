@@ -9,6 +9,9 @@ import { AuditEvent } from '../database/audit.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { PlatformFlag, WHATSAPP_WEBHOOK_VERIFIED_KEY } from '../database/platform.schema';
 import { User, type UserDocument, type WhatsAppLink } from '../database/user.schema';
+import { DemoService } from '../demo/demo.service';
+import { whatsappAllowlist } from '../demo/demo-send';
+import { demoSendCap, effectiveRole } from '../demo/demo.policy';
 import { ShopifyService } from '../shopify/shopify.service';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
@@ -35,6 +38,7 @@ export class WhatsAppService {
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     @InjectModel(AuditEvent.name) private readonly audit: Model<AuditEvent>,
     @InjectModel(PlatformFlag.name) private readonly platform: Model<PlatformFlag>,
+    private readonly demoState: DemoService,
   ) {}
 
   verifyToken() {
@@ -48,19 +52,20 @@ export class WhatsAppService {
 
   async status(user: UserDocument) {
     const link = user.whatsapp;
+    const visitor = effectiveRole(user) === 'demo';
     return {
       configured: Boolean(link?.tokenEnvelope && link.phoneNumberId && link.wabaId),
-      demo: Boolean(user.isDemo),
-      phoneNumberId: link?.phoneNumberId || '',
-      wabaId: link?.wabaId || '',
-      tokenLast4: link?.tokenLast4 || '',
-      appSecretLast4: link?.appSecretLast4 || '',
+      demo: Boolean(user.isDemo) || visitor,
+      phoneNumberId: visitor ? '' : link?.phoneNumberId || '',
+      wabaId: visitor ? '' : link?.wabaId || '',
+      tokenLast4: visitor ? '' : link?.tokenLast4 || '',
+      appSecretLast4: visitor ? '' : link?.appSecretLast4 || '',
       templateName: link?.templateName || 'order_confirmation',
       templateStatus: link?.templateStatus || 'missing',
       templateLanguage: link?.templateLanguage || user.messageLanguage,
       callbackUrl: this.callbackUrl(),
       verifyTokenName: 'WHATSAPP_VERIFY_TOKEN',
-      verifyToken: user.role === 'staff' ? '' : this.verifyToken(),
+      verifyToken: visitor || user.role === 'staff' ? '' : this.verifyToken(),
       webhookVerified: Boolean(await this.webhookVerifiedAt()),
     };
   }
@@ -210,28 +215,42 @@ export class WhatsAppService {
 
   async sendOrders(user: UserDocument, ids: string[]) {
     if (user.role === 'staff') throw new BadRequestException('Only the shop owner can send WhatsApp messages');
-    const demo = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
-    if (!demo) {
+    const visitor = effectiveRole(user) === 'demo';
+    const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
+    if (!visitor && !synthetic) {
       const link = this.requireLink(user);
       if (link.templateStatus !== 'APPROVED') {
         throw new BadRequestException('The order_confirmation template is not approved yet');
       }
     }
     const orders = await this.orders.find({ _id: { $in: ids }, sellerId: user._id, stage: 'pending' }).limit(50);
+    if (visitor) await this.demoState.capture(user, orders);
     const sent: string[] = [];
+    let simulated = 0;
+    const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
     for (const order of orders) {
       const phone = this.phoneOf(order);
       if (!phone) continue;
       const language = user.messageLanguage === 'hindi' ? 'hi' : 'en';
       const name = user.messageLanguage === 'hinglish' ? 'order_confirmation_hinglish' : 'order_confirmation';
-      if (demo) {
-        order.whatsappStatus = 'sent';
-        order.whatsappMessageId = `demo-${order.id}`;
-        order.conversation = [...(order.conversation || []), { at: new Date().toISOString(), direction: 'out', kind: 'template', text: name }];
+      const link = user.whatsapp;
+      const allowlisted = visitor && allow.has(phone) && Boolean(link?.tokenEnvelope) && link?.templateStatus === 'APPROVED';
+      if (visitor && !allowlisted) {
+        await this.holdDemoSend(user);
+        this.markSimulated(order, name);
+        await order.save();
+        await this.demoState.note(user, 'demo.whatsapp.simulated', String(order._id), { template: name });
+        sent.push(String(order._id));
+        simulated += 1;
+        continue;
+      }
+      if (synthetic) {
+        this.markSimulated(order, name);
         await order.save();
         sent.push(String(order._id));
         continue;
       }
+      if (visitor) await this.holdDemoSend(user);
       const result = await this.graphSend(user, {
         messaging_product: 'whatsapp',
         to: phone,
@@ -259,15 +278,36 @@ export class WhatsAppService {
         { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${name} ${order.externalOrderId}` },
       ];
       await order.save();
-      await this.audit.create({
-        sellerId: user._id,
-        action: 'whatsapp.send',
-        orderId: String(order._id),
-        meta: { wamid, template: name },
-      });
+      if (visitor) {
+        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: name });
+      } else {
+        await this.audit.create({
+          sellerId: user._id,
+          action: 'whatsapp.send',
+          orderId: String(order._id),
+          meta: { wamid, template: name },
+        });
+      }
       sent.push(String(order._id));
     }
-    return { sent };
+    if (visitor && simulated) {
+      return { sent, simulated, notice: 'In the demo, messages go to our test phone' };
+    }
+    return { sent, simulated };
+  }
+
+  private async holdDemoSend(user: UserDocument) {
+    const used = await this.demoState.sendsToday(user);
+    this.demoState.assertSendRoom(used, demoSendCap());
+  }
+
+  private markSimulated(order: OrderDocument, template: string) {
+    order.whatsappStatus = 'sent';
+    order.whatsappMessageId = `demo-${order.id}`;
+    order.conversation = [
+      ...(order.conversation || []),
+      { at: new Date().toISOString(), direction: 'out', kind: 'template', text: template },
+    ];
   }
 
   async applyInbound(phoneNumberId: string, payload: Record<string, unknown>) {

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, OnModuleInit, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -9,7 +9,10 @@ import { Model } from 'mongoose';
 import { clearSessionCookies, CSRF_COOKIE, cookieOptions, writeSessionCookies } from '../common/cookies';
 import type { AccessPayload } from '../common/guards';
 import type { LoginInput, SignupInput } from '../common/validation';
+import { AuditEvent } from '../database/audit.schema';
+import { DemoSession } from '../database/demo-session.schema';
 import { User, type UserDocument } from '../database/user.schema';
+import { demoSessionMs, effectiveRole, hashDemoIp, isOfficialDemoAccount } from '../demo/demo.policy';
 
 export interface PublicUser {
   id: string;
@@ -18,9 +21,11 @@ export interface PublicUser {
   shopName: string;
   rtoCostInr: number;
   messageLanguage: 'hindi' | 'hinglish' | 'english';
-  role: 'owner' | 'staff';
+  role: 'owner' | 'staff' | 'demo';
   isDemo: boolean;
+  officialDemo: boolean;
   sellerGemini: boolean;
+  tour: { sellerSeen: boolean; demoSeen: boolean };
 }
 
 @Injectable()
@@ -29,6 +34,8 @@ export class AuthService implements OnModuleInit {
 
   constructor(
     @InjectModel(User.name) private readonly users: Model<User>,
+    @InjectModel(DemoSession.name) private readonly demoSessions: Model<DemoSession>,
+    @InjectModel(AuditEvent.name) private readonly audit: Model<AuditEvent>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -49,9 +56,14 @@ export class AuthService implements OnModuleInit {
       shopName: user.shopName,
       rtoCostInr: user.rtoCostInr,
       messageLanguage: user.messageLanguage,
-      role: user.role || 'owner',
+      role: effectiveRole(user),
       isDemo: Boolean(user.isDemo),
+      officialDemo: isOfficialDemoAccount(user.email),
       sellerGemini: Boolean(user.gemini?.keyEnvelope && user.gemini.validatedAt),
+      tour: {
+        sellerSeen: Boolean(user.sellerTourSeenAt),
+        demoSeen: Boolean(user.$locals?.demoTourSeen),
+      },
     };
   }
 
@@ -67,8 +79,8 @@ export class AuthService implements OnModuleInit {
     return { access, refresh, csrf: randomBytes(32).toString('hex'), user: this.toPublic(user) };
   }
 
-  writeSession(res: Response, session: { access: string; refresh: string; csrf: string }) {
-    writeSessionCookies(res, this.config, session);
+  writeSession(res: Response, session: { access: string; refresh: string; csrf: string }, ttl?: { accessMs?: number; refreshMs?: number }) {
+    writeSessionCookies(res, this.config, session, ttl);
   }
 
   setCsrf(res: Response, token: string) {
@@ -81,6 +93,39 @@ export class AuthService implements OnModuleInit {
 
   csrfToken() {
     return randomBytes(32).toString('hex');
+  }
+
+  async openLiveDemo(ip: string) {
+    const email = (process.env.DEMO_ACCOUNT_EMAIL || '').trim().toLowerCase();
+    const user = email ? await this.users.findOne({ email }) : null;
+    const link = user?.shopify;
+    const connected = Boolean(link && !link.uninstalledAt && (link.demo || link.tokenEnvelope));
+    if (!user || !connected) throw new ServiceUnavailableException('The live demo shop is not ready');
+    const expiresAt = new Date(Date.now() + demoSessionMs());
+    const created = await this.demoSessions.create({
+      userId: user._id,
+      expiresAt,
+      tourSeen: false,
+      ipHash: hashDemoIp(ip),
+    });
+    user.$locals.actor = 'demo';
+    user.$locals.demoTourSeen = false;
+    user.$locals.demoSessionId = String(created._id);
+    const session = await this.issueDemo(user, String(created._id), expiresAt);
+    await this.audit.create({
+      sellerId: user._id,
+      action: 'demo.session',
+      meta: { ipHash: hashDemoIp(ip) },
+    });
+    return session;
+  }
+
+  private async issueDemo(user: UserDocument, sessionId: string, expiresAt: Date) {
+    const seconds = Math.max(60, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+    const claims = { sub: String(user._id), tv: user.tokenVersion, actor: 'demo' as const, sid: sessionId };
+    const access = await this.jwt.signAsync({ ...claims, typ: 'access' } satisfies AccessPayload, { expiresIn: seconds });
+    const refresh = await this.jwt.signAsync({ ...claims, typ: 'refresh' } satisfies AccessPayload, { expiresIn: seconds });
+    return { access, refresh, csrf: randomBytes(32).toString('hex'), user: this.toPublic(user) };
   }
 
   async createDemo() {
@@ -147,6 +192,7 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Login required');
     }
     if (payload.typ !== 'refresh') throw new UnauthorizedException('Login required');
+    if (payload.actor === 'demo') return this.refreshDemo(payload);
     const user = await this.users.findById(payload.sub);
     if (!user || user.tokenVersion !== payload.tv) throw new UnauthorizedException('Login required');
     user.tokenVersion += 1;
@@ -154,10 +200,28 @@ export class AuthService implements OnModuleInit {
     return this.issue(user);
   }
 
+  private async refreshDemo(payload: AccessPayload) {
+    if (!payload.sid) throw new UnauthorizedException('Login required');
+    const demo = await this.demoSessions.findById(payload.sid);
+    if (!demo || demo.expiresAt.getTime() <= Date.now() || String(demo.userId) !== payload.sub) {
+      throw new UnauthorizedException('Login required');
+    }
+    const user = await this.users.findById(payload.sub);
+    if (!user) throw new UnauthorizedException('Login required');
+    user.$locals.actor = 'demo';
+    user.$locals.demoTourSeen = Boolean(demo.tourSeen);
+    user.$locals.demoSessionId = String(demo._id);
+    return this.issueDemo(user, String(demo._id), demo.expiresAt);
+  }
+
   async logout(token: string | undefined) {
     if (!token) return;
     try {
       const payload = await this.jwt.verifyAsync<AccessPayload>(token, { ignoreExpiration: true });
+      if (payload?.actor === 'demo' && payload.sid) {
+        await this.demoSessions.deleteOne({ _id: payload.sid });
+        return;
+      }
       if (payload?.sub) {
         await this.users.updateOne({ _id: payload.sub }, { $inc: { tokenVersion: 1 } });
       }

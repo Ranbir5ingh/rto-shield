@@ -92,7 +92,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <section aria-label="Key metrics" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Key metrics" data-tour="impact" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
         <div data-reveal="pop">
           <Stat
             label="Needs action"
@@ -133,7 +133,7 @@ export default function DashboardPage() {
             <TrendChart points={data.trend} />
           </div>
         </div>
-        <div className="sticker relative p-6 sm:p-8 lg:col-span-2">
+        <div className="sticker relative p-6 sm:p-8 lg:col-span-2" data-tour="risk-scores">
           <Eyebrow>Pending risk</Eyebrow>
           <div className="mt-6">
             <Distribution bands={data.distribution} />

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
 import { VaultService } from '../common/vault.service';
+import { effectiveRole } from '../demo/demo.policy';
 import { AuditEvent } from '../database/audit.schema';
 import type { UserDocument } from '../database/user.schema';
 
@@ -16,6 +17,10 @@ export class SecretsService {
   ) {}
 
   async reveal(user: UserDocument, field: SecretField, password: string) {
+    if (effectiveRole(user) === 'demo') {
+      await this.audit.create({ sellerId: user._id, action: 'secret.reveal_denied', meta: { field, demo: true } });
+      throw new ForbiddenException('Demo sessions cannot reveal secrets');
+    }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
       await this.audit.create({ sellerId: user._id, action: 'secret.reveal_denied', meta: { field } });

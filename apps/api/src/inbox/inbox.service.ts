@@ -2,6 +2,7 @@ import { forwardRef, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit }
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CryptoService } from '../common/crypto.service';
+import { DemoService } from '../demo/demo.service';
 import { InboxEvent, type InboxDocument } from '../database/inbox.schema';
 import { ShopifyService } from '../shopify/shopify.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
@@ -17,6 +18,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
     @Inject(forwardRef(() => WhatsAppService)) private readonly whatsapp: WhatsAppService,
     @InjectModel(InboxEvent.name) private readonly inbox: Model<InboxEvent>,
+    private readonly demo: DemoService,
   ) {}
 
   onModuleInit() {
@@ -91,6 +93,11 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           event.error = name.slice(0, 80);
           await event.save();
         }
+      }
+      try {
+        await this.demo.maybeReset();
+      } catch (error) {
+        this.logger.warn(`Demo reset missed: ${error instanceof Error ? error.name : 'error'}`);
       }
     } finally {
       this.draining = false;

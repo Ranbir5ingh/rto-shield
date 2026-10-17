@@ -458,4 +458,179 @@ describe('RTO Shield API', () => {
       .expect(401);
     expect(response.body.error).toBe('Invalid email or password');
   });
+
+  it('gives a judge a read-mostly demo of a connected shop and rewinds their decisions', async () => {
+    const previousEmail = process.env.DEMO_ACCOUNT_EMAIL;
+    const previousCap = process.env.DEMO_WHATSAPP_DAILY_CAP;
+    const email = 'judge@shop.test';
+    const password = 'supersecret';
+    const accessToken = 'EAAGjudgetokenvalue123456c3D4';
+    const appSecret = 'judge-app-secret-QQ77';
+    const phoneNumberId = '15551230000';
+    const wabaId = '15559870000';
+    process.env.DEMO_WHATSAPP_DAILY_CAP = '1';
+    try {
+      const owner = request.agent(app.getHttpServer());
+      const signupToken = await csrf(owner);
+      const created = await owner
+        .post('/api/auth/signup')
+        .set('x-csrf-token', signupToken)
+        .send({ email, password, name: 'Judge', shopName: 'Judge Shop' })
+        .expect(201);
+      const ownerCsrf = created.body.csrfToken as string;
+      const users = app.get<Model<User>>(getModelToken(User.name));
+      const vault = app.get(VaultService);
+      await users.updateOne(
+        { email },
+        {
+          $set: {
+            shopify: {
+              shopDomain: 'rtoshield-dev-otqppsw4.myshopify.com',
+              demo: false,
+              scopes: 'read_orders,write_orders,read_fulfillments,read_customers',
+              tokenEnvelope: vault.seal('shpat_judge_demo_token'),
+              installedAt: new Date().toISOString(),
+              uninstalledAt: null,
+              backfill: { status: 'done', processed: 15, total: 15, error: null },
+              riskTags: { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' },
+              rtoTag: 'RTO',
+              autoCancelOnBuyerCancel: false,
+            },
+            whatsapp: {
+              tokenEnvelope: vault.seal(accessToken),
+              tokenLast4: 'c3D4',
+              phoneNumberId,
+              wabaId,
+              appSecretEnvelope: vault.seal(appSecret),
+              appSecretLast4: 'QQ77',
+              templateName: 'order_confirmation',
+              templateStatus: 'APPROVED',
+              templateLanguage: 'en',
+            },
+            gemini: {
+              keyEnvelope: vault.seal('AIzaSyJudgeKeyValue1234567890'),
+              last4: '7890',
+              validatedAt: new Date().toISOString(),
+            },
+          },
+        },
+      );
+      const ownerWa = await owner.get('/api/whatsapp').expect(200);
+      expect(ownerWa.body.tokenLast4).toBe('c3D4');
+      expect(ownerWa.body.verifyToken).toBe('whatsapp-verify-test');
+
+      await owner.post('/api/orders/sample').set('x-csrf-token', ownerCsrf).expect(201);
+      await owner.post('/api/orders/score').set('x-csrf-token', ownerCsrf).expect(201);
+      const queue = await owner.get('/api/queue').expect(200);
+      const orderId = queue.body.orders[0].id as string;
+      expect(orderId).toBeTruthy();
+
+      process.env.DEMO_ACCOUNT_EMAIL = email;
+      const visitor = request.agent(app.getHttpServer());
+      const visitorCsrf = await csrf(visitor);
+      const opened = await visitor.post('/api/demo/session').set('x-csrf-token', visitorCsrf).expect(201);
+      expect(opened.body.user.role).toBe('demo');
+      expect(opened.body.user.isDemo).toBe(false);
+      expect(opened.body.user.officialDemo).toBe(true);
+      expect(opened.body.demo).toBe(true);
+      const demoCsrf = opened.body.csrfToken as string;
+
+      const hidden = await visitor.get('/api/whatsapp').expect(200);
+      const dumped = JSON.stringify(hidden.body);
+      expect(hidden.body.configured).toBe(true);
+      expect(hidden.body.tokenLast4).toBe('');
+      expect(hidden.body.appSecretLast4).toBe('');
+      expect(hidden.body.phoneNumberId).toBe('');
+      expect(hidden.body.wabaId).toBe('');
+      expect(hidden.body.verifyToken).toBe('');
+      expect(dumped).not.toContain(accessToken);
+      expect(dumped).not.toContain(appSecret);
+      expect(dumped).not.toContain('c3D4');
+      expect(dumped).not.toContain('QQ77');
+      expect(dumped).not.toContain(phoneNumberId);
+      expect(dumped).not.toContain(wabaId);
+      expect(dumped).not.toContain('whatsapp-verify-test');
+      expect(dumped).not.toContain('shpat_judge_demo_token');
+
+      const template = await visitor.get('/api/whatsapp/template').expect(200);
+      expect(JSON.stringify(template.body)).not.toContain(accessToken);
+      expect(template.body.tokenLast4).toBe('');
+
+      const gemini = await visitor.get('/api/gemini').expect(200);
+      expect(gemini.body.last4).toBe('');
+      expect(JSON.stringify(gemini.body)).not.toContain('AIzaSyJudgeKeyValue1234567890');
+      const shop = await visitor.get('/api/shopify').expect(200);
+      expect(JSON.stringify(shop.body)).not.toContain('shpat_judge_demo_token');
+
+      const reveal = await visitor
+        .post('/api/settings/secrets/reveal')
+        .set('x-csrf-token', demoCsrf)
+        .set('x-forwarded-for', '203.0.113.44')
+        .send({ field: 'whatsappToken', password })
+        .expect(403);
+      expect(JSON.stringify(reveal.body)).not.toContain(accessToken);
+      expect(JSON.stringify(reveal.body)).not.toContain(password);
+
+      await visitor
+        .patch('/api/account/settings')
+        .set('x-csrf-token', demoCsrf)
+        .send({ name: 'Nope', shopName: 'Nope', rtoCostInr: 10, messageLanguage: 'english' })
+        .expect(403);
+      await visitor.post('/api/shopify/install').set('x-csrf-token', demoCsrf).send({ shop: 'nope.myshopify.com' }).expect(403);
+      await visitor.post('/api/gemini').set('x-csrf-token', demoCsrf).send({ apiKey: 'AIzaSyShouldNotBeSaved000000' }).expect(403);
+      await visitor.delete('/api/account/data').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE' }).expect(403);
+      await visitor.delete('/api/account').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE', password }).expect(403);
+      await visitor.get('/api/account/export').expect(403);
+      await visitor.post('/api/orders/sample').set('x-csrf-token', demoCsrf).expect(403);
+      await visitor.post('/api/tours/complete').set('x-csrf-token', demoCsrf).send({ tour: 'seller' }).expect(403);
+
+      const sent = await visitor
+        .post('/api/whatsapp/send')
+        .set('x-csrf-token', demoCsrf)
+        .send({ ids: [orderId] })
+        .expect(201);
+      expect(sent.body.notice).toBe('In the demo, messages go to our test phone');
+      expect(sent.body.sent).toContain(orderId);
+      expect(JSON.stringify(sent.body)).not.toContain(accessToken);
+      await visitor.post('/api/whatsapp/send').set('x-csrf-token', demoCsrf).send({ ids: [orderId] }).expect(429);
+
+      const decided = await visitor
+        .patch(`/api/orders/${orderId}/outcome`)
+        .set('x-csrf-token', demoCsrf)
+        .send({ outcome: 'confirmed' })
+        .expect(200);
+      expect(decided.body.stage).toBe('closed');
+
+      const rescored = await visitor.post('/api/orders/score').set('x-csrf-token', demoCsrf).expect(201);
+      expect(typeof rescored.body.scored).toBe('number');
+
+      await visitor.post('/api/tours/complete').set('x-csrf-token', demoCsrf).send({ tour: 'demo' }).expect(201);
+      const me = await visitor.get('/api/auth/me').expect(200);
+      expect(me.body.user.role).toBe('demo');
+      expect(me.body.user.tour.demoSeen).toBe(true);
+
+      const reset = await request(app.getHttpServer())
+        .post('/api/demo/reset')
+        .set('x-inbox-secret', 'inbox-test-secret')
+        .expect(200);
+      expect(reset.body.restored).toBeGreaterThan(0);
+      const restored = await owner.get(`/api/orders/${orderId}`).expect(200);
+      expect(restored.body.stage).toBe('pending');
+      expect(restored.body.outcome).toBeNull();
+      expect(restored.body.whatsappStatus == null || restored.body.whatsappStatus === '').toBe(true);
+
+      const stillOwner = await owner.get('/api/auth/me').expect(200);
+      expect(stillOwner.body.user.role).toBe('owner');
+      const stillSecret = await owner.get('/api/whatsapp').expect(200);
+      expect(stillSecret.body.tokenLast4).toBe('c3D4');
+      const userAfter = await users.findOne({ email }).lean();
+      expect(userAfter?.shopify?.shopDomain).toBe('rtoshield-dev-otqppsw4.myshopify.com');
+      expect(userAfter?.whatsapp?.tokenLast4).toBe('c3D4');
+    } finally {
+      if (previousEmail === undefined) delete process.env.DEMO_ACCOUNT_EMAIL;
+      else process.env.DEMO_ACCOUNT_EMAIL = previousEmail;
+      if (previousCap === undefined) delete process.env.DEMO_WHATSAPP_DAILY_CAP;
+      else process.env.DEMO_WHATSAPP_DAILY_CAP = previousCap;
+    }
+  }, 30_000);
 });

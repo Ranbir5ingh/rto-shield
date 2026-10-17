@@ -5,9 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Search, Settings } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
+import { Tour } from '@/components/Tour';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { gemmaNotice, nextMlReachability } from '@/lib/ml-status';
+import { demoTour, sellerTour } from '@/lib/tours';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
@@ -86,6 +88,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [status, setStatus] = useState<Integrations | null>(null);
   const [palette, setPalette] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [tour, setTour] = useState<'seller' | 'demo' | null>(null);
+  const tourStarted = useRef(false);
 
   useEffect(() => {
     api<{ user: PublicUser }>('/auth/me')
@@ -114,6 +119,39 @@ export function Shell({ children }: { children: React.ReactNode }) {
       window.clearTimeout(timer);
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!user || tourStarted.current || tour) return;
+    if (user.role === 'demo' && !user.tour?.demoSeen) {
+      tourStarted.current = true;
+      setTour('demo');
+    } else if (user.role !== 'demo' && !user.isDemo && !user.tour?.sellerSeen) {
+      tourStarted.current = true;
+      setTour('seller');
+    }
+  }, [user, tour]);
+
+  const finishTour = useCallback(async () => {
+    const kind = tour;
+    setTour(null);
+    if (!kind) return;
+    try {
+      await api('/tours/complete', { method: 'POST', body: JSON.stringify({ tour: kind }) });
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              tour: {
+                sellerSeen: kind === 'seller' ? true : Boolean(current.tour?.sellerSeen),
+                demoSeen: kind === 'demo' ? true : Boolean(current.tour?.demoSeen),
+              },
+            }
+          : current,
+      );
+    } catch {
+      // The help menu can replay the tour if the save misses.
+    }
+  }, [tour]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -182,7 +220,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </Link>
               {user ? (
                 <div className="min-w-0">
-                  <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
+                    {user.role === 'demo' ? (
+                      <span className="shrink-0 border-2 border-ink bg-hl px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em]">
+                        Demo account
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-inksoft">
                     <span className="live-dot" /> Systems nominal
                   </p>
@@ -194,19 +239,49 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setPalette(true)}
-              className="flex shrink-0 items-center gap-2.5 border-2 border-ink bg-white px-4 py-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft shadow-sticker-sm transition hover:text-ink"
-            >
-              <Search size={13} />
-              <span className="hidden sm:inline">Jump to…</span>
-              <kbd className="border border-ink/30 bg-paper px-1.5 py-0.5 text-[10px]">⌘K</kbd>
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Help"
+                  aria-expanded={help}
+                  aria-haspopup="menu"
+                  onClick={() => setHelp((open) => !open)}
+                  className="grid h-11 w-11 place-items-center border-2 border-ink bg-white font-display text-lg font-extrabold shadow-sticker-sm"
+                >
+                  ?
+                </button>
+                {help ? (
+                  <div role="menu" className="sticker absolute right-0 top-[calc(100%+8px)] z-[80] w-48 p-2">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full px-3 py-2 text-left font-mono text-[11px] font-bold uppercase tracking-[0.14em] hover:bg-hl"
+                      onClick={() => {
+                        setHelp(false);
+                        setTour(user?.role === 'demo' ? 'demo' : 'seller');
+                      }}
+                    >
+                      Take the tour
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPalette(true)}
+                className="flex shrink-0 items-center gap-2.5 border-2 border-ink bg-white px-4 py-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft shadow-sticker-sm transition hover:text-ink"
+              >
+                <Search size={13} />
+                <span className="hidden sm:inline">Jump to…</span>
+                <kbd className="border border-ink/30 bg-paper px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+              </button>
+            </div>
           </div>
         </header>
 
         {palette && <CommandPalette onClose={() => setPalette(false)} />}
+        {tour ? <Tour steps={tour === 'demo' ? demoTour : sellerTour} onFinish={finishTour} /> : null}
 
         <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain bg-paper">
           <div className="mx-auto max-w-page px-5 sm:px-8">

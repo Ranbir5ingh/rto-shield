@@ -65,35 +65,41 @@ export default function SettingsPage() {
   }
 
   if (!user) return <div className="skeleton h-48" aria-busy="true" aria-label="Loading settings" />;
+  const demo = user.role === 'demo';
 
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="font-display font-medium text-display-2">Settings</h1>
+      {demo ? <p className="text-sm leading-6 text-ink/75">This demo account is read-only. You can still score orders and approve messages from the queue.</p> : null}
       <form onSubmit={save} className="panel space-y-3 p-5 shadow-card">
         <Field label="Your name">
-          <input className={inputClass} value={user.name} onChange={(event) => setUser({ ...user, name: event.target.value })} />
+          <input className={inputClass} value={user.name} readOnly={demo} onChange={(event) => setUser({ ...user, name: event.target.value })} />
         </Field>
         <Field label="Shop name">
-          <input className={inputClass} value={user.shopName} onChange={(event) => setUser({ ...user, shopName: event.target.value })} />
+          <input className={inputClass} value={user.shopName} readOnly={demo} onChange={(event) => setUser({ ...user, shopName: event.target.value })} />
         </Field>
         <Field label="Cost per RTO (₹)">
-          <input className={inputClass} type="number" min={0} value={user.rtoCostInr} onChange={(event) => setUser({ ...user, rtoCostInr: Number(event.target.value) })} />
+          <input className={inputClass} type="number" min={0} value={user.rtoCostInr} readOnly={demo} onChange={(event) => setUser({ ...user, rtoCostInr: Number(event.target.value) })} />
         </Field>
         <Field label="Default confirmation language">
-          <Dropdown
-            label="Default confirmation language"
-            value={user.messageLanguage}
-            onChange={(v) => setUser({ ...user, messageLanguage: v as PublicUser['messageLanguage'] })}
-            options={[
-              { value: 'hinglish', label: 'Hinglish' },
-              { value: 'hindi', label: 'Hindi' },
-              { value: 'english', label: 'English' },
-            ]}
-          />
+          {demo ? (
+            <p className="font-mono text-sm font-bold uppercase tracking-[0.12em]">{user.messageLanguage}</p>
+          ) : (
+            <Dropdown
+              label="Default confirmation language"
+              value={user.messageLanguage}
+              onChange={(v) => setUser({ ...user, messageLanguage: v as PublicUser['messageLanguage'] })}
+              options={[
+                { value: 'hinglish', label: 'Hinglish' },
+                { value: 'hindi', label: 'Hindi' },
+                { value: 'english', label: 'English' },
+              ]}
+            />
+          )}
         </Field>
-        <Button type="submit">Save</Button>
+        {demo ? null : <Button type="submit">Save</Button>}
       </form>
-      <Connections />
+      <Connections locked={demo} />
       {status && !status.sellerView ? <section className="panel p-5 text-sm">
         <h2 className="font-medium">Integrations</h2>
         <dl className="mt-4 divide-y divide-line">
@@ -115,6 +121,7 @@ export default function SettingsPage() {
           ))}
         </dl>
       </section> : null}
+      {demo ? null : (
       <div className="flex flex-wrap gap-3">
         <Button type="button" tone="ghost" onClick={() => downloadExport().catch(() => toast.error('Export failed'))}>
           Export my data
@@ -123,7 +130,8 @@ export default function SettingsPage() {
           Delete all orders
         </Button>
       </div>
-      <section className="space-y-3 rounded-2xl border border-danger/30 p-4">
+      )}
+      {demo ? null : <section className="space-y-3 rounded-2xl border border-danger/30 p-4">
         <h2 className="font-semibold">Delete account</h2>
         <Field label="Password" error={passwordError}>
           <input className={inputClass} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
@@ -131,7 +139,7 @@ export default function SettingsPage() {
         <Button type="button" tone="danger" onClick={removeAccount}>
           Delete account and orders
         </Button>
-      </section>
+      </section>}
     </div>
   );
 }

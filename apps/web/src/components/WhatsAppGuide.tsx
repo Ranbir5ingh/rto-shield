@@ -62,7 +62,7 @@ export function WhatsAppSetupGuide({
 
   return (
     <>
-      <button type="button" className="btn-ghost shrink-0" onClick={() => setOpen(true)}>
+      <button type="button" className="btn-ghost shrink-0" data-tour="whatsapp-setup" onClick={() => setOpen(true)}>
         Setup guide
       </button>
       {open ? (

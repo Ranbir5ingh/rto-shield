@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { VaultService } from '../common/vault.service';
+import { effectiveRole } from '../demo/demo.policy';
 import { AuditEvent } from '../database/audit.schema';
 import type { UserDocument } from '../database/user.schema';
 
@@ -13,9 +14,10 @@ export class GeminiService {
   ) {}
 
   status(user: UserDocument) {
+    const visitor = effectiveRole(user) === 'demo';
     return {
       configured: Boolean(user.gemini?.keyEnvelope && user.gemini.validatedAt),
-      last4: user.gemini?.last4 || '',
+      last4: visitor ? '' : user.gemini?.last4 || '',
       validatedAt: user.gemini?.validatedAt || null,
       demoFallback: Boolean(user.isDemo),
     };

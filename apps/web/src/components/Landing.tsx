@@ -355,7 +355,7 @@ function Pricing() {
             </p>
           </div>
           <div className="border-t-2 border-dashed border-ink/20 p-8 sm:p-12 lg:border-l lg:border-t-0">
-            <DemoButton className="btn-go" label="Open the demo shop" />
+            <DemoButton className="btn-go" label="Try the demo" />
           </div>
         </div>
         <p data-reveal className="hand mt-8 rotate-[-2deg] text-2xl text-inksoft">
@@ -525,7 +525,7 @@ export function Landing() {
                 every pattern — turning checkout data into a ship-or-stop insight.
               </p>
               <div data-hero-item className="mt-8 flex flex-wrap gap-4">
-                <DemoButton className="btn-go" label="Open the demo shop" />
+                <DemoButton className="btn-go" label="Try the demo" />
                 <a data-magnetic data-cursor="view" href="#gap" className="btn-ghost">
                   See how it works <ArrowRight size={14} />
                 </a>

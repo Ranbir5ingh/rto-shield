@@ -16,10 +16,13 @@ export function writeSessionCookies(
   res: Response,
   config: ConfigService,
   tokens: { access: string; refresh: string; csrf: string },
+  ttl?: { accessMs?: number; refreshMs?: number },
 ) {
-  res.cookie(ACCESS_COOKIE, tokens.access, cookieOptions(config, true, 15 * 60 * 1000));
-  res.cookie(REFRESH_COOKIE, tokens.refresh, cookieOptions(config, true, 7 * 24 * 60 * 60 * 1000));
-  res.cookie(CSRF_COOKIE, tokens.csrf, cookieOptions(config, false, 7 * 24 * 60 * 60 * 1000));
+  const accessMs = ttl?.accessMs ?? 15 * 60 * 1000;
+  const refreshMs = ttl?.refreshMs ?? 7 * 24 * 60 * 60 * 1000;
+  res.cookie(ACCESS_COOKIE, tokens.access, cookieOptions(config, true, accessMs));
+  res.cookie(REFRESH_COOKIE, tokens.refresh, cookieOptions(config, true, refreshMs));
+  res.cookie(CSRF_COOKIE, tokens.csrf, cookieOptions(config, false, refreshMs));
 }
 
 export function clearSessionCookies(res: Response, config: ConfigService) {

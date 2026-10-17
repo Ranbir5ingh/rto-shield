@@ -46,7 +46,7 @@ interface GeminiStatus {
   demoFallback: boolean;
 }
 
-export function Connections() {
+export function Connections({ locked = false }: { locked?: boolean }) {
   const [shopify, setShopify] = useState<ShopifyStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [gemini, setGemini] = useState<GeminiStatus | null>(null);
@@ -112,6 +112,36 @@ export function Connections() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save that connection');
     }
+  }
+
+  if (locked) {
+    return (
+      <div className="space-y-4">
+        <section className="panel space-y-2 p-5 shadow-card">
+          <h2 className="font-display text-2xl">Shopify</h2>
+          <p className="text-sm text-ink/70">{shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'}</p>
+        </section>
+        <section className="panel space-y-2 p-5 shadow-card">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-display text-2xl">WhatsApp</h2>
+            <WhatsAppSetupGuide
+              callbackUrl={whatsapp?.callbackUrl || ''}
+              verifyToken=""
+              progress={{ templateStatus: whatsapp?.templateStatus, webhookVerified: whatsapp?.webhookVerified }}
+            />
+          </div>
+          <p className="text-sm text-ink/70">
+            {whatsapp?.configured ? 'Saved · ••••••••' : 'Not configured'}
+            {whatsapp?.templateStatus ? ` · template ${whatsapp.templateStatus}` : ''}
+          </p>
+        </section>
+        <section className="panel space-y-2 p-5 shadow-card">
+          <h2 className="font-display text-2xl">Gemini</h2>
+          <p className="text-sm text-ink/70">{gemini?.configured ? 'Saved · ••••••••' : 'Not configured'}</p>
+        </section>
+        <p className="text-sm leading-6 text-ink/70">Demo sessions can look, not change the shop.</p>
+      </div>
+    );
   }
 
   return (

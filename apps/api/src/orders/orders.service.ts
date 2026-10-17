@@ -26,6 +26,8 @@ import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import type { UserDocument } from '../database/user.schema';
 import { MlService, type GeminiCall } from '../ml/ml.service';
+import { DemoService } from '../demo/demo.service';
+import { effectiveRole } from '../demo/demo.policy';
 import { ShopifyService } from '../shopify/shopify.service';
 import { toMlOrder } from '../ml/payload';
 import type { AddressQuality, PredictResponse, Prediction } from '../ml/ml.types';
@@ -51,6 +53,7 @@ export class OrdersService {
     private readonly vault: VaultService,
     private readonly ml: MlService,
     @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
+    private readonly demo: DemoService,
   ) {}
 
   template() {
@@ -313,9 +316,11 @@ export class OrdersService {
   async markOutcome(user: UserDocument, id: string, outcome: 'confirmed' | 'cancelled' | 'no_response') {
     const order = await this.findOwned(user, id);
     if (order.stage !== 'pending') return this.toDetail(user, order);
+    await this.demo.capture(user, [order]);
     order.outcome = outcome;
     order.stage = 'closed';
     await order.save();
+    if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.outcome', String(order._id), { outcome });
     return this.toDetail(user, order);
   }
 
@@ -452,6 +457,7 @@ export class OrdersService {
     address?: 'heuristic' | 'auto' | 'gemma';
   }) {
     const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
+    if (effectiveRole(user) === 'demo') await this.demo.capture(user, pending);
     if (!pending.length) {
       const latest = await this.latestModel(user);
       return { scored: 0, message: 'No pending orders to score.', model: latest };
@@ -593,6 +599,10 @@ export class OrdersService {
     }
     if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
     this.writeShopify(user, pending);
+
+    if (effectiveRole(user) === 'demo') {
+      await this.demo.note(user, 'demo.score', '', { scored: result.predictions.length });
+    }
 
     await this.runs.create({
       sellerId: user._id,

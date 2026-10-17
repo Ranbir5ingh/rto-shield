@@ -28,7 +28,7 @@ export default function QueuePage() {
     ]);
     setOrders(queue.orders);
     setLanguage(me.user.messageLanguage);
-    setCanSend(whatsapp.configured || whatsapp.demo || Boolean(me.user.isDemo));
+    setCanSend(whatsapp.configured || whatsapp.demo || me.user.role === 'demo' || Boolean(me.user.isDemo));
   }
 
   useEffect(() => {
@@ -54,11 +54,12 @@ export default function QueuePage() {
     if (!ids.length) return;
     setSending(true);
     try {
-      const body = await api<{ sent: string[] }>('/whatsapp/send', { method: 'POST', body: JSON.stringify({ ids }) });
+      const body = await api<{ sent: string[]; notice?: string }>('/whatsapp/send', { method: 'POST', body: JSON.stringify({ ids }) });
       const sent = new Set(body.sent);
       setOrders((current) => current.map((order) => (sent.has(order.id) ? { ...order, whatsappStatus: 'sent' } : order)));
       setPicked({});
-      toast.success('WhatsApp sent.');
+      if (body.notice) toast.info(body.notice);
+      else toast.success('WhatsApp sent.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'WhatsApp did not send');
     } finally {
@@ -115,7 +116,7 @@ export default function QueuePage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div data-tour="risk-queue">
           <h1 className="font-display font-medium text-display-2">Confirmation queue</h1>
           <p className="mt-2 max-w-2xl text-sm text-ink/70">
             Approve a message and it sends from your own WhatsApp number. Without WhatsApp connected, the wa.me link is the fallback. Confirmed and cancelled orders teach the next score.
@@ -134,15 +135,15 @@ export default function QueuePage() {
             ]}
           />
         </label>
-        {canSend ? (
+        <div data-tour="approve-send">
           <Button
             type="button"
-            disabled={sending || !Object.values(picked).some(Boolean)}
+            disabled={!canSend || sending || !Object.values(picked).some(Boolean)}
             onClick={() => send(Object.entries(picked).filter(([, on]) => on).map(([id]) => id))}
           >
             {sending ? 'Sending…' : 'Approve & send selected'}
           </Button>
-        ) : null}
+        </div>
       </div>
       {!ready ? <Skeleton className="h-40" /> : null}
       {ready && !orders.length ? <p className="text-sm text-ink/60">No medium or high risk orders. Score a batch, or ship the low-risk ones.</p> : null}
@@ -199,7 +200,7 @@ export default function QueuePage() {
                 </Button>
               </div>
             </div>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm" data-tour={orders[0]?.id === order.id ? 'risk-reasons' : undefined}>
               {order.reasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}

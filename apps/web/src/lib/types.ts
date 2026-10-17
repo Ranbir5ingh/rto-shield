@@ -5,9 +5,11 @@ export interface PublicUser {
   shopName: string;
   rtoCostInr: number;
   messageLanguage: 'hindi' | 'hinglish' | 'english';
-  role?: 'owner' | 'staff';
+  role?: 'owner' | 'staff' | 'demo';
   isDemo?: boolean;
+  officialDemo?: boolean;
   sellerGemini?: boolean;
+  tour?: { sellerSeen: boolean; demoSeen: boolean };
 }
 
 export interface AddressQuality {

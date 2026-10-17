@@ -12,8 +12,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { timingSafeEqual } from 'crypto';
 import type { Request } from 'express';
 import { Model } from 'mongoose';
-import { ACCESS_COOKIE, CSRF_COOKIE } from './cookies';
+import { DemoSession } from '../database/demo-session.schema';
 import { User, type UserDocument } from '../database/user.schema';
+import { ACCESS_COOKIE, CSRF_COOKIE } from './cookies';
 
 export const IS_PUBLIC = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC, true);
@@ -26,6 +27,8 @@ export interface AccessPayload {
   sub: string;
   tv: number;
   typ: 'access' | 'refresh';
+  actor?: 'demo';
+  sid?: string;
 }
 
 export type AuthedRequest = Request & { user: UserDocument };
@@ -36,6 +39,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     @InjectModel(User.name) private readonly users: Model<User>,
+    @InjectModel(DemoSession.name) private readonly demoSessions: Model<DemoSession>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -52,7 +56,19 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwt.verifyAsync<AccessPayload>(token);
       if (payload.typ !== 'access') throw new UnauthorizedException('Login required');
       const user = await this.users.findById(payload.sub);
-      if (!user || user.tokenVersion !== payload.tv) throw new UnauthorizedException('Login required');
+      if (!user) throw new UnauthorizedException('Login required');
+      if (payload.actor === 'demo') {
+        if (!payload.sid) throw new UnauthorizedException('Login required');
+        const demo = await this.demoSessions.findById(payload.sid);
+        if (!demo || demo.expiresAt.getTime() <= Date.now() || String(demo.userId) !== String(user._id)) {
+          throw new UnauthorizedException('Login required');
+        }
+        user.$locals.actor = 'demo';
+        user.$locals.demoTourSeen = Boolean(demo.tourSeen);
+        user.$locals.demoSessionId = String(demo._id);
+      } else if (user.tokenVersion !== payload.tv) {
+        throw new UnauthorizedException('Login required');
+      }
       req.user = user;
       return true;
     } catch (error) {
