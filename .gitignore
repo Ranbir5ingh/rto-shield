@@ -161,5 +161,10 @@ __pycache__/
 # Nest
 apps/api/dist/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # Local mongo / coverage
 coverage/

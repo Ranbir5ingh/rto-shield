@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { autoUpdate, computePosition, flip, hide, offset, shift, size } from '@floating-ui/dom';
 import type { TourStep } from '@/lib/tours';
@@ -15,12 +15,22 @@ interface Box {
 }
 
 const PAD = 8;
-const SEEK_MS = 4500;
-const DATA_MS = 12000;
 
+function visible(node: HTMLElement) {
+  const rect = node.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) return false;
+  const style = getComputedStyle(node);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+/** The first anchor that is actually on screen. Hidden copies (the desktop pane on a phone) are skipped. */
 function tourTarget(id: string) {
   if (!/^[a-z0-9-]+$/i.test(id)) return null;
-  return document.querySelector<HTMLElement>(`[data-tour="${id}"]`);
+  const nodes = document.querySelectorAll<HTMLElement>(`[data-tour="${id}"]`);
+  for (const node of nodes) {
+    if (visible(node)) return node;
+  }
+  return null;
 }
 
 function pageReady() {
@@ -58,9 +68,12 @@ function chromeInset() {
 export function Tour({
   steps,
   onFinish,
+  stepTimeoutMs = 8000,
 }: {
   steps: TourStep[];
   onFinish: (reason: 'done' | 'skip') => void;
+  /** How long a step may wait for its route or anchor before moving on. The card stays up the whole time. */
+  stepTimeoutMs?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -70,84 +83,85 @@ export function Tour({
   const [index, setIndex] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
   const [frame, setFrame] = useState<TourFrame | null>(null);
-  const [shown, setShown] = useState(0);
   const [pin, setPin] = useState(0);
-  const skipped = useRef(new Set<number>());
   const step = steps[index];
 
-  const skipStep = useCallback(() => {
-    if (skipped.current.has(index)) {
-      onFinish('done');
-      return;
-    }
-    skipped.current.add(index);
-    if (index >= steps.length - 1) onFinish('done');
-    else setIndex(index + 1);
-  }, [index, onFinish, steps.length]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onFinish('skip');
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onFinish]);
 
   useEffect(() => {
     if (!step) return;
-    if (step.route !== pathname) {
-      setBox(null);
-      setFrame(null);
-      router.push(step.route);
-      return;
-    }
 
     let cancelled = false;
-    let scrolled = false;
     let locked = false;
+    let pushed = false;
     let poll = 0;
     const started = performance.now();
 
+    const giveUp = () => {
+      if (cancelled || locked) return;
+      locked = true;
+      if (index >= steps.length - 1) onFinish('done');
+      else setIndex(index + 1);
+    };
+
     const seek = () => {
       if (cancelled || locked) return;
+      window.clearTimeout(poll);
       const elapsed = performance.now() - started;
-      if (!pageReady()) {
-        if (elapsed > DATA_MS) {
-          skipStep();
-          return;
+      if (elapsed >= stepTimeoutMs) {
+        giveUp();
+        return;
+      }
+      const again = () => {
+        const wait = Math.min(80, Math.max(0, stepTimeoutMs - (performance.now() - started)));
+        poll = window.setTimeout(seek, wait);
+      };
+      if (step.route !== pathname) {
+        setBox(null);
+        setFrame(null);
+        if (!pushed) {
+          pushed = true;
+          router.push(step.route);
         }
-        poll = window.setTimeout(seek, 80);
+        again();
+        return;
+      }
+      if (!pageReady()) {
+        again();
         return;
       }
       const node = tourTarget(step.id);
       const next = node ? measure(node) : null;
-      if (!next) {
-        if (elapsed > SEEK_MS) {
-          skipStep();
-          return;
-        }
-        poll = window.setTimeout(seek, 80);
-        return;
-      }
-      if (!scrolled) {
-        scrolled = true;
-        const tall = next.height > window.innerHeight * 0.7;
-        node?.scrollIntoView?.({
-          block: tall ? 'start' : 'nearest',
-          inline: 'nearest',
-          behavior: 'auto',
-        });
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (cancelled || locked) return;
-          const settled = node ? measure(node) : null;
-          if (!settled) {
-            scrolled = false;
-            poll = window.setTimeout(seek, 80);
-            return;
-          }
-          locked = true;
-          setBox(settled);
-          setShown(index);
-          setPin((n) => n + 1);
-        }));
+      if (!node || !next) {
+        again();
         return;
       }
       locked = true;
-      setBox(next);
-      setShown(index);
-      setPin((n) => n + 1);
+      const tall = next.height > window.innerHeight * 0.7;
+      node.scrollIntoView?.({
+        block: tall ? 'start' : 'nearest',
+        inline: 'nearest',
+        behavior: 'auto',
+      });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (cancelled) return;
+        const settled = measure(node);
+        if (!settled) {
+          locked = false;
+          poll = window.setTimeout(seek, 80);
+          return;
+        }
+        setBox(settled);
+        setPin((n) => n + 1);
+      }));
     };
 
     const observer = new MutationObserver(() => {
@@ -166,10 +180,10 @@ export function Tour({
       observer.disconnect();
       window.clearTimeout(poll);
     };
-  }, [index, pathname, router, skipStep, step]);
+  }, [index, onFinish, pathname, router, step, stepTimeoutMs, steps.length]);
 
   useEffect(() => {
-    if (!step || shown !== index || step.route !== pathname) return;
+    if (!step || step.route !== pathname) return;
     const node = tourTarget(step.id);
     const cardEl = cardRef.current;
     if (!node || !cardEl) return;
@@ -230,20 +244,14 @@ export function Tour({
     };
 
     return autoUpdate(node, cardEl, place);
-  }, [index, pathname, pin, shown, step]);
+  }, [index, pathname, pin, step]);
 
   useEffect(() => {
-    if (!frame || shown !== index) return;
     const cardEl = document.getElementById('tour-card');
     if (!cardEl) return;
     const focusable = () => [...cardEl.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];
     focusable()[focusable().length - 1]?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onFinish('skip');
-        return;
-      }
       if (event.key === 'ArrowRight') {
         event.preventDefault();
         if (index >= steps.length - 1) onFinish('done');
@@ -270,18 +278,17 @@ export function Tour({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [frame, index, onFinish, shown, steps.length]);
+  }, [index, onFinish, steps.length]);
 
   if (!step) return null;
   const onPage = step.route === pathname;
-  const ready = Boolean(box && frame && onPage && shown === index);
-  const copy = steps[shown] || step;
+  const spotlight = Boolean(box && frame && onPage);
   const last = index === steps.length - 1;
   const width = frame?.width ?? (typeof window === 'undefined' ? 352 : cardWidthFor(window.innerWidth));
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[218]" data-tour-overlay="true">
-      {box && onPage ? (
+      {spotlight && box ? (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute border-2 border-ink motion-safe:transition-[top,left,width,height] motion-safe:duration-300 motion-reduce:transition-none"
@@ -295,27 +302,22 @@ export function Tour({
           }}
         />
       ) : (
-        <div aria-hidden="true" className="absolute inset-0 bg-ink/25" />
+        <div aria-hidden="true" className="pointer-events-auto absolute inset-0 bg-ink/45" />
       )}
       <div
         ref={cardRef}
         id="tour-card"
         role="dialog"
         aria-modal="true"
-        aria-hidden={ready ? undefined : true}
-        inert={ready ? undefined : true}
         aria-labelledby={titleId}
         aria-describedby={bodyId}
         data-tour-mode={frame?.mode || 'pending'}
-        className={`sticker pointer-events-auto fixed flex flex-col overflow-hidden p-0 motion-safe:transition-opacity motion-safe:duration-150 motion-reduce:transition-none ${
-          ready ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
+        className="sticker pointer-events-auto fixed flex flex-col overflow-hidden p-0 opacity-100"
         style={{
           top: frame?.top ?? 16,
           left: frame?.left ?? 16,
           width,
           maxHeight: frame?.maxHeight ?? 320,
-          visibility: ready ? 'visible' : 'hidden',
         }}
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-2">
@@ -323,10 +325,10 @@ export function Tour({
             Step {index + 1} of {steps.length}
           </p>
           <h2 id={titleId} className="mt-2 font-display text-2xl">
-            {copy.title}
+            {step.title}
           </h2>
           <p id={bodyId} className="mt-2 text-sm leading-6 text-ink/80">
-            {copy.body}
+            {step.body}
           </p>
           <div className="mt-4 flex gap-1.5" aria-hidden="true">
             {steps.map((item, dot) => (

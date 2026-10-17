@@ -25,6 +25,7 @@ import type { ColumnMapping, ImportInput, ManualOrderInput } from '../common/val
 import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { User, type UserDocument } from '../database/user.schema';
+import { geminiCallFor } from '../ml/gemini-call';
 import { MlService, type GeminiCall } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
@@ -151,6 +152,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async loadSample(user: UserDocument) {
+    const live = Boolean(user.shopify && !user.shopify.demo && !user.shopify.uninstalledAt && (user.shopify.tokenEnvelope || user.shopify.shopDomain));
+    if (live && user.shopify?.tokenEnvelope) {
+      throw new BadRequestException('Sample data stays off a shop that is connected to Shopify.');
+    }
     await this.orders.deleteMany({ sellerId: user._id, source: 'sample' });
     const generated = generateSample();
     const docs = generated.map((order) =>
@@ -311,15 +316,29 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
-  async list(user: UserDocument, stage: string | undefined, limit: number, offset: number) {
+  async list(
+    user: UserDocument,
+    query: { stage?: string; outcome?: string; q?: string; limit: number; offset: number },
+  ) {
     const filter: Record<string, unknown> = { sellerId: user._id };
-    if (stage) filter.stage = stage;
+    if (query.stage) filter.stage = query.stage;
+    if (query.outcome) filter.outcome = query.outcome;
+    const needle = (query.q || '').trim().slice(0, 80);
+    if (needle) {
+      const safe = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { externalOrderId: { $regex: safe, $options: 'i' } },
+        { city: { $regex: safe, $options: 'i' } },
+        { pincode: { $regex: safe, $options: 'i' } },
+        { productName: { $regex: safe, $options: 'i' } },
+      ];
+    }
     const [items, total] = await Promise.all([
       this.orders
         .find(filter)
-        .sort(stage === 'pending' ? { riskScore: -1, orderedAt: -1 } : { orderedAt: -1 })
-        .skip(offset)
-        .limit(limit),
+        .sort(query.stage === 'pending' ? { riskScore: -1, orderedAt: -1 } : { orderedAt: -1 })
+        .skip(query.offset)
+        .limit(query.limit),
       this.orders.countDocuments(filter),
     ]);
     return { total, orders: items.map((order) => this.toList(order)) };
@@ -330,11 +349,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     return this.toDetail(user, order);
   }
 
-  async queue(user: UserDocument) {
-    const items = await this.orders
-      .find({ sellerId: user._id, stage: 'pending', riskBand: { $in: ['High', 'Medium'] } })
-      .sort({ riskScore: -1 })
-      .limit(200);
+  async queue(user: UserDocument, scope: 'action' | 'open' = 'action') {
+    const filter: Record<string, unknown> = { sellerId: user._id, stage: 'pending' };
+    if (scope !== 'open') filter.riskBand = { $in: ['High', 'Medium'] };
+    const items = await this.orders.find(filter).sort({ riskScore: -1, orderedAt: -1 }).limit(200);
     return { orders: items.map((order) => this.toDetail(user, order)) };
   }
 
@@ -388,24 +406,22 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
   /** Address notes and confirmation drafts. Scores already on the order stay put. */
   private geminiCall(user: UserDocument): GeminiCall | undefined {
-    if (user.isDemo) return undefined;
-    if (!user.gemini?.keyEnvelope || !user.gemini.validatedAt) return { mode: 'seller', key: '' };
-    try {
-      return { mode: 'seller', key: this.vault.open(user.gemini.keyEnvelope) };
-    } catch {
-      return { mode: 'seller', key: '' };
-    }
+    return geminiCallFor(user, (envelope) => this.vault.open(envelope));
   }
 
   private async refreshGemma(user: UserDocument) {
     try {
       const gemini = this.geminiCall(user);
-      if (gemini?.mode === 'seller' && !gemini.key) return;
-      if (!gemini) {
-        const health = await this.ml.health(4_000);
-        if (!health?.gemini && !health?.ollama_configured) return;
+      if (gemini?.mode === 'seller' && !gemini.key) {
+        this.logger.warn('Gemma skipped: the saved Gemini key could not be opened');
+        return;
       }
-      const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(80);
+      // No saved key uses the platform Gemini key on the ML service, capped so one shop cannot drain it.
+      const platform = !gemini;
+      const noteCap = platform ? 24 : 80;
+      const draftCap = platform ? 12 : 48;
+      if (platform) this.logger.log('Address notes and drafts: platform Gemini');
+      const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(noteCap);
       if (!pending.length) return;
       // One batch per request so a rate limit on a later batch still keeps the notes already written.
       const notes = new Map<string, AddressQuality>();
@@ -423,11 +439,15 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             gemini,
           );
           for (const row of noted.addresses) notes.set(row.id, row.address_quality);
+          this.logger.log(`Address notes engine: ${noted.source}`);
+          if (noted.source !== 'gemini' && noted.source !== 'ollama') {
+            this.logger.warn('Address notes used order facts. Gemini did not answer.');
+          }
         } catch (error) {
           this.logger.warn(`Gemma address batch missed: ${error instanceof Error ? error.name : 'error'}`);
         }
       }
-      const risky = pending.filter((order) => order.riskBand === 'High' || order.riskBand === 'Medium');
+      const risky = pending.filter((order) => order.riskBand === 'High' || order.riskBand === 'Medium').slice(0, draftCap);
       const drafts = new Map<string, DraftMessage>();
       for (let index = 0; index < risky.length; index += 6) {
         const slice = risky.slice(index, index + 6);
@@ -443,6 +463,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             })),
             gemini,
           );
+          this.logger.log(`Confirmation drafts engine: ${generated.source}`);
+          if (generated.source !== 'gemini' && generated.source !== 'ollama') {
+            this.logger.warn('Confirmation drafts used the built-in template. Gemini did not answer.');
+          }
           for (const message of generated.messages) {
             if (message.source === 'gemini' || message.source === 'ollama') drafts.set(message.id, message);
           }
@@ -494,7 +518,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const history = await this.orders
       .find({
         sellerId: user._id,
-        outcome: { $in: ['delivered', 'rto', 'confirmed', 'cancelled'] },
+        outcome: { $in: ['delivered', 'rto', 'cancelled'] },
       })
       .sort({ orderedAt: -1 })
       .limit(historyLimit);
@@ -582,7 +606,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           outcome:
             order.outcome === 'rto' || order.outcome === 'cancelled'
               ? 'rto'
-              : order.outcome === 'delivered' || order.outcome === 'confirmed' || order.outcome === 'converted'
+              : order.outcome === 'delivered'
                 ? 'delivered'
                 : null,
         };

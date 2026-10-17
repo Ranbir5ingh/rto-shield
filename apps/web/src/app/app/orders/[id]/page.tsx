@@ -10,7 +10,7 @@ import { OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, Page, RiskBadge, Section, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { inr, predictorLabel } from '@/lib/format';
+import { engineLabel, inr, predictorLabel } from '@/lib/format';
 import { invalidateShop, qk, useOrder } from '@/lib/queries';
 import type { OrderDetail } from '@/lib/types';
 
@@ -188,10 +188,12 @@ export default function OrderDetailPage() {
               <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{reason}</li>
             )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
           </ul>
+          <p className="mt-4 font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em] text-inksoft">
+            Reasons from the order facts. Score from {predictorLabel(order.model)}.
+          </p>
           {order.addressQuality ? (
-            <p className="mt-4 text-sm leading-6 text-ink/70">
-              Address notes from {order.addressQuality.source}. Quality {order.addressQuality.quality_score}.
-              {order.model ? ` Predictor: ${predictorLabel(order.model)}.` : ''}
+            <p className="mt-2 text-sm leading-6 text-ink/70">
+              Address notes from {engineLabel(order.addressQuality.source)}. Quality {order.addressQuality.quality_score}.
             </p>
           ) : null}
           <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-[15px] leading-7">{order.address}</p>
@@ -227,6 +229,7 @@ export default function OrderDetailPage() {
         {order.messages ? (
           <Section eyebrow="Outreach" title="Message draft" action={text ? <CopyButton text={text} /> : null}>
             <p className="font-hindi text-[15px] leading-7">{text}</p>
+            <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-inksoft">Draft from {engineLabel(order.messages.source)}</p>
             <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
             <div className="mt-4 flex flex-wrap gap-2.5">
               {wa ? (

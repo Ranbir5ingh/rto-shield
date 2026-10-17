@@ -9,7 +9,7 @@ import { actionCopy, OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, Flag, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { inr } from '@/lib/format';
+import { engineLabel, inr, predictorLabel } from '@/lib/format';
 import { invalidateShop, qk, useMe, useQueue, useWhatsapp } from '@/lib/queries';
 import type { OrderDetail, PublicUser } from '@/lib/types';
 
@@ -50,7 +50,10 @@ function QueueScreen() {
   const params = useSearchParams();
   const wide = useWide();
   const orderParam = params?.get('order') || '';
-  const queue = useQueue();
+  const [scope, setScope] = useState<'action' | 'open'>('action');
+  const actionQueue = useQueue('action');
+  const openQueue = useQueue('open');
+  const queue = scope === 'open' ? openQueue : actionQueue;
   const me = useMe();
   const whatsapp = useWhatsapp();
   const orders = queue.data?.orders ?? [];
@@ -58,11 +61,11 @@ function QueueScreen() {
   const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
-  const [band, setBand] = useState<'all' | 'High' | 'Medium'>('all');
+  const [band, setBand] = useState<'all' | 'High' | 'Medium' | 'Low'>('all');
   const [callFor, setCallFor] = useState('');
   const [working, setWorking] = useState('');
   // Snapshot the queue size when the filter changes so the progress bar can show "cleared".
-  const [baseline, setBaseline] = useState({ band: 'all', total: 0 });
+  const [baseline, setBaseline] = useState({ key: 'action:all', total: 0 });
 
   useEffect(() => {
     if (me.data?.messageLanguage) setLanguage(me.data.messageLanguage);
@@ -77,13 +80,14 @@ function QueueScreen() {
     [orders, band],
   );
 
+  const filterKey = `${scope}:${band}`;
   useEffect(() => {
     setBaseline((current) => {
-      if (current.band !== band) return { band, total: filtered.length };
-      if (current.total === 0 && filtered.length > 0) return { band, total: filtered.length };
+      if (current.key !== filterKey) return { key: filterKey, total: filtered.length };
+      if (current.total === 0 && filtered.length > 0) return { key: filterKey, total: filtered.length };
       return current;
     });
-  }, [band, filtered.length]);
+  }, [filterKey, filtered.length]);
 
   const selected = orders.find((order) => order.id === orderParam) || null;
   const selectedIndex = selected ? filtered.findIndex((order) => order.id === selected.id) : -1;
@@ -308,19 +312,47 @@ function QueueScreen() {
               Confirmation queue
             </h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Risk band">
-            {(['all', 'High', 'Medium'] as const).map((value) => (
+          <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Which orders">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={scope === 'action'}
+              className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
+                scope === 'action' ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
+              }`}
+              onClick={() => {
+                setScope('action');
+                setBand('all');
+              }}
+            >
+              Needs action {actionQueue.data?.orders.length ?? 0}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={scope === 'open'}
+              className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
+                scope === 'open' ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
+              }`}
+              onClick={() => {
+                setScope('open');
+                setBand('all');
+              }}
+            >
+              All open {openQueue.data?.orders.length ?? 0}
+            </button>
+            {(scope === 'open' ? (['High', 'Medium', 'Low'] as const) : (['High', 'Medium'] as const)).map((value) => (
               <button
                 key={value}
                 type="button"
                 role="tab"
                 aria-selected={band === value}
                 className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
-                  band === value ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
+                  band === value ? 'bg-hl shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
                 }`}
                 onClick={() => setBand(value)}
               >
-                {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
+                {value} {orders.filter((order) => order.riskBand === value).length}
               </button>
             ))}
           </div>
@@ -373,10 +405,13 @@ function QueueScreen() {
         >
           {!filtered.length ? (
             <p className="px-5 py-10 text-center font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft">
-              No medium or high risk orders.<br />Score a batch, or ship the low-risk ones.
+              {scope === 'open'
+                ? 'No open orders in this view.'
+                : <>No medium or high risk orders.<br />Low-risk orders are on All open.</>}
             </p>
-          ) : filtered.map((order) => {
+          ) : filtered.map((order, index) => {
             const active = wide && selected?.id === order.id;
+            const tourRow = !wide && index === 0;
             return (
               <div
                 key={order.id}
@@ -403,8 +438,10 @@ function QueueScreen() {
                   onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
                   className="h-4 w-4 accent-[#1B1712]"
                 />
-                <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
-                <span className="truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
+                <span className="font-display text-[1.65rem] font-black tabular-nums leading-none" data-tour={tourRow ? 'approve-send' : undefined}>{order.riskScore ?? '—'}</span>
+                <span className="min-w-0" data-tour={tourRow ? 'next-action' : undefined}>
+                  <span className="block truncate font-display text-base font-extrabold uppercase tracking-tight" data-tour={tourRow ? 'risk-reasons' : undefined}>{order.buyerName}</span>
+                </span>
                 <Flag
                   tone={order.riskBand === 'High' ? 'red' : order.riskBand === 'Medium' ? 'banana' : order.riskBand === 'Low' ? 'go' : 'ghost'}
                 >
@@ -484,6 +521,7 @@ function QueueDetail({
             busy={busy}
             canSend={canSend}
             compact
+            tour
             showHint={false}
             onPrimary={onPrimary}
             onOutcome={onOutcome}
@@ -539,6 +577,9 @@ function QueueDetail({
                 </li>
               ))}
             </ul>
+            <p className="mt-3 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-inksoft">
+              Reasons from the order facts. Score from {predictorLabel(order.model)}.
+            </p>
             <p className="mt-4 text-sm leading-6 text-ink/70">
               {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
               <br />
@@ -552,6 +593,11 @@ function QueueDetail({
               {text ? <CopyButton text={text} /> : null}
             </div>
             <p className="mt-3.5 font-hindi text-[15px] leading-7">{text}</p>
+            {order.messages ? (
+              <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                Draft from {engineLabel(order.messages.source)}
+              </p>
+            ) : null}
             {order.messages ? (
               <p className="mt-3 text-[13px] leading-6 text-ink/60">
                 Prepaid nudge: {order.messages.prepaid_nudge}

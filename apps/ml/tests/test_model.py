@@ -131,8 +131,19 @@ def test_fast_score_does_not_call_tabpfn(monkeypatch):
     data = generate(80, 6, seed=42)
     result = score_orders(data["history"], data["pending"], fast=True)
     assert result["model"] == "sklearn-gradient-boosting"
-    assert "Fast demo score" in result["model_label"]
+    assert "Fast score" in result["model_label"]
+    assert "demo shop" not in result["model_label"]
     assert len(result["predictions"]) == 6
+
+
+def test_thirty_plus_rows_are_not_called_too_small():
+    data = generate(32, 2, seed=3)
+    for index, row in enumerate(data["history"]):
+        row["label"] = 1 if index < 4 else 0
+    result = score_orders(data["history"], data["pending"], fast=True)
+    assert len(data["history"]) >= 30
+    assert result["model"] != "rules-prior"
+    assert all("too small" not in warning.lower() for warning in result["warnings"])
 
 
 def test_sklearn_held_out_auc_on_sample():

@@ -159,3 +159,29 @@ export function mapGraphqlOrder(node: Record<string, unknown>, rtoTag: string): 
 export function hourOf(orderedAt: Date): number {
   return hourInKolkata(orderedAt);
 }
+
+const TERMINAL_OUTCOMES = new Set(['delivered', 'rto', 'cancelled']);
+
+/** Shopify may overwrite an order only when the courier outcome is real. */
+export function shopifyOutcomeUpdate(outcome: string | null): { stage: 'history'; outcome: 'delivered' | 'rto' | 'cancelled' } | null {
+  if (!outcome || !TERMINAL_OUTCOMES.has(outcome)) return null;
+  return { stage: 'history', outcome: outcome as 'delivered' | 'rto' | 'cancelled' };
+}
+
+/** Days of orders to pull. SHOPIFY_BACKFILL_DAYS overrides the 180-day default. */
+export function backfillSince(now = Date.now(), raw = process.env.SHOPIFY_BACKFILL_DAYS): string {
+  const text = (raw ?? '').trim();
+  const parsed = text ? Number(text) : 180;
+  const days = Number.isFinite(parsed) && parsed > 0 ? Math.min(365, Math.floor(parsed)) : 180;
+  return new Date(now - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Drop the previous rto-* tag before writing the current band. */
+export function staleRiskTags(
+  tags: { high: string; medium: string; low: string },
+  band: string,
+): { add: string; remove: string[] } {
+  const add = band === 'High' ? tags.high : band === 'Medium' ? tags.medium : tags.low;
+  const known = new Set([tags.high, tags.medium, tags.low, 'rto-high', 'rto-medium', 'rto-low'].filter(Boolean));
+  return { add, remove: [...known].filter((tag) => tag !== add) };
+}

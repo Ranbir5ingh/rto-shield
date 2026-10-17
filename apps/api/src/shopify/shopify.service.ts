@@ -22,7 +22,7 @@ import {
   webhookAlreadyRegistered,
 } from './shopify-errors';
 import { pushTimeline } from '../orders/action';
-import { mapGraphqlOrder, mapRestOrder, normalizeShop, type MappedOrder } from './shopify-map';
+import { backfillSince, mapGraphqlOrder, mapRestOrder, normalizeShop, shopifyOutcomeUpdate, staleRiskTags, type MappedOrder } from './shopify-map';
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-10';
 
@@ -210,11 +210,11 @@ export class ShopifyService {
     const shop = user.shopify?.shopDomain;
     const token = this.tokenOf(user);
     if (!shop || !token) return;
-    const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const since = backfillSince();
     let cursor: string | null = null;
     let processed = 0;
     try {
-      for (let page = 0; page < 40; page += 1) {
+      for (let page = 0; page < 80; page += 1) {
         const data: OrderConnection = await this.graphql<OrderConnection>(shop, token, `query($cursor: String, $q: String) { orders(first: 50, after: $cursor, query: $q, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor } edges { node { ${ORDER_FIELDS} } } } }`, {
           cursor,
           q: `created_at:>='${since}'`,
@@ -269,25 +269,30 @@ export class ShopifyService {
       hour: hourInKolkata(mapped.orderedAt),
       productName: mapped.productName,
       courier: mapped.courier,
-      stage: mapped.stage,
-      outcome: mapped.outcome,
       shopifyGid: mapped.shopifyGid,
       source: 'shopify' as const,
     };
+    const terminal = shopifyOutcomeUpdate(mapped.outcome);
+    const $set: Record<string, unknown> = fields;
+    const $setOnInsert: Record<string, unknown> = {
+      sellerId: user._id,
+      externalOrderId: mapped.externalOrderId,
+      priorOrders: 0,
+      priorRtos: 0,
+      riskScore: null,
+      riskBand: null,
+      reasons: [],
+    };
+    if (terminal) {
+      $set.stage = terminal.stage;
+      $set.outcome = terminal.outcome;
+    } else {
+      $setOnInsert.stage = 'pending';
+      $setOnInsert.outcome = null;
+    }
     await this.orders.updateOne(
       { sellerId: user._id, externalOrderId: mapped.externalOrderId },
-      {
-        $set: fields,
-        $setOnInsert: {
-          sellerId: user._id,
-          externalOrderId: mapped.externalOrderId,
-          priorOrders: 0,
-          priorRtos: 0,
-          riskScore: null,
-          riskBand: null,
-          reasons: [],
-        },
-      },
+      { $set, $setOnInsert },
       { upsert: true },
     );
   }
@@ -299,12 +304,18 @@ export class ShopifyService {
     const tags = user.shopify?.riskTags || { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' };
     for (const row of rows) {
       if (!row.shopifyGid || !row.band) continue;
-      const tag = row.band === 'High' ? tags.high : row.band === 'Medium' ? tags.medium : tags.low;
+      const { add, remove } = staleRiskTags(tags, row.band);
       const note = row.reasons.slice(0, 3).join('; ').slice(0, 400);
       try {
+        if (remove.length) {
+          await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsRemove(id: $id, tags: $tags) { userErrors { message } } }`, {
+            id: row.shopifyGid,
+            tags: remove,
+          });
+        }
         await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`, {
           id: row.shopifyGid,
-          tags: [tag],
+          tags: [add],
         });
         if (note) {
           await this.graphql(shop, token, `mutation($input: OrderInput!) { orderUpdate(input: $input) { userErrors { message } } }`, {
@@ -420,7 +431,7 @@ export class ShopifyService {
   }
 
   private scheduleScore(user: UserDocument) {
-    this.orderBook.startUpgrade(user, { full: false });
+    this.orderBook.startUpgrade(user, { full: true });
   }
 
   private async applyFulfillment(user: UserDocument, body: Record<string, unknown>) {

@@ -11,6 +11,20 @@ interface CallPlan {
   notice: string | null;
 }
 
+function describeCallError(error: unknown): string {
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : '';
+  const blob = `${name} ${message}`;
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || /microphone|permission|notallowed/i.test(blob)) {
+    return 'Allow the microphone for this site, then start the call again.';
+  }
+  if (/websocket|network|failed to fetch|wss:/i.test(blob)) {
+    return 'The call could not reach ElevenLabs. Check the connection and try again.';
+  }
+  if (error instanceof ApiError) return error.message;
+  return 'The browser call could not start.';
+}
+
 export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: boolean; onClose: () => void }) {
   const [phase, setPhase] = useState<'idle' | 'calling' | 'live' | 'done'>('idle');
   const [notice, setNotice] = useState('');
@@ -36,14 +50,25 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
       const mod = await import('@elevenlabs/client');
       const live = await mod.Conversation.startSession({
         signedUrl: plan.signedUrl,
+        connectionType: 'websocket',
         dynamicVariables: plan.variables,
+        onError: (message) => {
+          session.current = null;
+          setPhase('idle');
+          setNotice(describeCallError(typeof message === 'string' ? new Error(message) : message));
+        },
+        onDisconnect: () => {
+          session.current = null;
+          setPhase((current) => (current === 'live' ? 'done' : current));
+        },
       });
       session.current = live;
       setPhase('live');
       if (plan.notice) setNotice(plan.notice);
     } catch (err) {
+      session.current = null;
       setPhase('idle');
-      setNotice(err instanceof ApiError ? err.message : 'The browser call could not start.');
+      setNotice(describeCallError(err));
     }
   }
 

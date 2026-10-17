@@ -66,7 +66,7 @@ function StartForm() {
     <Page
       eyebrow="/ Setup"
       title="Connect the shop"
-      sub="Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted."
+      sub="Shopify pulls the last 180 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted."
     >
       <div data-tour-ready="true" className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         <Section
@@ -74,6 +74,7 @@ function StartForm() {
           title="Shopify"
           action={<Flag tone={link?.connected ? 'go' : 'ghost'}>{link?.connected ? 'Connected' : 'Not connected'}</Flag>}
         >
+          <div data-tour="shopify-connect">
           <div data-tour="shopify-connected">
             {link?.connected ? (
               <div>
@@ -122,6 +123,7 @@ function StartForm() {
                 </Button>
               </form>
             )}
+          </div>
           </div>
         </Section>
 

@@ -22,3 +22,12 @@ export function predictorLabel(name: string | null | undefined) {
   if (name.includes('rules')) return 'Rules prior';
   return name;
 }
+
+/** Which writer produced a confirmation draft or an address note. */
+export function engineLabel(source: string | null | undefined) {
+  if (source === 'gemini') return 'Gemini';
+  if (source === 'ollama') return 'Gemma on this server';
+  if (source === 'heuristic') return 'Order facts';
+  if (source === 'template') return 'Built-in template';
+  return 'Built-in template';
+}

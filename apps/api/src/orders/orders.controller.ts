@@ -64,14 +64,20 @@ export class OrdersController {
   list(
     @CurrentUser() user: UserDocument,
     @Query(new ZodValidationPipe(listQuerySchema))
-    query: { stage?: 'history' | 'pending' | 'closed'; limit: number; offset: number },
+    query: {
+      stage?: 'history' | 'pending' | 'closed';
+      outcome?: 'delivered' | 'rto' | 'cancelled' | 'confirmed' | 'converted' | 'no_response';
+      q?: string;
+      limit: number;
+      offset: number;
+    },
   ) {
-    return this.orders.list(user, query.stage, query.limit, query.offset);
+    return this.orders.list(user, query);
   }
 
   @Get('queue')
-  queue(@CurrentUser() user: UserDocument) {
-    return this.orders.queue(user);
+  queue(@CurrentUser() user: UserDocument, @Query('scope') scope?: string) {
+    return this.orders.queue(user, scope === 'open' ? 'open' : 'action');
   }
 
   @Get('orders/:id')

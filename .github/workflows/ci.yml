@@ -30,6 +30,12 @@ jobs:
             echo "Build failed. Retrying ($attempt/3)..."
             sleep 8
           done
+      - name: Install Playwright
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Browser tours
+        working-directory: apps/web
+        run: npx playwright test
 
   python:
     runs-on: ubuntu-latest

@@ -133,6 +133,13 @@ export const secretRevealSchema = z.object({
 
 export const listQuerySchema = z.object({
   stage: z.enum(['history', 'pending', 'closed']).optional(),
+  outcome: z.enum(['delivered', 'rto', 'cancelled', 'confirmed', 'converted', 'no_response']).optional(),
+  q: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((value) => value || undefined),
   limit: z
     .string()
     .regex(/^\d+$/)

@@ -14,7 +14,7 @@ function isReturn(outcome: string | null): boolean {
 }
 
 function isLabelled(outcome: string | null): boolean {
-  return outcome === 'delivered' || outcome === 'rto' || outcome === 'confirmed' || outcome === 'cancelled';
+  return outcome === 'delivered' || outcome === 'rto' || outcome === 'cancelled';
 }
 
 export function pinLedger(rows: Array<{ pincode: string; outcome: string | null }>): Map<string, Tally> {

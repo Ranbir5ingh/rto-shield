@@ -1,7 +1,8 @@
 import type { MlOrder } from './ml.types';
 
+/** Real courier outcomes only. App decisions (confirmed, converted) are not labels. */
 export function trainingLabel(outcome: string | null): number | undefined {
-  if (outcome === 'delivered' || outcome === 'confirmed' || outcome === 'converted') return 0;
+  if (outcome === 'delivered') return 0;
   if (outcome === 'rto' || outcome === 'cancelled') return 1;
   return undefined;
 }

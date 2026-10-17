@@ -20,7 +20,7 @@ export const qk = {
   gemini: ['gemini'] as const,
   integrations: ['integrations'] as const,
   integrationsPublished: ['integrations-published'] as const,
-  orders: (stage: string, offset: number, limit: number) => ['orders', stage, offset, limit] as const,
+  orders: (stage: string, offset: number, limit: number, outcome = '', q = '') => ['orders', stage, offset, limit, outcome, q] as const,
   order: (id: string) => ['order', id] as const,
 };
 
@@ -76,12 +76,20 @@ export function fetchDashboard() {
   return api<DashboardData>('/dashboard');
 }
 
-export function fetchQueue() {
-  return api<{ orders: OrderDetail[] }>('/queue');
+export function fetchQueue(scope: 'action' | 'open' = 'action') {
+  return api<{ orders: OrderDetail[] }>(scope === 'open' ? '/queue?scope=open' : '/queue');
 }
 
-export function fetchOrders(stage: string, offset: number, limit: number) {
-  return api<{ total: number; orders: OrderSummary[] }>(`/orders?stage=${encodeURIComponent(stage)}&limit=${limit}&offset=${offset}`);
+export function fetchOrders(
+  stage: string,
+  offset: number,
+  limit: number,
+  filters?: { outcome?: string; q?: string },
+) {
+  const params = new URLSearchParams({ stage, limit: String(limit), offset: String(offset) });
+  if (filters?.outcome) params.set('outcome', filters.outcome);
+  if (filters?.q) params.set('q', filters.q);
+  return api<{ total: number; orders: OrderSummary[] }>(`/orders?${params.toString()}`);
 }
 
 export function fetchOrder(id: string) {
@@ -129,16 +137,20 @@ export function useDashboard() {
   });
 }
 
-export function useQueue() {
-  return useQuery({ queryKey: qk.queue, staleTime: 15_000, queryFn: fetchQueue });
+export function useQueue(scope: 'action' | 'open' = 'action') {
+  return useQuery({
+    queryKey: [...qk.queue, scope],
+    staleTime: 15_000,
+    queryFn: () => fetchQueue(scope),
+  });
 }
 
-export function useOrders(stage: string, offset: number, limit: number) {
+export function useOrders(stage: string, offset: number, limit: number, filters?: { outcome?: string; q?: string }) {
   return useQuery({
-    queryKey: qk.orders(stage, offset, limit),
+    queryKey: qk.orders(stage, offset, limit, filters?.outcome || '', filters?.q || ''),
     staleTime: 20_000,
     placeholderData: keepPreviousData,
-    queryFn: () => fetchOrders(stage, offset, limit),
+    queryFn: () => fetchOrders(stage, offset, limit, filters),
   });
 }
 
@@ -207,7 +219,7 @@ export function prefetchRoute(client: QueryClient, href: string) {
   if (href === '/app') {
     void client.prefetchQuery({ queryKey: qk.dashboard, queryFn: fetchDashboard, staleTime: 20_000 });
   } else if (href === '/app/queue') {
-    void client.prefetchQuery({ queryKey: qk.queue, queryFn: fetchQueue, staleTime: 15_000 });
+    void client.prefetchQuery({ queryKey: [...qk.queue, 'action'], queryFn: () => fetchQueue('action'), staleTime: 15_000 });
     void client.prefetchQuery({ queryKey: qk.whatsapp, queryFn: fetchWhatsapp, staleTime: 30_000 });
   } else if (href === '/app/orders') {
     void client.prefetchQuery({

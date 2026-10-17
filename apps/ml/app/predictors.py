@@ -162,8 +162,8 @@ def _fit_predict(
         probs = _sklearn(X_train, y_train, X_test)
     if fast:
         label = (
-            "Fast demo score (scikit-learn gradient boosting). "
-            "TabPFN runs when you press Score, not while the demo shop opens."
+            "Fast score (scikit-learn gradient boosting). "
+            "Press Score for the full model. TabPFN runs then when a token is set."
         )
     else:
         label = (
@@ -213,9 +213,10 @@ def score_orders(
             "positive_rate_test": round(sum(y_test) / len(y_test), 4),
         }
     else:
+        # Enough labelled rows to train. A holdout this thin is not a stable metric,
+        # and it is not a sign that the history itself is too small.
         model_name = ""
         model_label = ""
-        warnings.append("History is too small for a held-out metric. The model still fits on all labelled rows.")
 
     X_full = np.asarray([vector(row) for row in labeled], dtype=float)
     y_full = np.asarray(y_all, dtype=int)

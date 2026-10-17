@@ -484,6 +484,8 @@ describe('RTO Shield API', () => {
         .send({ email, password, name: 'Judge', shopName: 'Judge Shop' })
         .expect(201);
       const ownerCsrf = created.body.csrfToken as string;
+      await owner.post('/api/orders/sample').set('x-csrf-token', ownerCsrf).expect(201);
+      await owner.post('/api/orders/score').set('x-csrf-token', ownerCsrf).expect(201);
       const users = app.get<Model<User>>(getModelToken(User.name));
       const vault = app.get(VaultService);
       await users.updateOne(
@@ -525,8 +527,8 @@ describe('RTO Shield API', () => {
       expect(ownerWa.body.tokenLast4).toBe('c3D4');
       expect(ownerWa.body.verifyToken).toBe('whatsapp-verify-test');
 
-      await owner.post('/api/orders/sample').set('x-csrf-token', ownerCsrf).expect(201);
-      await owner.post('/api/orders/score').set('x-csrf-token', ownerCsrf).expect(201);
+      const blocked = await owner.post('/api/orders/sample').set('x-csrf-token', ownerCsrf).expect(400);
+      expect(blocked.body.error).toMatch(/connected to Shopify/);
       const queue = await owner.get('/api/queue').expect(200);
       const orderId = queue.body.orders[0].id as string;
       expect(orderId).toBeTruthy();

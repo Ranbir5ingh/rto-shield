@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import type { TourStep } from '@/lib/tours';
 import { Tour } from './Tour';
@@ -74,12 +74,30 @@ describe('product tour', () => {
     expect(onFinish).toHaveBeenCalledWith('skip');
   });
 
-  it('does not open the card while the page is still loading its target', () => {
+  it('keeps the card up while the page is loading, then moves on', async () => {
+    const onFinish = vi.fn();
     render(
       <div data-tour-ready="false">
-        <Tour steps={steps} onFinish={vi.fn()} />
+        <Tour steps={steps} onFinish={onFinish} stepTimeoutMs={40} />
       </div>,
     );
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('dialog').textContent).toContain('Connect Shopify');
+    await waitFor(() => expect(screen.getByRole('dialog').textContent).toContain('Other ways in'));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledWith('done'));
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends once when the anchor never appears, and Escape still closes it', async () => {
+    const onFinish = vi.fn();
+    const { unmount } = render(<Tour steps={[steps[0]!]} onFinish={onFinish} stepTimeoutMs={40} />);
+    expect(screen.getByRole('dialog').textContent).toContain('Connect Shopify');
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(onFinish).toHaveBeenCalledWith('done');
+    unmount();
+
+    const skip = vi.fn();
+    render(<Tour steps={steps} onFinish={skip} stepTimeoutMs={5000} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(skip).toHaveBeenCalledWith('skip');
   });
 });

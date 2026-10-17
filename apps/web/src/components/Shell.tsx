@@ -105,6 +105,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [tour, setTour] = useState<'seller' | 'demo' | null>(null);
+  const [tourNonce, setTourNonce] = useState(0);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('rto-sidebar') === 'collapsed';
@@ -348,6 +349,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     onClick={() => {
                       setHelp(false);
                       setTour(user?.role === 'demo' ? 'demo' : 'seller');
+                      setTourNonce((nonce) => nonce + 1);
                     }}
                   >
                     Take the tour
@@ -431,7 +433,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
-      {tour ? <Tour steps={tour === 'demo' ? demoTour : sellerTour} onFinish={finishTour} /> : null}
+      {tour ? <Tour key={`${tour}-${tourNonce}`} steps={tour === 'demo' ? demoTour : sellerTour} onFinish={finishTour} /> : null}
     </div>
   );
 }

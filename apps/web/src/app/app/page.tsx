@@ -129,6 +129,14 @@ export default function DashboardPage() {
           <div className="lg:col-span-2" data-tour="risk-scores">
             <Section eyebrow="Right now" title="Pending risk">
               <Distribution bands={data.distribution} />
+              {data.model?.modelLabel ? (
+                <div className="mt-4 border-t-2 border-dashed border-ink/20 pt-3">
+                  <p className="font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em]">{data.model.modelLabel}</p>
+                  {data.model.warnings?.map((warning) => (
+                    <p key={warning} className="mt-1 text-sm leading-6 text-ink/70">{warning}</p>
+                  ))}
+                </div>
+              ) : null}
             </Section>
           </div>
         </section>
