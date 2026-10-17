@@ -176,12 +176,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh overflow-hidden bg-paper text-ink">
       {/* ------- desktop sidebar (collapsible icon rail) ------- */}
       <aside
-        className={`hidden shrink-0 flex-col border-r-2 border-ink bg-paper transition-[width] duration-200 ease-out lg:flex ${
+        className={`relative hidden shrink-0 flex-col border-r-2 border-ink bg-paper transition-[width] duration-200 ease-out lg:flex ${
           collapsed ? 'w-[4.5rem]' : 'w-60'
         }`}
         aria-label="Primary"
       >
-        <div className={`flex items-center border-b-2 border-ink py-5 ${collapsed ? 'flex-col gap-3 px-0' : 'justify-between px-5'}`}>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          className="absolute -right-[19px] top-[4.7rem] z-30 grid h-9 w-9 place-items-center border-2 border-ink bg-hl text-ink shadow-sticker-sm transition hover:rotate-[-8deg]"
+        >
+          {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
+        <div className={`flex items-center border-b-2 border-ink py-5 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
           <Link
             href="/app"
             className="flex shrink-0 items-center gap-3"
@@ -195,15 +204,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </span>
             )}
           </Link>
-          <button
-            type="button"
-            onClick={() => setCollapsed((v) => !v)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!collapsed}
-            className="grid h-9 w-9 shrink-0 place-items-center border-2 border-ink bg-white text-inksoft shadow-sticker-sm transition hover:text-ink"
-          >
-            {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-          </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-3" aria-label="Sections">
           {links.map(([href, label, , Icon]) => {

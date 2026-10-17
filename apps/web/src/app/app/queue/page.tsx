@@ -354,7 +354,7 @@ function QueueScreen() {
                     openRow(order.id);
                   }
                 }}
-                className={`grid w-full cursor-pointer grid-cols-[auto_3.5rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-4 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
+                className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-4 py-3 text-left transition last:border-b-0 hover:bg-hl/30 ${
                   active ? 'bg-hl/60' : 'bg-white'
                 }`}
               >
@@ -366,16 +366,16 @@ function QueueScreen() {
                   onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
                   className="h-4 w-4 accent-[#1B1712]"
                 />
-                <span className="font-display text-[2rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+                <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
                 <div className="min-w-0">
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
                     <RiskBadge band={order.riskBand} />
                   </span>
-                  <span className="mt-1 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                  <span className="mt-0.5 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-inksoft">
                     {order.externalOrderId} · {order.city} · {inr(order.orderValue)}
                   </span>
-                  <span className="mt-1 block truncate font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink/60" data-tour={index === 0 ? 'risk-reasons' : undefined}>
+                  <span className="mt-0.5 block truncate font-mono text-[10px] tracking-[0.06em] text-ink/45" data-tour={index === 0 ? 'risk-reasons' : undefined}>
                     {(order.reasons[0] || actionCopy(order).label)}
                   </span>
                 </div>
@@ -426,37 +426,39 @@ function QueueDetail({
   onCloseCall: () => void;
 }) {
   return (
-    <article className="sticker p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className="sticker p-6 sm:p-7">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="eyebrow text-inksoft">Order detail</p>
-          <h2 className="mt-1.5 font-display text-2xl font-black uppercase tracking-tight md:text-3xl">
+          <h2 className="mt-1.5 font-display text-2xl font-black uppercase tracking-tight">
             {order.buyerName}
           </h2>
-          <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-            {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'}
-          </p>
-          <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-            {order.phoneMasked} · {order.city} {order.pincode}
+          <p className="mt-2 text-sm leading-6 text-ink/70">
+            {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
+            <br />
+            {order.city} {order.pincode}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           <RiskBadge band={order.riskBand} />
-          <span className="font-display text-5xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+          <span className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
         </div>
       </div>
 
-      <ul className="mt-4 flex flex-wrap gap-2" aria-label="Risk reasons">
-        {order.reasons.map((reason) => (
-          <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">
-            {reason}
-          </li>
-        ))}
-      </ul>
+      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
+        <p className="eyebrow text-inksoft">Why flagged</p>
+        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Risk reasons">
+          {order.reasons.map((reason) => (
+            <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
+              {reason}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm leading-6 text-ink/70">{order.address}</p>
+      </div>
 
-      <p className="mt-4 border-t-2 border-dashed border-ink/20 pt-4 text-[15px] leading-7 text-ink/80">{order.address}</p>
-
-      <div className="mt-4">
+      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
+        <p className="eyebrow text-inksoft">Next step</p>
         <OrderActions
           order={order}
           busy={busy}
@@ -476,19 +478,19 @@ function QueueDetail({
         </p>
       ) : null}
 
-      <div className="mt-6 grid gap-4">
-        <div className="border-2 border-ink bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
-            <p className="eyebrow text-inksoft">Message draft</p>
-            {text ? <CopyButton text={text} /> : null}
-          </div>
-          <p className="mt-3 font-hindi text-[15px] leading-7">{text}</p>
-          {order.messages ? (
-            <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">
-              Prepaid nudge: {order.messages.prepaid_nudge}
-            </p>
-          ) : null}
+      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow text-inksoft">Message draft</p>
+          {text ? <CopyButton text={text} /> : null}
         </div>
+        <p className="mt-3 font-hindi text-[15px] leading-7">{text}</p>
+        {order.messages ? (
+          <p className="mt-2 text-[13px] leading-6 text-ink/60">
+            Prepaid nudge: {order.messages.prepaid_nudge}
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-4">
         <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
       </div>
       {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
