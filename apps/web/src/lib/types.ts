@@ -5,6 +5,9 @@ export interface PublicUser {
   shopName: string;
   rtoCostInr: number;
   messageLanguage: 'hindi' | 'hinglish' | 'english';
+  role?: 'owner' | 'staff';
+  isDemo?: boolean;
+  sellerGemini?: boolean;
 }
 
 export interface AddressQuality {
@@ -41,6 +44,8 @@ export interface OrderSummary {
   reasons: string[];
   addressQuality: AddressQuality | null;
   model: string | null;
+  whatsappStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+  shopifyGid?: string;
 }
 
 export interface OrderDetail extends OrderSummary {
@@ -54,6 +59,7 @@ export interface OrderDetail extends OrderSummary {
     source: string;
   } | null;
   waUrl: string | null;
+  conversation?: Array<{ at: string; direction: 'in' | 'out'; kind: string; text: string }>;
 }
 
 export interface ModelSnapshot {
@@ -96,6 +102,10 @@ export interface DashboardData {
   model: ModelSnapshot | null;
   counts: { history: number; pending: number; closed: number };
   liveWire?: LiveWireOrder[];
+  actionToday?: number;
+  confirmationRate?: number | null;
+  pinInsights?: Array<{ pincode: string; orders: number; rto: number; rate: number }>;
+  buyers?: { fresh: number; repeat: number };
 }
 
 export interface Integrations {

@@ -201,6 +201,18 @@ def test_gemini_retries_a_rate_limit(monkeypatch):
     assert tokens["gen_ai.request.model"] == "gemma-4-26b-a4b-it"
 
 
+def test_seller_gemini_key_does_not_fall_back_to_the_platform_key(monkeypatch):
+    monkeypatch.setattr(address.settings, "gemini_api_key", "platform-secret")
+    tokens = address.bind_request_gemini("seller", "")
+    try:
+        assert address.current_gemini_key() == ""
+        assert address.seller_gemini_mode() is True
+    finally:
+        address.reset_request_gemini(tokens)
+    assert address.current_gemini_key() == "platform-secret"
+    assert address.seller_gemini_mode() is False
+
+
 def test_gemma_ready_tracks_whether_a_call_answered(monkeypatch):
     monkeypatch.setattr(address.settings, "gemini_api_key", "test-key")
     monkeypatch.setattr(address.settings, "ollama_base_url", "")

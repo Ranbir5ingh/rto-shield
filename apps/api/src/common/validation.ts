@@ -72,6 +72,41 @@ export const outcomeSchema = z.object({
   outcome: z.enum(['confirmed', 'cancelled', 'no_response']),
 });
 
+export const shopifyInstallSchema = z.object({
+  shop: z.string().trim().min(3).max(120),
+});
+
+export const shopifySettingsSchema = z.object({
+  rtoTag: z.string().trim().max(40).optional(),
+  autoCancelOnBuyerCancel: z.boolean().optional(),
+  riskTags: z
+    .object({
+      high: z.string().trim().min(1).max(40),
+      medium: z.string().trim().min(1).max(40),
+      low: z.string().trim().min(1).max(40),
+    })
+    .optional(),
+});
+
+export const whatsappSaveSchema = z.object({
+  accessToken: z.string().trim().min(20).max(4_000),
+  phoneNumberId: z.string().trim().regex(/^\d{6,30}$/),
+  wabaId: z.string().trim().regex(/^\d{6,30}$/),
+  appSecret: z.string().trim().min(8).max(200).optional(),
+});
+
+export const whatsappTestSchema = z.object({
+  to: z.string().trim().min(8).max(20),
+});
+
+export const whatsappSendSchema = z.object({
+  ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(50),
+});
+
+export const geminiKeySchema = z.object({
+  apiKey: z.string().trim().min(20).max(400),
+});
+
 export const listQuerySchema = z.object({
   stage: z.enum(['history', 'pending', 'closed']).optional(),
   limit: z

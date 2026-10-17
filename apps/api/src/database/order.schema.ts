@@ -89,6 +89,18 @@ export class Order {
 
   @Prop({ type: String, default: null })
   predictor!: string | null;
+
+  @Prop({ default: '' })
+  shopifyGid!: string;
+
+  @Prop({ type: String, default: null })
+  whatsappStatus!: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+
+  @Prop({ default: '' })
+  whatsappMessageId!: string;
+
+  @Prop({ type: [Object], default: [] })
+  conversation!: Array<{ at: string; direction: 'in' | 'out'; kind: string; text: string }>;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

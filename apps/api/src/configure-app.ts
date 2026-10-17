@@ -22,7 +22,14 @@ export function configureApp(app: INestApplication) {
     }),
   );
   app.use(cookieParser());
-  app.use(json({ limit: process.env.JSON_LIMIT || '6mb' }));
+  app.use(
+    json({
+      limit: process.env.JSON_LIMIT || '6mb',
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
   app.enableCors({ origin: webOrigins(), credentials: true });
   app.useGlobalFilters(new AllExceptionsFilter());
   const server = app.getHttpAdapter().getInstance() as { set?: (key: string, value: number) => void };

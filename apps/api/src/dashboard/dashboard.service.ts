@@ -98,6 +98,43 @@ export class DashboardService {
       model,
       counts: { history, pending, closed },
       liveWire: spreadWire(wireRows),
+      ...(await this.action(user)),
+    };
+  }
+
+  private async action(user: UserDocument) {
+    const sellerId = user._id;
+    const [actionToday, confirmed, declined, pins, fresh, repeatBuyers] = await Promise.all([
+      this.orders.countDocuments({ sellerId, stage: 'pending', riskBand: { $in: ['High', 'Medium'] } }),
+      this.orders.countDocuments({ sellerId, outcome: 'confirmed' }),
+      this.orders.countDocuments({ sellerId, outcome: { $in: ['cancelled', 'no_response'] } }),
+      this.orders.aggregate<{ _id: string; orders: number; rto: number }>([
+        { $match: { sellerId, outcome: { $in: ['delivered', 'rto'] }, pincode: { $nin: ['', '000000'] } } },
+        {
+          $group: {
+            _id: '$pincode',
+            orders: { $sum: 1 },
+            rto: { $sum: { $cond: [{ $eq: ['$outcome', 'rto'] }, 1, 0] } },
+          },
+        },
+        { $match: { orders: { $gte: 3 } } },
+        { $sort: { rto: -1, orders: -1 } },
+        { $limit: 5 },
+      ]),
+      this.orders.countDocuments({ sellerId, stage: 'pending', priorOrders: 0 }),
+      this.orders.countDocuments({ sellerId, stage: 'pending', priorOrders: { $gt: 0 } }),
+    ]);
+    const decided = confirmed + declined;
+    return {
+      actionToday,
+      confirmationRate: decided ? Math.round((confirmed / decided) * 1000) / 10 : null,
+      pinInsights: pins.map((row) => ({
+        pincode: row._id,
+        orders: row.orders,
+        rto: row.rto,
+        rate: row.orders ? Math.round((row.rto / row.orders) * 1000) / 10 : 0,
+      })),
+      buyers: { fresh, repeat: repeatBuyers },
     };
   }
 }

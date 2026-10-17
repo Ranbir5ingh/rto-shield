@@ -18,6 +18,10 @@ import { User, type UserDocument } from '../database/user.schema';
 export const IS_PUBLIC = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC, true);
 
+/** Shopify and Meta call these routes. HMAC is the check, not the CSRF cookie. */
+export const SKIP_CSRF = 'skipCsrf';
+export const SkipCsrf = () => SetMetadata(SKIP_CSRF, true);
+
 export interface AccessPayload {
   sub: string;
   tv: number;
@@ -60,7 +64,14 @@ export class JwtAuthGuard implements CanActivate {
 
 @Injectable()
 export class CsrfGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
+    const skip = this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (skip) return true;
     const req = context.switchToHttp().getRequest<Request>();
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return true;
     const cookie = req.cookies?.[CSRF_COOKIE] as string | undefined;

@@ -18,6 +18,9 @@ export interface PublicUser {
   shopName: string;
   rtoCostInr: number;
   messageLanguage: 'hindi' | 'hinglish' | 'english';
+  role: 'owner' | 'staff';
+  isDemo: boolean;
+  sellerGemini: boolean;
 }
 
 @Injectable()
@@ -46,6 +49,9 @@ export class AuthService implements OnModuleInit {
       shopName: user.shopName,
       rtoCostInr: user.rtoCostInr,
       messageLanguage: user.messageLanguage,
+      role: user.role || 'owner',
+      isDemo: Boolean(user.isDemo),
+      sellerGemini: Boolean(user.gemini?.keyEnvelope && user.gemini.validatedAt),
     };
   }
 
@@ -89,6 +95,20 @@ export class AuthService implements OnModuleInit {
       shopName: 'Asha Studio',
       messageLanguage: 'hinglish',
       rtoCostInr: 150,
+      isDemo: true,
+      role: 'owner',
+      shopify: {
+        shopDomain: 'asha-studio.myshopify.com',
+        demo: true,
+        scopes: 'read_orders,write_orders,read_fulfillments,read_customers',
+        tokenEnvelope: null,
+        installedAt: new Date().toISOString(),
+        uninstalledAt: null,
+        backfill: { status: 'done', processed: 204, total: 204, error: null },
+        riskTags: { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' },
+        rtoTag: 'RTO',
+        autoCancelOnBuyerCancel: false,
+      },
     });
     return { session: await this.issue(user), user };
   }

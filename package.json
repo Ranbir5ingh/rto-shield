@@ -5,7 +5,8 @@
   "description": "Predict and prevent cash-on-delivery RTO for small Indian sellers.",
   "workspaces": [
     "apps/api",
-    "apps/web"
+    "apps/web",
+    "packages/vault"
   ],
   "scripts": {
     "dev:api": "npm run dev -w @rto/api",

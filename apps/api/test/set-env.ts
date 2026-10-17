@@ -1,6 +1,12 @@
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-test-jwt-secret';
 process.env.ENCRYPTION_KEY = 'ab'.repeat(32);
+process.env.KEY_ENCRYPTION_KEY = 'cd'.repeat(32);
+process.env.SHOPIFY_API_SECRET = 'shopify-test-secret';
+process.env.SHOPIFY_API_KEY = 'shopify-test-key';
+process.env.SHOPIFY_APP_URL = 'https://www.rtoshield.tech';
+process.env.INBOX_DRAIN_SECRET = 'inbox-test-secret';
+process.env.WHATSAPP_VERIFY_TOKEN = 'whatsapp-verify-test';
 process.env.AUTH_RATE_LIMIT_MAX = '1000';
 process.env.COOKIE_SECURE = 'false';
 process.env.COOKIE_SAMESITE = 'lax';

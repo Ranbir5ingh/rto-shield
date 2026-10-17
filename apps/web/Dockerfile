@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/vault packages/vault
 RUN npm ci
 COPY apps/web apps/web
 ENV API_URL=http://api:4000

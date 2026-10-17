@@ -12,7 +12,15 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from app.address import annotate, gemma_failure, gemma_ready, gemma_status, probe_gemma
+from app.address import (
+    annotate,
+    bind_request_gemini,
+    gemma_failure,
+    gemma_ready,
+    gemma_status,
+    probe_gemma,
+    reset_request_gemini,
+)
 from app.config import settings
 from app.messages import generate_messages
 from app.predictors import health_payload, score_orders
@@ -137,8 +145,18 @@ def health() -> dict[str, Any]:
 async def predict(
     body: PredictRequest,
     x_internal_token: str | None = Header(default=None),
+    x_gemini_mode: str | None = Header(default=None),
+    x_gemini_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _guard(x_internal_token)
+    gemini_tokens = bind_request_gemini(x_gemini_mode, x_gemini_key)
+    try:
+        return await _predict(body)
+    finally:
+        reset_request_gemini(gemini_tokens)
+
+
+async def _predict(body: PredictRequest) -> dict[str, Any]:
     history = [row.model_dump() for row in body.history]
     pending = [row.model_dump() for row in body.pending]
     with traced(
@@ -174,26 +192,38 @@ async def predict(
 async def address_notes(
     body: AddressRequest,
     x_internal_token: str | None = Header(default=None),
+    x_gemini_mode: str | None = Header(default=None),
+    x_gemini_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     """Address notes for pending orders. Does not score and does not see a phone."""
     _guard(x_internal_token)
-    rows = [row.model_dump() for row in body.orders]
-    annotated, source, warnings = await annotate(rows, llm=True)
-    return {
-        "source": source,
-        "warnings": warnings,
-        "addresses": [
-            {"id": str(row["id"]), "address_quality": row.get("address_quality")}
-            for row in annotated
-        ],
-    }
+    gemini_tokens = bind_request_gemini(x_gemini_mode, x_gemini_key)
+    try:
+        rows = [row.model_dump() for row in body.orders]
+        annotated, source, warnings = await annotate(rows, llm=True)
+        return {
+            "source": source,
+            "warnings": warnings,
+            "addresses": [
+                {"id": str(row["id"]), "address_quality": row.get("address_quality")}
+                for row in annotated
+            ],
+        }
+    finally:
+        reset_request_gemini(gemini_tokens)
 
 
 @app.post("/v1/messages")
 async def messages(
     body: MessageRequest,
     x_internal_token: str | None = Header(default=None),
+    x_gemini_mode: str | None = Header(default=None),
+    x_gemini_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _guard(x_internal_token)
-    rows, source, warnings = await generate_messages(body.shop_name, [o.model_dump() for o in body.orders])
-    return {"source": source, "warnings": warnings, "messages": rows}
+    gemini_tokens = bind_request_gemini(x_gemini_mode, x_gemini_key)
+    try:
+        rows, source, warnings = await generate_messages(body.shop_name, [o.model_dump() for o in body.orders])
+        return {"source": source, "warnings": warnings, "messages": rows}
+    finally:
+        reset_request_gemini(gemini_tokens)

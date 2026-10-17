@@ -1,7 +1,39 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import type { Envelope } from '@rto/vault';
 import { HydratedDocument } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
+
+export interface ShopifyLink {
+  shopDomain: string;
+  demo: boolean;
+  scopes: string;
+  tokenEnvelope: Envelope | null;
+  installedAt: string | null;
+  uninstalledAt: string | null;
+  backfill: { status: 'idle' | 'running' | 'done' | 'error'; processed: number; total: number; error: string | null };
+  riskTags: { high: string; medium: string; low: string };
+  rtoTag: string;
+  autoCancelOnBuyerCancel: boolean;
+}
+
+export interface WhatsAppLink {
+  tokenEnvelope: Envelope | null;
+  tokenLast4: string;
+  phoneNumberId: string;
+  wabaId: string;
+  appSecretEnvelope: Envelope | null;
+  appSecretLast4: string;
+  templateName: string;
+  templateStatus: string;
+  templateLanguage: string;
+}
+
+export interface GeminiLink {
+  keyEnvelope: Envelope | null;
+  last4: string;
+  validatedAt: string | null;
+}
 
 @Schema({ timestamps: true })
 export class User {
@@ -25,6 +57,21 @@ export class User {
 
   @Prop({ default: 0 })
   tokenVersion!: number;
+
+  @Prop({ default: 'owner', enum: ['owner', 'staff'] })
+  role!: 'owner' | 'staff';
+
+  @Prop({ default: false })
+  isDemo!: boolean;
+
+  @Prop({ type: Object, default: null })
+  shopify!: ShopifyLink | null;
+
+  @Prop({ type: Object, default: null })
+  whatsapp!: WhatsAppLink | null;
+
+  @Prop({ type: Object, default: null })
+  gemini!: GeminiLink | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

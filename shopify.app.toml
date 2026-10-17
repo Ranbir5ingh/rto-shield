@@ -1,0 +1,33 @@
+# Shopify CLI config for the public app later. Custom distribution for dev stores
+# uses the same URLs. Fill client_id from the Partner Dashboard (SHOPIFY_API_KEY).
+name = "RTO Shield"
+client_id = ""
+application_url = "https://www.rtoshield.tech/shopify"
+embedded = true
+
+[access_scopes]
+scopes = "read_orders,write_orders,read_fulfillments,read_customers"
+
+[auth]
+redirect_urls = [
+  "https://www.rtoshield.tech/api/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  topics = [
+    "orders/create",
+    "orders/updated",
+    "orders/cancelled",
+    "fulfillments/create",
+    "fulfillments/update",
+    "refunds/create",
+    "app/uninstalled"
+  ]
+  uri = "https://www.rtoshield.tech/api/shopify/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "https://www.rtoshield.tech/api/shopify/webhooks"

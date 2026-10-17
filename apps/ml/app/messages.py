@@ -12,7 +12,7 @@ import logging
 import re
 from typing import Any
 
-from app.address import _llm, _parse_json
+from app.address import _llm, _parse_json, current_gemini_key, seller_gemini_mode
 from app.config import settings
 
 log = logging.getLogger("rto.ml")
@@ -70,7 +70,8 @@ async def generate_messages(shop: str, orders: list[dict[str, Any]]) -> tuple[li
     templates = {str(order["id"]): template_messages(shop, order) for order in orders}
     if not orders:
         return [], "template", warnings
-    if not (settings.ollama_base_url or settings.gemini_api_key):
+    has_llm = bool(current_gemini_key()) if seller_gemini_mode() else bool(settings.ollama_base_url or current_gemini_key())
+    if not has_llm:
         warnings.append(
             "Confirmation text used built-in templates. Set OLLAMA_BASE_URL or GEMINI_API_KEY for Gemma."
         )

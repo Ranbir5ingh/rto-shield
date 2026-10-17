@@ -15,14 +15,19 @@ export default function QueuePage() {
   const [ready, setReady] = useState(false);
   const [voiceId, setVoiceId] = useState('');
   const [voiceState, setVoiceState] = useState<'playing' | 'played' | ''>('');
+  const [canSend, setCanSend] = useState(false);
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
 
   async function load() {
-    const [queue, me] = await Promise.all([
+    const [queue, me, whatsapp] = await Promise.all([
       api<{ orders: OrderDetail[] }>('/queue'),
       api<{ user: PublicUser }>('/auth/me'),
+      api<{ configured: boolean; demo: boolean }>('/whatsapp'),
     ]);
     setOrders(queue.orders);
     setLanguage(me.user.messageLanguage);
+    setCanSend(whatsapp.configured || whatsapp.demo || Boolean(me.user.isDemo));
   }
 
   useEffect(() => {
@@ -42,6 +47,22 @@ export default function QueuePage() {
     if (!order.waUrl || !text) return null;
     const number = order.waUrl.split('?')[0];
     return `${number}?text=${encodeURIComponent(text)}`;
+  }
+
+  async function send(ids: string[]) {
+    if (!ids.length) return;
+    setSending(true);
+    setError('');
+    try {
+      const body = await api<{ sent: string[] }>('/whatsapp/send', { method: 'POST', body: JSON.stringify({ ids }) });
+      const sent = new Set(body.sent);
+      setOrders((current) => current.map((order) => (sent.has(order.id) ? { ...order, whatsappStatus: 'sent' } : order)));
+      setPicked({});
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'WhatsApp did not send');
+    } finally {
+      setSending(false);
+    }
   }
 
   async function outcome(id: string, value: 'confirmed' | 'cancelled' | 'no_response') {
@@ -98,7 +119,7 @@ export default function QueuePage() {
         <div>
           <h1 className="font-display font-medium text-display-2">Confirmation queue</h1>
           <p className="mt-2 max-w-2xl text-sm text-ink/70">
-            WhatsApp opens with the text filled in. RTO Shield does not send it. Mark what the buyer said — cancelled and confirmed orders teach the next score.
+            Approve a message and it sends from your own WhatsApp number. Without WhatsApp connected, the wa.me link is the fallback. Confirmed and cancelled orders teach the next score.
           </p>
         </div>
         <label className="text-sm">
@@ -114,6 +135,15 @@ export default function QueuePage() {
             ]}
           />
         </label>
+        {canSend ? (
+          <Button
+            type="button"
+            disabled={sending || !Object.values(picked).some(Boolean)}
+            onClick={() => send(Object.entries(picked).filter(([, on]) => on).map(([id]) => id))}
+          >
+            {sending ? 'Sending…' : 'Approve & send selected'}
+          </Button>
+        ) : null}
       </div>
       {error ? <Notice>{error}</Notice> : null}
       {!ready ? <Skeleton className="h-40" /> : null}
@@ -137,12 +167,31 @@ export default function QueuePage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {waLink(order, textFor(order)) ? (
+                {canSend ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(picked[order.id])}
+                      onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
+                    />
+                    Select
+                  </label>
+                ) : null}
+                {canSend ? (
+                  <Button
+                    type="button"
+                    onClick={() => send([order.id])}
+                    disabled={sending || Boolean(order.whatsappStatus && order.whatsappStatus !== 'failed')}
+                  >
+                    {order.whatsappStatus ? `WhatsApp ${order.whatsappStatus}` : 'Approve & send'}
+                  </Button>
+                ) : null}
+                {!canSend && waLink(order, textFor(order)) ? (
                   <a className="btn-go" href={waLink(order, textFor(order)) || '#'} target="_blank" rel="noreferrer">
                     Open WhatsApp
                   </a>
                 ) : null}
-                {order.messages && waLink(order, order.messages.prepaid_nudge) ? (
+                {!canSend && order.messages && waLink(order, order.messages.prepaid_nudge) ? (
                   <a className="btn btn-ghost" href={waLink(order, order.messages.prepaid_nudge) || '#'} target="_blank" rel="noreferrer">
                     Prepaid nudge
                   </a>

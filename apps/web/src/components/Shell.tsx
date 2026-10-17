@@ -211,7 +211,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain bg-paper">
           <div className="mx-auto max-w-page px-5 sm:px-8">
             <div className="pt-5">
-              <StatusStrip status={status} />
+              <StatusStrip status={status} sellerGemini={Boolean(user?.sellerGemini)} />
             </div>
             {user ? (
               <div className="pb-16 pt-1">{children}</div>
@@ -233,7 +233,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatusStrip({ status }: { status: Integrations | null }) {
+function StatusStrip({ status, sellerGemini }: { status: Integrations | null; sellerGemini: boolean }) {
   if (!status) return null;
   const notes = [
     status.encryption === 'development-fallback' ? 'Encryption key is unset. Set ENCRYPTION_KEY before real buyer data.' : null,
@@ -242,7 +242,7 @@ function StatusStrip({ status }: { status: Integrations | null }) {
     status.ml.reachable && status.ml.activePredictor?.includes('sklearn')
       ? 'Scores use the scikit-learn fallback until TABPFN_TOKEN is set.'
       : null,
-    gemmaNotice(status.ml)
+    gemmaNotice(status.ml, { sellerGemini })
       ? 'Address notes and drafts use local templates until Gemma is configured.'
       : null,
   ].filter(Boolean);

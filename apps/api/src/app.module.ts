@@ -10,9 +10,13 @@ import { CryptoModule } from './common/crypto.module';
 import { CsrfGuard, JwtAuthGuard } from './common/guards';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
+import { GeminiModule } from './gemini/gemini.module';
 import { HealthModule } from './health/health.module';
+import { InboxModule } from './inbox/inbox.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { OrdersModule } from './orders/orders.module';
+import { ShopifyModule } from './shopify/shopify.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
 
@@ -47,6 +51,10 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
     DashboardModule,
     AccountModule,
     IntegrationsModule,
+    ShopifyModule,
+    WhatsAppModule,
+    InboxModule,
+    GeminiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

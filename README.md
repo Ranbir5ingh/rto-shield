@@ -239,6 +239,41 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `OLLAMA_MODEL` | ML | Default `gemma3:4b`. |
 | `MIN_TRAIN_ROWS` | ML | Default 30 labelled rows before a trained model. Below that, a rules prior. |
 | `PORT` | API and web | Render sets this. Local defaults 4000 and 3000. |
+| `KEY_ENCRYPTION_KEY` | API, Vercel | Master key that wraps Shopify, WhatsApp, and Gemini secrets. 64 hex chars, 32-byte base64, or a passphrase. Production will not store those secrets until it is set. Generate it yourself and keep it out of git. |
+| `SHOPIFY_API_KEY` | API | Partner app client id. |
+| `SHOPIFY_API_SECRET` | API, Vercel | Partner app secret. Vercel uses it to verify webhook HMAC before the API wakes. |
+| `SHOPIFY_APP_URL` | API | Public app origin, `https://www.rtoshield.tech`. OAuth redirect is `{SHOPIFY_APP_URL}/api/shopify/callback`. |
+| `SHOPIFY_SCOPES` | API | Default `read_orders,write_orders,read_fulfillments,read_customers`. |
+| `SHOPIFY_API_VERSION` | API | Default `2026-10`. GraphQL Admin only. |
+| `INBOX_DRAIN_SECRET` | API, Vercel | Shared secret for `POST /api/inbox/drain`. |
+| `WHATSAPP_VERIFY_TOKEN` | API, Vercel | Value you paste into the Meta webhook verify token field. |
+| `META_GRAPH_VERSION` | API | Default `v23.0`. |
+| `NEXT_PUBLIC_SHOPIFY_API_KEY` | Vercel | Public client id for the embedded App Bridge page. Same as `SHOPIFY_API_KEY`. |
+| `MONGODB_URI` | Vercel | Same Atlas database, so the webhook route can write the `inbox` collection. |
+| `ENCRYPTION_KEY` | Vercel | Same value as the API, so the inbox payload can be decrypted later. |
+
+## Connect a dev store and a WhatsApp test number
+
+Shopify (custom distribution, development store):
+
+1. In the Partner Dashboard create an app and set the App URL to `https://www.rtoshield.tech/shopify`.
+2. Allowed redirection URL: `https://www.rtoshield.tech/api/shopify/callback`.
+3. Webhook URL is not pasted by hand for the order topics. After install the app subscribes with GraphQL. The endpoint that must answer is `https://www.rtoshield.tech/api/shopify/webhooks` (API version `2026-10`). Compliance topics can also be set to that same URL in the Partner Dashboard.
+4. Put `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `KEY_ENCRYPTION_KEY` on the Render API. Put `SHOPIFY_API_SECRET`, `MONGODB_URI`, `ENCRYPTION_KEY`, `INBOX_DRAIN_SECRET`, and `KEY_ENCRYPTION_KEY` on Vercel.
+5. In the app, open shop setup, enter `your-store.myshopify.com`, and approve the install. The last 60 days backfill on their own. CSV upload stays on the history page.
+
+WhatsApp Cloud API (your own number):
+
+1. In the Meta app, add the WhatsApp product and use the test number, or a number you verified.
+2. Create a System User token with `whatsapp_business_messaging` and `whatsapp_business_management`.
+3. In Settings, paste the permanent token, Phone Number ID, WABA ID, and the app secret. Press **Send test message** (the `hello_world` template) to a number allowed on the test app.
+4. Press **Submit template** for `order_confirmation` (English and Hindi) and `order_confirmation_hinglish`. Wait until the status is `APPROVED`.
+5. Callback URL: `https://www.rtoshield.tech/api/whatsapp/webhook`. Verify token: the value of `WHATSAPP_VERIFY_TOKEN` (set the same value on Vercel and Render). Subscribe to the `messages` field.
+6. In the queue, **Approve & send** uses that template. Confirm and Cancel buttons mark the order and tag it in Shopify. Auto-cancel in Shopify stays off until you turn it on. If WhatsApp is not connected, the queue keeps the `wa.me` link.
+
+The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Gemini notes for a real shop use that seller's key. The platform `GEMINI_API_KEY` is only the demo fallback.
+
+See `docs/shopify-production.md` for the public app, Level 2 protected data, and `read_all_orders`.
 
 ## Security notes
 

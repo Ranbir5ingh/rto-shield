@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import re
+from contextvars import ContextVar, Token
 from typing import Any
 
 import httpx
@@ -18,6 +19,30 @@ from app.config import settings
 from app.tracing import traced
 
 log = logging.getLogger("rto.ml")
+
+_request_mode: ContextVar[str] = ContextVar("gemini_mode", default="platform")
+_request_key: ContextVar[str] = ContextVar("gemini_key", default="")
+
+
+def bind_request_gemini(mode: str | None, key: str | None) -> tuple[Token[str], Token[str]]:
+    """Seller mode uses only the per-request key. An empty key must not fall back."""
+    seller = (mode or "").strip().lower() == "seller"
+    return _request_mode.set("seller" if seller else "platform"), _request_key.set((key or "").strip() if seller else "")
+
+
+def reset_request_gemini(tokens: tuple[Token[str], Token[str]]) -> None:
+    _request_mode.reset(tokens[0])
+    _request_key.reset(tokens[1])
+
+
+def seller_gemini_mode() -> bool:
+    return _request_mode.get() == "seller"
+
+
+def current_gemini_key() -> str:
+    if seller_gemini_mode():
+        return _request_key.get()
+    return settings.gemini_api_key
 
 _JUNK = ("asdf", "qwerty", "test", "xxx", "fake", "none", "n/a", "na", "abc123", "null")
 
@@ -280,10 +305,10 @@ def _text_from(data: dict[str, Any]) -> str:
     return text
 
 
-async def _list_gemma_models(client: httpx.AsyncClient) -> list[str]:
+async def _list_gemma_models(client: httpx.AsyncClient, key: str, *, cache: bool) -> list[str]:
     """Models this key can call. Gemini Flash is ignored — address text stays on Gemma."""
     global _listed_models
-    if _listed_models is not None:
+    if cache and _listed_models is not None:
         return _listed_models
     found: list[str] = []
     page: str | None = None
@@ -294,7 +319,7 @@ async def _list_gemma_models(client: httpx.AsyncClient) -> list[str]:
                 params["pageToken"] = page
             response = await client.get(
                 "https://generativelanguage.googleapis.com/v1beta/models",
-                headers={"x-goog-api-key": settings.gemini_api_key},
+                headers={"x-goog-api-key": key},
                 params=params,
             )
             if response.status_code != 200:
@@ -314,17 +339,22 @@ async def _list_gemma_models(client: httpx.AsyncClient) -> list[str]:
                 break
     except Exception as exc:  # noqa: BLE001 — listing is a hint, the fallbacks still run
         log.warning("gemma_list_failed %s", type(exc).__name__)
-    _listed_models = found
+    if cache:
+        _listed_models = found
     return found
 
 
 async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
     global _working_model
-    headers = {"x-goog-api-key": settings.gemini_api_key}
+    key = current_gemini_key()
+    if not key:
+        raise RuntimeError("no gemma provider")
+    seller = seller_gemini_mode()
+    headers = {"x-goog-api-key": key}
     bodies = _bodies(prompt)
     last: httpx.Response | None = None
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
-        tried_list = _listed_models is not None
+        tried_list = (not seller) and _listed_models is not None
         names = _model_names()
         index = 0
         while index < len(names):
@@ -346,7 +376,7 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
             if _model_missing(last):
                 if not tried_list:
                     tried_list = True
-                    for name in await _list_gemma_models(client):
+                    for name in await _list_gemma_models(client, key, cache=not seller):
                         if name not in names:
                             names.append(name)
                 continue
@@ -354,7 +384,8 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
                 last.raise_for_status()
             data = last.json()
             text = _text_from(data)
-            _working_model = model
+            if not seller:
+                _working_model = model
             usage = data.get("usageMetadata") or {}
             tokens = {
                 "gen_ai.usage.input_tokens": usage.get("promptTokenCount"),
@@ -369,14 +400,16 @@ async def _gemini(prompt: str) -> tuple[str, dict[str, Any]]:
 
 
 async def _llm(prompt: str, purpose: str) -> tuple[str, str]:
+    seller = seller_gemini_mode()
+    key = current_gemini_key()
     try:
-        if settings.ollama_base_url:
+        if settings.ollama_base_url and not seller:
             with traced("gen_ai.chat", f"gemma.{purpose}", provider="ollama") as box:
                 text, tokens = await _ollama(prompt)
                 box.update(tokens)
             note_gemma("ok", origin="ollama", model=settings.ollama_model)
             return text, "ollama"
-        if settings.gemini_api_key:
+        if key:
             with traced("gen_ai.chat", f"gemma.{purpose}", provider="google-ai-studio") as box:
                 text, tokens = await _gemini(prompt)
                 box.update(tokens)
@@ -446,7 +479,9 @@ async def annotate(
     if not orders:
         return [], "heuristic", warnings
     # llm=False is the fast path: never wait on Gemma while the shop is waiting.
-    configured = bool(settings.ollama_base_url or settings.gemini_api_key)
+    seller = seller_gemini_mode()
+    key = current_gemini_key()
+    configured = bool(key) if seller else bool(settings.ollama_base_url or key)
     use_llm = configured if llm is None else bool(llm and configured)
     if not use_llm:
         done = [apply_quality(order, heuristic_address(order.get("address", ""), order.get("pincode", ""), order.get("city", ""), order.get("state", ""))) for order in orders]

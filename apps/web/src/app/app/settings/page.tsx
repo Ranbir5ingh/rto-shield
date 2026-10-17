@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Connections } from '@/components/Connections';
 import { Button, Dropdown, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api, downloadExport } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
@@ -91,6 +92,7 @@ export default function SettingsPage() {
         </Field>
         <Button type="submit">Save</Button>
       </form>
+      <Connections />
       {status && !status.sellerView ? <section className="panel p-5 text-sm">
         <h2 className="font-medium">Integrations</h2>
         <dl className="mt-4 divide-y divide-line">

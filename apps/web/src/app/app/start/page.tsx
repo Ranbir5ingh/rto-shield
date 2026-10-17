@@ -1,18 +1,62 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Button, Notice } from '@/components/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
-export default function StartPage() {
+interface ShopifyStatus {
+  connected: boolean;
+  demo: boolean;
+  shop: string | null;
+  backfill: { status: string; processed: number; total: number; error: string | null };
+}
+
+function StartForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const [shop, setShop] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [samplePending, setSamplePending] = useState(false);
+  const [error, setError] = useState(params?.get('shopify') === 'error' ? 'Shopify did not finish the install. Start again from the shop domain.' : '');
+  const [link, setLink] = useState<ShopifyStatus | null>(null);
+
+  useEffect(() => {
+    let stop = false;
+    let timer = 0;
+    async function pull() {
+      try {
+        const body = await api<ShopifyStatus>('/shopify');
+        if (stop) return;
+        setLink(body);
+        if (body.connected && body.backfill.status === 'running') timer = window.setTimeout(() => void pull(), 2000);
+      } catch {
+        if (!stop) setLink(null);
+      }
+    }
+    void pull();
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  async function connect(event: React.FormEvent) {
+    event.preventDefault();
+    setPending(true);
+    setError('');
+    try {
+      const body = await api<{ url: string }>('/shopify/install', { method: 'POST', body: JSON.stringify({ shop }) });
+      window.location.assign(body.url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start Shopify');
+      setPending(false);
+    }
+  }
 
   async function sample() {
-    setPending(true);
+    setSamplePending(true);
     setError('');
     try {
       await api('/orders/sample', { method: 'POST' });
@@ -20,34 +64,81 @@ export default function StartPage() {
       router.push('/app');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not prepare the sample shop');
-      setPending(false);
+      setSamplePending(false);
     }
   }
 
+  const progress = link?.backfill.total ? Math.round((link.backfill.processed / link.backfill.total) * 100) : link?.backfill.status === 'done' ? 100 : 0;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <p className="text-xs uppercase tracking-[0.18em] text-inksoft">Shop setup</p>
-      <h1 className="font-display text-display-2">How should this shop learn?</h1>
+      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-inksoft">Shop setup</p>
+      <h1 className="font-display text-display-2">Connect the shop.</h1>
       <p className="text-sm leading-7 text-ink/75">
-        The model needs past outcomes. You can load a synthetic Indian shop and score it now, or bring your own sheet. Real phones stay encrypted. Sample buyers are invented.
+        Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted.
       </p>
       {error ? <Notice>{error}</Notice> : null}
+      {link?.connected ? (
+        <article className="panel p-5">
+          <h2 className="font-display text-2xl">{link.demo ? 'Demo store' : link.shop}</h2>
+          <p className="mt-2 text-sm text-ink/70">
+            {link.backfill.status === 'running'
+              ? `Reading orders… ${link.backfill.processed}`
+              : link.backfill.status === 'done'
+                ? `${link.backfill.processed} orders ready to score.`
+                : 'Waiting to read orders.'}
+          </p>
+          <div className="mt-4 h-2 border-2 border-ink bg-white">
+            <div className="h-full bg-lime" style={{ width: `${progress}%` }} />
+          </div>
+          {link.backfill.status === 'done' ? (
+            <Link href="/app" className="btn-go mt-4 inline-flex">
+              See the first scores
+            </Link>
+          ) : null}
+        </article>
+      ) : (
+        <form onSubmit={connect} className="panel space-y-3 p-5">
+          <h2 className="font-display text-2xl">Connect Shopify</h2>
+          <Field label="Shop domain">
+            <input
+              className={inputClass}
+              value={shop}
+              onChange={(event) => setShop(event.target.value)}
+              placeholder="your-store.myshopify.com"
+              autoComplete="off"
+              required
+            />
+          </Field>
+          <Button type="submit" disabled={pending}>
+            {pending ? 'Opening Shopify…' : 'Connect Shopify'}
+          </Button>
+        </form>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <article className="panel p-5">
-          <h2 className="font-display text-2xl">Sample shop</h2>
-          <p className="mt-2 text-sm leading-6 text-ink/70">360 labelled orders and a pending batch, then a first score.</p>
-          <Button type="button" className="mt-4" onClick={sample} disabled={pending}>
-            {pending ? 'Scoring sample orders…' : 'Load and score'}
-          </Button>
-        </article>
-        <article className="panel p-5">
-          <h2 className="font-display text-2xl">Your sheet</h2>
-          <p className="mt-2 text-sm leading-6 text-ink/70">Shopify export, a Meesho-style file, or the generic template.</p>
+          <h2 className="font-display text-2xl">CSV, if you must</h2>
+          <p className="mt-2 text-sm leading-6 text-ink/70">A Shopify export, a Meesho-style file, or the generic template.</p>
           <Link href="/app/history" className="btn btn-ghost mt-4">
             Upload history
           </Link>
         </article>
+        <article className="panel p-5">
+          <h2 className="font-display text-2xl">Sample shop</h2>
+          <p className="mt-2 text-sm leading-6 text-ink/70">Invented buyers, so you can see a score without a store.</p>
+          <Button type="button" className="mt-4" tone="ghost" onClick={sample} disabled={samplePending}>
+            {samplePending ? 'Scoring sample orders…' : 'Load and score'}
+          </Button>
+        </article>
       </div>
     </div>
+  );
+}
+
+export default function StartPage() {
+  return (
+    <Suspense fallback={<div className="skeleton h-48" aria-busy="true" />}>
+      <StartForm />
+    </Suspense>
   );
 }

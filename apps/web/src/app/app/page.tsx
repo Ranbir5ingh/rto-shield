@@ -7,7 +7,7 @@ import gsap from 'gsap';
 import { Distribution, TrendChart } from '@/components/Charts';
 import { Eyebrow, Flag, Skeleton, Stat } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { inr, predictorLabel } from '@/lib/format';
+import { inr } from '@/lib/format';
 import type { DashboardData, LiveWireOrder } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -90,30 +90,30 @@ export default function DashboardPage() {
       <section aria-label="Key metrics" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
         <div data-reveal="pop">
           <Stat
-            label="RTO rate"
-            value={data.rtoRate === null ? '—' : `${data.rtoRate}%`}
-            hint={`${data.rto} returned · ${data.delivered} delivered`}
+            label="Needs action"
+            value={String(data.actionToday ?? data.highPending)}
+            hint="Medium and high orders still open today"
           />
         </div>
         <div data-reveal="pop" data-delay="0.08">
           <Stat
-            label="₹ saved estimate"
-            value={inr(data.savedInr)}
-            hint={`${data.prevented} risky orders cancelled`}
+            label="₹ at risk"
+            value={inr(data.exposureInr)}
+            hint="High-risk pending value plus shipping both ways"
           />
         </div>
         <div data-reveal="pop" data-delay="0.16">
           <Stat
-            label="High-risk pending"
-            value={String(data.highPending)}
-            hint={`${inr(data.exposureInr)} exposure if they all return`}
+            label="Confirmation rate"
+            value={data.confirmationRate == null ? '—' : `${data.confirmationRate}%`}
+            hint="Confirmed replies out of every decision"
           />
         </div>
         <div data-reveal="pop" data-delay="0.24">
           <Stat
-            label="Orders on file"
-            value={String(data.counts.history + data.counts.pending + data.counts.closed)}
-            hint={`${data.counts.pending} waiting to ship`}
+            label="RTO rate"
+            value={data.rtoRate === null ? '—' : `${data.rtoRate}%`}
+            hint={`${data.rto} returned · ${data.delivered} delivered`}
           />
         </div>
       </section>
@@ -166,21 +166,25 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="sticker relative p-6 sm:p-8 lg:col-span-2">
-          <Eyebrow>Model check</Eyebrow>
-          {data.model ? (
-            <div className="mt-6 space-y-3 font-mono text-xs leading-6">
-              <p>
-                <span className="uppercase tracking-[0.2em] text-inksoft">Predictor</span>{' '}
-                <strong className="bg-lime border-2 border-ink px-2 py-0.5 uppercase tracking-[0.1em]">{predictorLabel(data.model.model)}</strong>
+          <Eyebrow>Your pincodes</Eyebrow>
+          <p className="mt-4 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-inksoft">
+            New buyers {data.buyers?.fresh ?? 0} · repeat {data.buyers?.repeat ?? 0}
+          </p>
+          <div className="mt-4">
+            {(data.pinInsights || []).map((pin) => (
+              <div key={pin.pincode} className="datarow">
+                <span className="font-bold">{pin.pincode}</span>
+                <span className="font-mono text-xs font-bold tabular-nums">
+                  {pin.rate}% · {pin.rto}/{pin.orders}
+                </span>
+              </div>
+            ))}
+            {!data.pinInsights?.length && (
+              <p className="py-4 font-mono text-xs font-bold uppercase leading-6 tracking-[0.14em] text-inksoft">
+                Synced outcomes will show which of your own pincodes come back.
               </p>
-              <p className="text-ink/70">{data.model.modelLabel}</p>
-              <p className="uppercase tracking-[0.1em] text-inksoft">
-                AUC {data.model.metrics?.auc ?? '—'} · P@10% {data.model.metrics?.precision_at_top_10pct ?? '—'} · train {data.model.metrics?.n_train ?? '—'} / test {data.model.metrics?.n_test ?? '—'}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-6 font-mono text-xs font-bold uppercase leading-6 tracking-[0.14em] text-inksoft">No score yet. History plus pending orders produces the first metric.</p>
-          )}
+            )}
+          </div>
         </div>
       </section>
 
@@ -202,7 +206,7 @@ export default function DashboardPage() {
           )}
         </div>
         <p className="mt-10 font-mono text-[11px] font-bold leading-6 tracking-[0.08em] text-inksoft">
-          SAVED AND EXPOSURE USE EACH ORDER'S VALUE PLUS YOUR COST PER RTO (SHIPPING BOTH WAYS). AN ESTIMATE, NOT A BANK BALANCE.
+          ₹ AT RISK IS THE HIGH-RISK PENDING VALUE PLUS YOUR COST PER RTO (SHIPPING BOTH WAYS). AN ESTIMATE, NOT A BANK BALANCE.
         </p>
       </section>
     </div>

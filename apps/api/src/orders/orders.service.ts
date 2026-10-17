@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -16,6 +16,7 @@ import {
   toCsv,
 } from '../common/csv';
 import { CryptoService } from '../common/crypto.service';
+import { VaultService } from '../common/vault.service';
 import { hourInKolkata } from '../common/hour';
 import { assertSafeVoiceScript, templateMessage, type DraftMessage } from '../common/messages';
 import { maskPhone, whatsappNumber } from '../common/phone';
@@ -24,7 +25,8 @@ import type { ColumnMapping, ImportInput, ManualOrderInput } from '../common/val
 import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import type { UserDocument } from '../database/user.schema';
-import { MlService } from '../ml/ml.service';
+import { MlService, type GeminiCall } from '../ml/ml.service';
+import { ShopifyService } from '../shopify/shopify.service';
 import { toMlOrder } from '../ml/payload';
 import type { AddressQuality, PredictResponse, Prediction } from '../ml/ml.types';
 import {
@@ -46,7 +48,9 @@ export class OrdersService {
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     @InjectModel(ModelRun.name) private readonly runs: Model<ModelRun>,
     private readonly crypto: CryptoService,
+    private readonly vault: VaultService,
     private readonly ml: MlService,
+    @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
   ) {}
 
   template() {
@@ -352,10 +356,24 @@ export class OrdersService {
   }
 
   /** Address notes and confirmation drafts. Scores already on the order stay put. */
+  private geminiCall(user: UserDocument): GeminiCall | undefined {
+    if (user.isDemo) return undefined;
+    if (!user.gemini?.keyEnvelope || !user.gemini.validatedAt) return { mode: 'seller', key: '' };
+    try {
+      return { mode: 'seller', key: this.vault.open(user.gemini.keyEnvelope) };
+    } catch {
+      return { mode: 'seller', key: '' };
+    }
+  }
+
   private async refreshGemma(user: UserDocument) {
     try {
-      const health = await this.ml.health(4_000);
-      if (!health?.gemini && !health?.ollama_configured) return;
+      const gemini = this.geminiCall(user);
+      if (gemini?.mode === 'seller' && !gemini.key) return;
+      if (!gemini) {
+        const health = await this.ml.health(4_000);
+        if (!health?.gemini && !health?.ollama_configured) return;
+      }
       const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(80);
       if (!pending.length) return;
       // One batch per request so a rate limit on a later batch still keeps the notes already written.
@@ -371,6 +389,7 @@ export class OrdersService {
               state: order.state,
               pincode: order.pincode,
             })),
+            gemini,
           );
           for (const row of noted.addresses) notes.set(row.id, row.address_quality);
         } catch (error) {
@@ -391,6 +410,7 @@ export class OrdersService {
               product_name: order.productName || 'order',
               payment_type: order.paymentType,
             })),
+            gemini,
           );
           for (const message of generated.messages) {
             if (message.source === 'gemini' || message.source === 'ollama') drafts.set(message.id, message);
@@ -498,10 +518,12 @@ export class OrdersService {
 
     let result: PredictResponse;
     try {
+      const address = options?.address ?? 'heuristic';
       result = await this.ml.predict(historyPayload, pendingPayload, {
         speed: fast ? 'fast' : 'full',
         timeoutMs: options?.timeoutMs ?? (fast ? 9_000 : 55_000),
-        address: options?.address ?? 'heuristic',
+        address,
+        gemini: address === 'heuristic' ? undefined : this.geminiCall(user),
       });
     } catch (error) {
       if (!fast) throw error;
@@ -570,6 +592,7 @@ export class OrdersService {
       });
     }
     if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
+    this.writeShopify(user, pending);
 
     await this.runs.create({
       sellerId: user._id,
@@ -821,7 +844,19 @@ export class OrdersService {
       reasons: order.reasons,
       addressQuality: order.addressQuality,
       model: order.predictor,
+      whatsappStatus: order.whatsappStatus,
+      shopifyGid: order.shopifyGid || '',
     };
+  }
+
+  private writeShopify(user: UserDocument, pending: OrderDocument[]) {
+    const rows = pending
+      .filter((order) => order.shopifyGid && order.riskBand)
+      .map((order) => ({ shopifyGid: order.shopifyGid, band: order.riskBand, reasons: order.reasons }));
+    if (!rows.length) return;
+    void this.shopify.writeRisk(user, rows).catch((error: unknown) => {
+      this.logger.warn(`Shopify writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+    });
   }
 
   private toDetail(user: UserDocument, order: OrderDocument) {
@@ -833,6 +868,7 @@ export class OrdersService {
       address: this.crypto.decrypt(order.addressEnc),
       messages: order.messages,
       waUrl: number && text ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : null,
+      conversation: order.conversation || [],
     };
   }
 }
