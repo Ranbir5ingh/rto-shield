@@ -304,10 +304,7 @@ function QueueScreen() {
       <div className="shrink-0 pb-3 pt-4" data-tour="risk-queue">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1 basis-64">
-            <p className="eyebrow text-inksoft">
-              Needs a decision · {orders.length} waiting
-            </p>
-            <h1 className="mt-1 font-display text-2xl font-black uppercase leading-none tracking-tight md:text-[1.7rem]">
+            <h1 className="font-display text-2xl font-black uppercase leading-none tracking-tight md:text-[1.7rem]">
               Confirmation queue
             </h1>
           </div>
@@ -420,7 +417,7 @@ function QueueScreen() {
           })}
         </div>
 
-        <div className="hidden min-h-0 overflow-y-auto overscroll-contain pb-2 pr-0.5 lg:block">
+        <div className="hidden min-h-0 lg:block">
           {detail}
         </div>
       </div>
@@ -472,9 +469,9 @@ function QueueDetail({
   onCloseCall: () => void;
 }) {
   return (
-    <article className="sticker">
-      {/* sticky action deck: the action never scrolls away */}
-      <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
+    <article className="sticker flex h-full min-h-0 flex-col">
+      {/* fixed action deck: the bar is a normal flex child, the body scrolls inside */}
+      <div className="shrink-0 border-b-2 border-ink bg-white">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3">
           <div className="min-w-0 flex-1 basis-44">
             <p className="eyebrow text-inksoft">Now reviewing</p>
@@ -486,7 +483,6 @@ function QueueDetail({
             order={order}
             busy={busy}
             canSend={canSend}
-            showCallButton
             compact
             showHint={false}
             onPrimary={onPrimary}
@@ -531,6 +527,7 @@ function QueueDetail({
         </div>
       </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="p-6 sm:p-8">
         <div className="grid gap-x-10 gap-y-8 md:grid-cols-2">
           <div className="border-t-2 border-dashed border-ink/25 pt-5">
@@ -588,6 +585,7 @@ function QueueDetail({
             Select for bulk send
           </label>
         ) : null}
+      </div>
       </div>
     </article>
   );
