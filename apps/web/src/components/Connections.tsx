@@ -62,6 +62,22 @@ export function Connections() {
     load().catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!shopify || shopify.demo || shopify.backfill.status !== 'running') return;
+    const timer = window.setTimeout(() => {
+      api<ShopifyStatus>('/shopify')
+        .then((body) => {
+          setShopify((current) =>
+            current
+              ? { ...current, connected: body.connected, demo: body.demo, shop: body.shop, backfill: body.backfill }
+              : body,
+          );
+        })
+        .catch(() => undefined);
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [shopify]);
+
   async function run(action: () => Promise<void>) {
     setError('');
     setMessage('');
@@ -79,9 +95,14 @@ export function Connections() {
       <section className="panel space-y-3 p-5 shadow-card">
         <h2 className="font-display text-2xl">Shopify</h2>
         {shopify?.connected ? (
-          <p className="text-sm text-ink/70">
-            {shopify.demo ? 'Demo store' : shopify.shop} · backfill {shopify.backfill.status} ({shopify.backfill.processed})
-          </p>
+          <>
+            <p className="text-sm text-ink/70">
+              {shopify.demo ? 'Demo store' : shopify.shop} · backfill {shopify.backfill.status} ({shopify.backfill.processed})
+            </p>
+            {shopify.backfill.status === 'error' ? (
+              <Notice>{shopify.backfill.error || 'Shopify could not finish the import.'}</Notice>
+            ) : null}
+          </>
         ) : (
           <form
             className="space-y-3"

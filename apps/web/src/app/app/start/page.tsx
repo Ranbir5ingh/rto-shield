@@ -86,8 +86,15 @@ function StartForm() {
               ? `Reading orders… ${link.backfill.processed}`
               : link.backfill.status === 'done'
                 ? `${link.backfill.processed} orders ready to score.`
-                : 'Waiting to read orders.'}
+                : link.backfill.status === 'error'
+                  ? 'Shopify stopped the import.'
+                  : 'Waiting to read orders.'}
           </p>
+          {link.backfill.status === 'error' ? (
+            <div className="mt-3">
+              <Notice>{link.backfill.error || 'Shopify could not finish the import.'}</Notice>
+            </div>
+          ) : null}
           <div className="mt-4 h-2 border-2 border-ink bg-white">
             <div className="h-full bg-lime" style={{ width: `${progress}%` }} />
           </div>

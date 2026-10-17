@@ -12,21 +12,17 @@ import { OauthState } from '../database/oauth-state.schema';
 import { Order } from '../database/order.schema';
 import { User, type ShopifyLink, type UserDocument } from '../database/user.schema';
 import { OrdersService } from '../orders/orders.service';
+import {
+  ShopifyQueryError,
+  explainShopify,
+  hasGraphqlErrors,
+  shopifyFailure,
+  topicsToRegister,
+  webhookAlreadyRegistered,
+} from './shopify-errors';
 import { mapGraphqlOrder, mapRestOrder, normalizeShop, type MappedOrder } from './shopify-map';
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-10';
-const TOPICS = [
-  'ORDERS_CREATE',
-  'ORDERS_UPDATED',
-  'ORDERS_CANCELLED',
-  'FULFILLMENTS_CREATE',
-  'FULFILLMENTS_UPDATE',
-  'REFUNDS_CREATE',
-  'APP_UNINSTALLED',
-  'CUSTOMERS_DATA_REQUEST',
-  'CUSTOMERS_REDACT',
-  'SHOP_REDACT',
-];
 
 const ORDER_FIELDS = `
   id name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus tags phone
@@ -148,8 +144,8 @@ export class ShopifyService {
     await user.save();
     await this.audit.create({ sellerId: user._id, action: 'shopify.install', meta: { shop: saved.shop } });
     this.startBackfill(user);
-    void this.registerWebhooks(saved.shop, payload.access_token).catch((error: unknown) => {
-      this.logger.warn(`Shopify webhooks missed: ${error instanceof Error ? error.name : 'error'}`);
+    void this.ensureWebhooks(saved.shop, payload.access_token).catch((error: unknown) => {
+      this.warnShopify('Shopify webhooks missed', error);
     });
     return user;
   }
@@ -186,6 +182,10 @@ export class ShopifyService {
       backfill: { status: 'running', processed: 0, total: 0, error: null },
     };
     await user.save();
+    const token = this.tokenOf(user);
+    void this.ensureWebhooks(user.shopify.shopDomain, token).catch((error: unknown) => {
+      this.warnShopify('Shopify webhooks missed', error);
+    });
     this.startBackfill(user);
     return this.status(user);
   }
@@ -237,11 +237,10 @@ export class ShopifyService {
       const fresh = await this.users.findById(user._id);
       if (fresh) this.scheduleScore(fresh);
     } catch (error) {
-      const name = error instanceof Error ? error.name : 'error';
-      this.logger.warn(`Shopify backfill stopped: ${name}`);
+      const detail = this.warnShopify('Shopify backfill stopped', error);
       await this.users.updateOne(
         { _id: user._id },
-        { $set: { 'shopify.backfill': { status: 'error', processed, total: processed, error: name } } },
+        { $set: { 'shopify.backfill': { status: 'error', processed, total: processed, error: detail.seller } } },
       );
     }
   }
@@ -311,7 +310,7 @@ export class ShopifyService {
           });
         }
       } catch (error) {
-        this.logger.warn(`Shopify tag missed: ${error instanceof Error ? error.name : 'error'}`);
+        this.warnShopify('Shopify tag missed', error);
       }
     }
   }
@@ -476,7 +475,7 @@ export class ShopifyService {
       await this.upsert(user, mapped);
       return true;
     } catch (error) {
-      this.logger.warn(`Shopify refetch missed: ${error instanceof Error ? error.name : 'error'}`);
+      this.warnShopify('Shopify refetch missed', error);
       return false;
     }
   }
@@ -485,38 +484,93 @@ export class ShopifyService {
     return this.users.findOne({ 'shopify.shopDomain': shop, 'shopify.uninstalledAt': null });
   }
 
-  private async registerWebhooks(shop: string, token: string) {
+  private async ensureWebhooks(shop: string, token: string) {
     const callback = `${this.appUrl()}/api/shopify/webhooks`;
-    for (const topic of TOPICS) {
+    const existing = await this.listWebhookTopics(shop, token);
+    for (const topic of topicsToRegister(existing)) {
       try {
-        await this.graphql(
+        const data = await this.graphql<{
+          webhookSubscriptionCreate?: { userErrors?: Array<{ field?: string[] | null; message?: string | null }> };
+        }>(
           shop,
           token,
           `mutation($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
-            webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) { userErrors { message } }
+            webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+              userErrors { field message }
+            }
           }`,
-          { topic, webhookSubscription: { callbackUrl: callback, format: 'JSON' } },
+          { topic, webhookSubscription: { uri: callback, format: 'JSON' } },
         );
+        const failures = (data.webhookSubscriptionCreate?.userErrors || []).filter(
+          (item) => item.message && !webhookAlreadyRegistered(item.message),
+        );
+        if (failures.length) {
+          const explained = explainShopify({ userErrors: failures });
+          this.logger.warn(`Webhook ${topic} rejected: ${explained.log}`);
+        }
       } catch (error) {
-        this.logger.warn(`Webhook ${topic} missed: ${error instanceof Error ? error.name : 'error'}`);
+        this.warnShopify(`Webhook ${topic} missed`, error);
       }
     }
   }
 
+  private async listWebhookTopics(shop: string, token: string): Promise<string[] | null> {
+    try {
+      const data = await this.graphql<{
+        webhookSubscriptions?: { edges?: Array<{ node?: { topic?: string | null } | null }> };
+      }>(shop, token, `query { webhookSubscriptions(first: 40) { edges { node { topic } } } }`, {});
+      return (data.webhookSubscriptions?.edges || [])
+        .map((edge) => edge.node?.topic || '')
+        .filter((topic) => topic.length > 0);
+    } catch (error) {
+      this.warnShopify('Webhook list missed', error);
+      return null;
+    }
+  }
+
+  private warnShopify(label: string, error: unknown) {
+    const detail = shopifyFailure(error);
+    this.logger.warn(`${label}: ${detail.log}`);
+    return detail;
+  }
+
   private async graphql<T>(shop: string, token: string, query: string, variables: Record<string, unknown>): Promise<T> {
-    const response = await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-shopify-access-token': token },
-      body: JSON.stringify({ query, variables }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!response.ok) throw new Error('Shopify request failed');
-    const body = (await response.json()) as { data?: T; errors?: unknown[] };
-    if (body.errors?.length) throw new Error('Shopify rejected the query');
+    let response: Response;
+    try {
+      response = await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-shopify-access-token': token },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(25_000),
+      });
+    } catch (error) {
+      const explained = explainShopify({ errors: error instanceof Error ? error.message : 'Shopify did not answer' });
+      throw new ShopifyQueryError(explained.seller, explained.log);
+    }
+    const body = await readGraphqlBody(response);
+    if (!response.ok || hasGraphqlErrors(body.errors)) {
+      const explained = explainShopify({
+        status: response.ok ? undefined : response.status,
+        errors: hasGraphqlErrors(body.errors) ? body.errors : undefined,
+      });
+      throw new ShopifyQueryError(explained.seller, explained.log);
+    }
     return (body.data || {}) as T;
   }
 
   private assertOwner(user: UserDocument) {
     if (user.role === 'staff') throw new BadRequestException('Only the shop owner can change connections');
+  }
+}
+
+async function readGraphqlBody(response: Response): Promise<{ data?: unknown; errors?: unknown }> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as { data?: unknown; errors?: unknown };
+  } catch {
+    return {};
   }
 }
