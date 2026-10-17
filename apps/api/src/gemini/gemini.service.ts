@@ -21,9 +21,10 @@ export class GeminiService {
     };
   }
 
-  async save(user: UserDocument, apiKey: string) {
+  async save(user: UserDocument, apiKey?: string) {
     if (user.role === 'staff') throw new BadRequestException('Only the shop owner can change connections');
-    const key = apiKey.trim();
+    const key = apiKey?.trim() || '';
+    if (!key) return this.status(user);
     let response: Response;
     try {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {

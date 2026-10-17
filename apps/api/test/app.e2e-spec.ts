@@ -1,9 +1,14 @@
 import { INestApplication } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import { Model } from 'mongoose';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { VaultService } from '../src/common/vault.service';
 import { configureApp } from '../src/configure-app';
+import { AuditEvent } from '../src/database/audit.schema';
+import { User } from '../src/database/user.schema';
 import { MlService } from '../src/ml/ml.service';
 
 const fakeMl = {
@@ -283,6 +288,78 @@ describe('RTO Shield API', () => {
     expect(dashboard.body.liveWire.length).toBeGreaterThan(0);
     const queue = await agent.get('/api/queue').expect(200);
     expect(queue.body.orders.length).toBeGreaterThan(0);
+  });
+
+  it('reveals a saved secret only with the password, and then rate limits', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const email = 'secrets@shop.test';
+    const password = 'supersecret';
+    const accessToken = 'EAAGtesttokenvalue123456a1B2';
+    const appSecret = 'app-secret-value-ZZ99';
+    const created = await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', token)
+      .send({ email, password, name: 'Secret', shopName: 'Secret Shop' })
+      .expect(201);
+    const session = created.body.csrfToken as string;
+
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const vault = app.get(VaultService);
+    const geminiKey = 'AIzaSyTestKeyValue1234567890';
+    await users.updateOne(
+      { email },
+      { $set: { gemini: { keyEnvelope: vault.seal(geminiKey), last4: '7890', validatedAt: new Date().toISOString() } } },
+    );
+    const blank = await agent.post('/api/gemini').set('x-csrf-token', session).send({ apiKey: '' }).expect(201);
+    expect(blank.body.last4).toBe('7890');
+    expect(blank.body.configured).toBe(true);
+
+    await agent
+      .post('/api/whatsapp')
+      .set('x-csrf-token', session)
+      .send({ accessToken, phoneNumberId: '123456789012345', wabaId: '223456789012345', appSecret })
+      .expect(201);
+    const kept = await agent
+      .post('/api/whatsapp')
+      .set('x-csrf-token', session)
+      .send({ accessToken: '', phoneNumberId: '123456789012345', wabaId: '223456789012345', appSecret: '' })
+      .expect(201);
+    expect(kept.body.tokenLast4).toBe('a1B2');
+    expect(kept.body.appSecretLast4).toBe('ZZ99');
+
+    const revealed = await agent
+      .post('/api/settings/secrets/reveal')
+      .set('x-csrf-token', session)
+      .send({ field: 'whatsappToken', password })
+      .expect(200);
+    expect(revealed.body).toEqual({ value: accessToken });
+    expect(String(revealed.headers['cache-control'])).toContain('no-store');
+
+    await agent.post('/api/settings/secrets/reveal').send({ field: 'whatsappToken', password }).expect(403);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const denied = await agent
+        .post('/api/settings/secrets/reveal')
+        .set('x-csrf-token', session)
+        .send({ field: 'whatsappToken', password: 'wrong-password' })
+        .expect(401);
+      expect(denied.body.error).toBe('Password did not match');
+      expect(JSON.stringify(denied.body)).not.toContain(accessToken);
+    }
+    await agent
+      .post('/api/settings/secrets/reveal')
+      .set('x-csrf-token', session)
+      .send({ field: 'whatsappToken', password })
+      .expect(429);
+
+    const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
+    const rows = await audits.find({ action: { $in: ['secret.reveal', 'secret.reveal_denied'] } }).lean();
+    const dumped = JSON.stringify(rows);
+    expect(dumped).toContain('whatsappToken');
+    expect(dumped).not.toContain(accessToken);
+    expect(dumped).not.toContain(appSecret);
+    expect(dumped).not.toContain(geminiKey);
+    expect(dumped).not.toContain(password);
   });
 
   it('rejects a bad login with the same message', async () => {

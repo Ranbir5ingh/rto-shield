@@ -62,7 +62,7 @@ export class WhatsAppService {
 
   async save(
     user: UserDocument,
-    input: { accessToken: string; phoneNumberId: string; wabaId: string; appSecret?: string },
+    input: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string },
   ) {
     if (user.role === 'staff') throw new BadRequestException('Only the shop owner can change connections');
     const phoneNumberId = input.phoneNumberId.trim();
@@ -70,15 +70,17 @@ export class WhatsAppService {
     if (!/^\d{6,30}$/.test(phoneNumberId) || !/^\d{6,30}$/.test(wabaId)) {
       throw new BadRequestException('Phone Number ID and WABA ID should be numeric');
     }
-    const token = input.accessToken.trim();
-    if (token.length < 20) throw new BadRequestException('Paste the permanent access token');
+    const token = input.accessToken?.trim() || '';
+    const existing = user.whatsapp;
+    if (!token && !existing?.tokenEnvelope) throw new BadRequestException('Paste the permanent access token');
+    const appSecret = input.appSecret?.trim() || '';
     const link: WhatsAppLink = {
-      tokenEnvelope: this.vault.seal(token),
-      tokenLast4: this.vault.mask(token),
+      tokenEnvelope: token ? this.vault.seal(token) : existing!.tokenEnvelope,
+      tokenLast4: token ? this.vault.mask(token) : existing!.tokenLast4,
       phoneNumberId,
       wabaId,
-      appSecretEnvelope: input.appSecret?.trim() ? this.vault.seal(input.appSecret.trim()) : user.whatsapp?.appSecretEnvelope || null,
-      appSecretLast4: input.appSecret?.trim() ? this.vault.mask(input.appSecret.trim()) : user.whatsapp?.appSecretLast4 || '',
+      appSecretEnvelope: appSecret ? this.vault.seal(appSecret) : existing?.appSecretEnvelope || null,
+      appSecretLast4: appSecret ? this.vault.mask(appSecret) : existing?.appSecretLast4 || '',
       templateName: 'order_confirmation',
       templateStatus: user.whatsapp?.templateStatus || 'missing',
       templateLanguage: user.messageLanguage,

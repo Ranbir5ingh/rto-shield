@@ -4,13 +4,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthFrame } from '@/components/AuthFrame';
-import { Button, Field, Notice, inputClass } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, Field, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
+  const toast = useToast();
   const [form, setForm] = useState({ name: '', shopName: '', email: '', password: '' });
-  const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [pending, setPending] = useState(false);
 
   function set(key: keyof typeof form, value: string) {
@@ -19,19 +22,17 @@ export default function SignupPage() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const problem = formProblem(form.email, form.password);
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    const emailProblem = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? '' : 'Enter a valid email, like asha@shop.in.';
+    const passwordProblem = form.password.length >= 8 ? '' : 'Use at least 8 characters.';
+    setEmailError(emailProblem);
+    setPasswordError(passwordProblem);
+    if (emailProblem || passwordProblem) return;
     setPending(true);
-    setError('');
     try {
       await api('/auth/signup', { method: 'POST', body: JSON.stringify(form) });
       router.push('/app/start');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create the account');
-    } finally {
+      toast.error(err instanceof ApiError ? err.message : 'Could not create the account');
       setPending(false);
     }
   }
@@ -45,13 +46,12 @@ export default function SignupPage() {
         <Field label="Shop name">
           <input className={inputClass} value={form.shopName} onChange={(event) => set('shopName', event.target.value)} required />
         </Field>
-        <Field label="Email">
+        <Field label="Email" error={emailError}>
           <input className={inputClass} type="email" autoComplete="email" value={form.email} onChange={(event) => set('email', event.target.value)} required />
         </Field>
-        <Field label="Password (8+)">
+        <Field label="Password (8+)" error={passwordError}>
           <input className={inputClass} type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => set('password', event.target.value)} required />
         </Field>
-        {error ? <Notice>{error}</Notice> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Creating…' : 'Create account'}
         </Button>
@@ -64,10 +64,4 @@ export default function SignupPage() {
       </p>
     </AuthFrame>
   );
-}
-
-function formProblem(email: string, password: string) {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email, like asha@shop.in.';
-  if (password.length < 8) return 'Use at least 8 characters.';
-  return '';
 }

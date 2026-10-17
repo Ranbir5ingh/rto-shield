@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
-import { Button, Dropdown, Field, Notice, RiskBadge, Skeleton, inputClass } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, Dropdown, Field, RiskBadge, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderSummary } from '@/lib/types';
@@ -24,9 +25,8 @@ const empty = {
 
 export default function OrdersPage() {
   const [form, setForm] = useState(empty);
+  const toast = useToast();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
   const [phase, setPhase] = useState<'idle' | 'fast' | 'upgrade' | 'done'>('idle');
   const [ready, setReady] = useState(false);
 
@@ -37,9 +37,9 @@ export default function OrdersPage() {
 
   useEffect(() => {
     load()
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load orders'))
+      .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Could not load orders'))
       .finally(() => setReady(true));
-  }, []);
+  }, [toast]);
 
   function set<K extends keyof typeof empty>(key: K, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -47,7 +47,6 @@ export default function OrdersPage() {
 
   async function createOrder(event: React.FormEvent) {
     event.preventDefault();
-    setError('');
     try {
       await api('/orders/manual', {
         method: 'POST',
@@ -59,22 +58,21 @@ export default function OrdersPage() {
         }),
       });
       setForm(empty);
-      setInfo('Order added. Score when the batch is ready.');
+      toast.success('Order added. Score when the batch is ready.');
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not add the order');
+      toast.error(err instanceof ApiError ? err.message : 'Could not add the order');
     }
   }
 
   async function score() {
     setPhase('fast');
-    setError('');
-    setInfo('Scoring a fast pass. The full model follows.');
+    toast.info('Scoring a fast pass. The full model follows.');
     try {
       const result = await api<{ scored: number; modelLabel: string; warnings: string[]; upgrading?: boolean }>('/orders/score', {
         method: 'POST',
       });
-      setInfo(`Fast scores are in for ${result.scored} orders. ${result.modelLabel || ''}`.trim());
+      toast.success(`Fast scores are in for ${result.scored} orders. ${result.modelLabel || ''}`.trim());
       await load();
       if (!result.upgrading) {
         setPhase('done');
@@ -87,15 +85,15 @@ export default function OrdersPage() {
         const status = await api<{ upgrading: boolean; model: { modelLabel?: string; model?: string } | null }>('/orders/score-status');
         if (!status.upgrading) {
           setPhase('done');
-          setInfo(`Full model is in. ${status.model?.modelLabel || ''}`.trim());
+          toast.success(`Full model is in. ${status.model?.modelLabel || ''}`.trim());
           await load();
           return;
         }
       }
       setPhase('done');
-      setInfo('Fast scores are ready. The full model is still catching up.');
+      toast.info('Fast scores are ready. The full model is still catching up.');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Scoring failed');
+      toast.error(err instanceof ApiError ? err.message : 'Scoring failed');
       setPhase('idle');
     }
   }
@@ -116,8 +114,6 @@ export default function OrdersPage() {
           <div className={`h-full bg-hl ${phase === 'fast' ? 'w-1/3' : 'w-2/3'}`} />
         </div>
       ) : null}
-      {info ? <Notice tone="good">{info}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
       <form onSubmit={createOrder} className="panel grid gap-3 p-5 shadow-card md:grid-cols-2">
         <Field label="Buyer name">
           <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />

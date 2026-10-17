@@ -88,11 +88,14 @@ export const shopifySettingsSchema = z.object({
     .optional(),
 });
 
+const optionalSecret = (min: number, max: number) =>
+  z.union([z.literal(''), z.string().trim().min(min).max(max)]).optional();
+
 export const whatsappSaveSchema = z.object({
-  accessToken: z.string().trim().min(20).max(4_000),
+  accessToken: optionalSecret(20, 4_000),
   phoneNumberId: z.string().trim().regex(/^\d{6,30}$/),
   wabaId: z.string().trim().regex(/^\d{6,30}$/),
-  appSecret: z.string().trim().min(8).max(200).optional(),
+  appSecret: optionalSecret(8, 200),
 });
 
 export const whatsappTestSchema = z.object({
@@ -104,7 +107,12 @@ export const whatsappSendSchema = z.object({
 });
 
 export const geminiKeySchema = z.object({
-  apiKey: z.string().trim().min(20).max(400),
+  apiKey: z.union([z.literal(''), z.string().trim().min(20).max(400)]).optional(),
+});
+
+export const secretRevealSchema = z.object({
+  field: z.enum(['whatsappToken', 'whatsappAppSecret', 'geminiKey']),
+  password: z.string().min(1).max(72),
 });
 
 export const listQuerySchema = z.object({

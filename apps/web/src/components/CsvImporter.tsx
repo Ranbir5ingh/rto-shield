@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { FileUp } from 'lucide-react';
-import { Button, Dropdown, Field, Notice } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, Dropdown, Field } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import type { ColumnMapping } from '@/lib/types';
 
@@ -37,19 +38,18 @@ export function CsvImporter({
   onImported,
 }: {
   mode: 'history' | 'pending';
-  onImported: (result: { inserted: number; skipped: number; errors: string[] }) => void;
+  onImported?: (result: { inserted: number; skipped: number; errors: string[] }) => void;
 }) {
+  const toast = useToast();
   const [csv, setCsv] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
-  const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [fileName, setFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(file: File) {
-    setError('');
     setFileName(file.name);
     const text = await file.text();
     setCsv(text);
@@ -58,14 +58,13 @@ export function CsvImporter({
       setPreview(body);
       setMapping(body.suggestedMapping);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not read that file');
+      toast.error(err instanceof ApiError ? err.message : 'Could not read that file');
     }
   }
 
   async function commit() {
     if (!mapping) return;
     setPending(true);
-    setError('');
     try {
       const result = await api<{ inserted: number; skipped: number; errors: string[] }>('/orders/import', {
         method: 'POST',
@@ -76,9 +75,11 @@ export function CsvImporter({
           source: preview?.preset === 'unknown' ? 'generic' : preview?.preset,
         }),
       });
-      onImported(result);
+      onImported?.(result);
+      const problems = result.errors.filter(Boolean).slice(0, 3).join(' ');
+      toast.success(`Imported ${result.inserted} rows. Skipped ${result.skipped}.${problems ? ` ${problems}` : ''}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Import failed');
+      toast.error(err instanceof ApiError ? err.message : 'Import failed');
     } finally {
       setPending(false);
     }
@@ -159,7 +160,6 @@ export function CsvImporter({
           </div>
         </div>
       ) : null}
-      {error ? <Notice>{error}</Notice> : null}
     </div>
   );
 }

@@ -57,7 +57,7 @@ export class WhatsAppController {
   save(
     @CurrentUser() user: UserDocument,
     @Body(new ZodValidationPipe(whatsappSaveSchema))
-    body: { accessToken: string; phoneNumberId: string; wabaId: string; appSecret?: string },
+    body: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string },
   ) {
     return this.whatsapp.save(user, body);
   }

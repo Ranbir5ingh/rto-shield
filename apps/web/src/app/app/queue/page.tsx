@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Button, CopyButton, Notice, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, CopyButton, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { OrderDetail, PublicUser } from '@/lib/types';
 
 export default function QueuePage() {
+  const toast = useToast();
   const [orders, setOrders] = useState<OrderDetail[]>([]);
   const [language, setLanguage] = useState<PublicUser['messageLanguage']>('hinglish');
-  const [error, setError] = useState('');
   const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
   const [voiceId, setVoiceId] = useState('');
@@ -32,9 +33,9 @@ export default function QueuePage() {
 
   useEffect(() => {
     load()
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not load the queue'))
+      .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Could not load the queue'))
       .finally(() => setReady(true));
-  }, []);
+  }, [toast]);
 
   function textFor(order: OrderDetail) {
     if (!order.messages) return '';
@@ -52,33 +53,31 @@ export default function QueuePage() {
   async function send(ids: string[]) {
     if (!ids.length) return;
     setSending(true);
-    setError('');
     try {
       const body = await api<{ sent: string[] }>('/whatsapp/send', { method: 'POST', body: JSON.stringify({ ids }) });
       const sent = new Set(body.sent);
       setOrders((current) => current.map((order) => (sent.has(order.id) ? { ...order, whatsappStatus: 'sent' } : order)));
       setPicked({});
+      toast.success('WhatsApp sent.');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'WhatsApp did not send');
+      toast.error(err instanceof ApiError ? err.message : 'WhatsApp did not send');
     } finally {
       setSending(false);
     }
   }
 
   async function outcome(id: string, value: 'confirmed' | 'cancelled' | 'no_response') {
-    setError('');
     const previous = orders;
     setOrders((current) => current.filter((order) => order.id !== id));
     try {
       await api(`/orders/${id}/outcome`, { method: 'PATCH', body: JSON.stringify({ outcome: value }) });
     } catch (err) {
       setOrders(previous);
-      setError(err instanceof ApiError ? err.message : 'Could not save the outcome');
+      toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
     }
   }
 
   async function voice(order: OrderDetail) {
-    setError('');
     setVoiceId(order.id);
     setVoiceState('playing');
     try {
@@ -92,13 +91,13 @@ export default function QueuePage() {
         setVoiceState('played');
       } else if (result.notice) {
         setVoiceState('');
-        setError(`${result.notice} Script: ${result.script}`);
+        toast.info(result.notice);
       } else {
         setVoiceState('played');
       }
     } catch (err) {
       setVoiceState('');
-      setError(err instanceof ApiError ? err.message : 'Voice failed');
+      toast.error(err instanceof ApiError ? err.message : 'Voice failed');
     }
   }
 
@@ -145,7 +144,6 @@ export default function QueuePage() {
           </Button>
         ) : null}
       </div>
-      {error ? <Notice>{error}</Notice> : null}
       {!ready ? <Skeleton className="h-40" /> : null}
       {ready && !orders.length ? <p className="text-sm text-ink/60">No medium or high risk orders. Score a batch, or ship the low-risk ones.</p> : null}
       <div className="space-y-4">

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SecretField } from '@/components/SecretField';
+import { useToast } from '@/components/Toaster';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
@@ -37,15 +39,19 @@ export function Connections() {
   const [shopify, setShopify] = useState<ShopifyStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [gemini, setGemini] = useState<GeminiStatus | null>(null);
+  const toast = useToast();
   const [shop, setShop] = useState('');
-  const [token, setToken] = useState('');
+  const [tokenDraft, setTokenDraft] = useState<string | null>(null);
+  const [secretDraft, setSecretDraft] = useState<string | null>(null);
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [wabaId, setWabaId] = useState('');
-  const [appSecret, setAppSecret] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [wabaError, setWabaError] = useState('');
+  const [tokenError, setTokenError] = useState('');
   const [testTo, setTestTo] = useState('');
-  const [geminiKey, setGeminiKey] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [geminiDraft, setGeminiDraft] = useState<string | null>(null);
+  const [geminiError, setGeminiError] = useState('');
+  const [secretEpoch, setSecretEpoch] = useState(0);
 
   async function load() {
     const [shopBody, waBody, gemBody] = await Promise.all([
@@ -64,6 +70,8 @@ export function Connections() {
       }
     }
     setWhatsapp(whatsappStatus);
+    if (whatsappStatus.phoneNumberId) setPhoneNumberId(whatsappStatus.phoneNumberId);
+    if (whatsappStatus.wabaId) setWabaId(whatsappStatus.wabaId);
   }
 
   useEffect(() => {
@@ -87,19 +95,15 @@ export function Connections() {
   }, [shopify]);
 
   async function run(action: () => Promise<void>) {
-    setError('');
-    setMessage('');
     try {
       await action();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save that connection');
+      toast.error(err instanceof ApiError ? err.message : 'Could not save that connection');
     }
   }
 
   return (
     <div className="space-y-4">
-      {message ? <Notice tone="good">{message}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
       <section className="panel space-y-3 p-5 shadow-card">
         <h2 className="font-display text-2xl">Shopify</h2>
         {shopify?.connected ? (
@@ -143,7 +147,7 @@ export function Connections() {
                   }),
                 });
                 setShopify(body);
-                setMessage('Shopify settings saved.');
+                toast.success('Shopify settings saved.');
               });
             }}
           >
@@ -166,7 +170,7 @@ export function Connections() {
                 onClick={() =>
                   void run(async () => {
                     setShopify(await api<ShopifyStatus>('/shopify/resync', { method: 'POST' }));
-                    setMessage('Resync started.');
+                    toast.info('Resync started.');
                   })
                 }
               >
@@ -179,42 +183,57 @@ export function Connections() {
 
       <section className="panel space-y-3 p-5 shadow-card">
         <h2 className="font-display text-2xl">WhatsApp</h2>
-        <p className="text-sm leading-6 text-ink/70">
-          Your own Cloud API number. Templates only, until the buyer replies. Last 4 of the token: {whatsapp?.tokenLast4 || 'none'}.
-        </p>
+        <p className="text-sm leading-6 text-ink/70">Your own Cloud API number. Templates only, until the buyer replies.</p>
         <form
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
+            const phoneOk = /^\d{6,30}$/.test(phoneNumberId.trim());
+            const wabaOk = /^\d{6,30}$/.test(wabaId.trim());
+            setPhoneError(phoneOk ? '' : 'Phone Number ID should be numeric.');
+            setWabaError(wabaOk ? '' : 'WABA ID should be numeric.');
+            const tokenMissing = !whatsapp?.tokenLast4 && !(tokenDraft && tokenDraft.trim().length >= 20);
+            setTokenError(tokenMissing ? 'Paste the permanent access token.' : '');
+            if (!phoneOk || !wabaOk || tokenMissing) return;
             void run(async () => {
-              const body = await api<WhatsAppStatus>('/whatsapp', {
-                method: 'POST',
-                body: JSON.stringify({
-                  accessToken: token,
-                  phoneNumberId,
-                  wabaId,
-                  appSecret: appSecret || undefined,
-                }),
-              });
+              const payload: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string } = {
+                phoneNumberId: phoneNumberId.trim(),
+                wabaId: wabaId.trim(),
+              };
+              if (tokenDraft?.trim()) payload.accessToken = tokenDraft.trim();
+              if (secretDraft?.trim()) payload.appSecret = secretDraft.trim();
+              const body = await api<WhatsAppStatus>('/whatsapp', { method: 'POST', body: JSON.stringify(payload) });
               setWhatsapp(body);
-              setToken('');
-              setAppSecret('');
-              setMessage('WhatsApp saved. The token is stored sealed.');
+              setTokenDraft(null);
+              setSecretDraft(null);
+              setSecretEpoch((current) => current + 1);
+              toast.success('WhatsApp saved.');
             });
           }}
         >
-          <Field label="Permanent access token">
-            <input className={inputClass} type="password" value={token} onChange={(event) => setToken(event.target.value)} autoComplete="off" />
-          </Field>
-          <Field label="Phone Number ID">
+          <SecretField
+            key={`whatsapp-token-${secretEpoch}`}
+            label="Permanent access token"
+            field="whatsappToken"
+            last4={whatsapp?.tokenLast4 || ''}
+            draft={tokenDraft}
+            onDraftChange={setTokenDraft}
+            error={tokenError}
+          />
+          <Field label="Phone Number ID" error={phoneError}>
             <input className={inputClass} value={phoneNumberId} onChange={(event) => setPhoneNumberId(event.target.value)} inputMode="numeric" />
           </Field>
-          <Field label="WABA ID">
+          <Field label="WABA ID" error={wabaError}>
             <input className={inputClass} value={wabaId} onChange={(event) => setWabaId(event.target.value)} inputMode="numeric" />
           </Field>
-          <Field label="App secret, optional but required for replies">
-            <input className={inputClass} type="password" value={appSecret} onChange={(event) => setAppSecret(event.target.value)} autoComplete="off" />
-          </Field>
+          <SecretField
+            key={`whatsapp-secret-${secretEpoch}`}
+            label="App secret, optional but required for replies"
+            field="whatsappAppSecret"
+            last4={whatsapp?.appSecretLast4 || ''}
+            draft={secretDraft}
+            onDraftChange={setSecretDraft}
+          />
           <Button type="submit">Save WhatsApp</Button>
         </form>
         {whatsapp ? (
@@ -229,7 +248,7 @@ export function Connections() {
                 onClick={() =>
                   void run(async () => {
                     setWhatsapp(await api<WhatsAppStatus>('/whatsapp/template', { method: 'POST' }));
-                    setMessage('Template submitted. Approval can take a few minutes.');
+                    toast.success('Template submitted. Approval can take a few minutes.');
                   })
                 }
               >
@@ -241,7 +260,7 @@ export function Connections() {
                 onClick={() =>
                   void run(async () => {
                     setWhatsapp(await api<WhatsAppStatus>('/whatsapp/template'));
-                    setMessage('Template status refreshed.');
+                    toast.info('Template status refreshed.');
                   })
                 }
               >
@@ -254,7 +273,7 @@ export function Connections() {
                 event.preventDefault();
                 void run(async () => {
                   await api('/whatsapp/test', { method: 'POST', body: JSON.stringify({ to: testTo }) });
-                  setMessage('Test sent with the hello_world template.');
+                  toast.success('Test sent with the hello_world template.');
                 });
               }}
             >
@@ -270,24 +289,41 @@ export function Connections() {
       <section className="panel space-y-3 p-5 shadow-card">
         <h2 className="font-display text-2xl">Gemini</h2>
         <p className="text-sm leading-6 text-ink/70">
-          Notes for this shop use your key. Last 4: {gemini?.last4 || 'none'}.
+          Notes for this shop use your key.
           {gemini?.demoFallback ? ' The demo shop can use the platform key.' : ''}
         </p>
         <form
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
+            const next = geminiDraft?.trim() || '';
+            if (!gemini?.last4 && next.length < 20) {
+              setGeminiError('Paste the AI Studio key.');
+              return;
+            }
+            setGeminiError('');
+            if (!next) {
+              toast.info('The saved key stays in place.');
+              return;
+            }
             void run(async () => {
-              const body = await api<GeminiStatus>('/gemini', { method: 'POST', body: JSON.stringify({ apiKey: geminiKey }) });
+              const body = await api<GeminiStatus>('/gemini', { method: 'POST', body: JSON.stringify({ apiKey: next }) });
               setGemini(body);
-              setGeminiKey('');
-              setMessage('Gemini key checked and sealed.');
+              setGeminiDraft(null);
+              setSecretEpoch((current) => current + 1);
+              toast.success('Gemini key checked and sealed.');
             });
           }}
         >
-          <Field label="AI Studio key">
-            <input className={inputClass} type="password" value={geminiKey} onChange={(event) => setGeminiKey(event.target.value)} autoComplete="off" />
-          </Field>
+          <SecretField
+            key={`gemini-${secretEpoch}`}
+            label="AI Studio key"
+            field="geminiKey"
+            last4={gemini?.last4 || ''}
+            draft={geminiDraft}
+            onDraftChange={setGeminiDraft}
+            error={geminiError}
+          />
           <Button type="submit">Test and save</Button>
         </form>
       </section>

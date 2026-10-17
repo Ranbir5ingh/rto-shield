@@ -2,22 +2,21 @@
 
 import { useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
-import { Button, Notice } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 export default function HistoryPage() {
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const toast = useToast();
   const [pending, setPending] = useState(false);
 
   async function sample() {
     setPending(true);
-    setError('');
     try {
       const result = await api<{ history: number; pending: number; notice: string }>('/orders/sample', { method: 'POST' });
-      setMessage(`Loaded ${result.history} historical orders and ${result.pending} pending ones. ${result.notice}`);
+      toast.success(`Loaded ${result.history} historical orders and ${result.pending} pending ones. ${result.notice}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not build sample data');
+      toast.error(err instanceof ApiError ? err.message : 'Could not build sample data');
     } finally {
       setPending(false);
     }
@@ -39,14 +38,7 @@ export default function HistoryPage() {
           Download generic template
         </a>
       </div>
-      {message ? <Notice tone="good">{message}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
-      <CsvImporter
-        mode="history"
-        onImported={(result) =>
-          setMessage(`Imported ${result.inserted} history rows. Skipped ${result.skipped}. ${result.errors.join(' ')}`)
-        }
-      />
+      <CsvImporter mode="history" />
     </div>
   );
 }

@@ -5,30 +5,29 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { AuthFrame } from '@/components/AuthFrame';
 import { DemoButton } from '@/components/DemoButton';
-import { Button, Field, Notice, inputClass } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, Field, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import type { PublicUser } from '@/lib/types';
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Enter a valid email, like asha@shop.in.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Use at least 8 characters.');
-      return;
-    }
+    const emailProblem = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? '' : 'Enter a valid email, like asha@shop.in.';
+    const passwordProblem = password.length >= 8 ? '' : 'Use at least 8 characters.';
+    setEmailError(emailProblem);
+    setPasswordError(passwordProblem);
+    if (emailProblem || passwordProblem) return;
     setPending(true);
-    setError('');
     try {
       await api<{ user: PublicUser }>('/auth/login', {
         method: 'POST',
@@ -36,8 +35,7 @@ function LoginForm() {
       });
       router.push(params?.get('next') || '/app');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not log in');
-    } finally {
+      toast.error(err instanceof ApiError ? err.message : 'Could not log in');
       setPending(false);
     }
   }
@@ -45,13 +43,12 @@ function LoginForm() {
   return (
     <AuthFrame title="Log in" lede="Your shop, scores, and confirmation queue.">
       <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <Field label="Email">
+        <Field label="Email" error={emailError}>
           <input className={inputClass} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </Field>
-        <Field label="Password">
+        <Field label="Password" error={passwordError}>
           <input className={inputClass} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </Field>
-        {error ? <Notice>{error}</Notice> : null}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? 'Checking…' : 'Log in'}
         </Button>

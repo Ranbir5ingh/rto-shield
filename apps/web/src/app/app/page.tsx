@@ -5,15 +5,17 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import gsap from 'gsap';
 import { Distribution, TrendChart } from '@/components/Charts';
+import { useToast } from '@/components/Toaster';
 import { Eyebrow, Flag, Skeleton, Stat } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import type { DashboardData, LiveWireOrder } from '@/lib/types';
 
 export default function DashboardPage() {
+  const toast = useToast();
   const [data, setData] = useState<DashboardData | null>(null);
   const [wire, setWire] = useState<LiveWireOrder[] | null>(null);
-  const [error, setError] = useState('');
+  const [failed, setFailed] = useState(false);
   const animated = useRef(false);
 
   // Sticker pop-in for the stat cards once data lands.
@@ -48,7 +50,10 @@ export default function DashboardPage() {
         const waiting = Boolean(body.upgrading) || body.model?.model === 'rules-prior';
         if (waiting && tries < 24) timer.id = window.setTimeout(() => void pull(true), 2500);
       } catch (err) {
-        if (!quiet && !stop) setError(err instanceof ApiError ? err.message : 'Could not load the dashboard');
+        if (!quiet && !stop) {
+          setFailed(true);
+          toast.error(err instanceof ApiError ? err.message : 'Could not load the dashboard');
+        }
       }
     }
     void pull();
@@ -56,9 +61,9 @@ export default function DashboardPage() {
       stop = true;
       window.clearTimeout(timer.id);
     };
-  }, []);
+  }, [toast]);
 
-  if (error) return <p className="text-risk font-bold">{error}</p>;
+  if (failed && !data) return <p className="text-sm text-ink/70">The shop did not load.</p>;
   if (!data) {
     return (
       <div className="space-y-8" aria-busy="true" aria-label="Loading the shop">

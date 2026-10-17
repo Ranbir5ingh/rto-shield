@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Connections } from '@/components/Connections';
-import { Button, Dropdown, Field, Notice, inputClass } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, Dropdown, Field, inputClass } from '@/components/ui';
 import { ApiError, api, downloadExport } from '@/lib/api';
 import type { Integrations, PublicUser } from '@/lib/types';
 
@@ -11,9 +12,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [status, setStatus] = useState<Integrations | null>(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const toast = useToast();
   const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     api<{ user: PublicUser }>('/auth/me').then((body) => setUser(body.user)).catch(() => undefined);
@@ -23,7 +24,6 @@ export default function SettingsPage() {
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!user) return;
-    setError('');
     try {
       const body = await api<{ user: PublicUser }>('/account/settings', {
         method: 'PATCH',
@@ -35,29 +35,32 @@ export default function SettingsPage() {
         }),
       });
       setUser(body.user);
-      setMessage('Saved.');
+      toast.success('Saved.');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save');
+      toast.error(err instanceof ApiError ? err.message : 'Could not save');
     }
   }
 
   async function wipe() {
-    setError('');
     try {
       await api('/account/data', { method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE' }) });
-      setMessage('Orders deleted. The login remains.');
+      toast.success('Orders deleted. The login remains.');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not delete data');
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete data');
     }
   }
 
   async function removeAccount() {
-    setError('');
+    if (!password) {
+      setPasswordError('Enter your password.');
+      return;
+    }
+    setPasswordError('');
     try {
       await api('/account', { method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE', password }) });
       router.replace('/');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not delete the account');
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete the account');
     }
   }
 
@@ -66,8 +69,6 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="font-display font-medium text-display-2">Settings</h1>
-      {message ? <Notice tone="good">{message}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
       <form onSubmit={save} className="panel space-y-3 p-5 shadow-card">
         <Field label="Your name">
           <input className={inputClass} value={user.name} onChange={(event) => setUser({ ...user, name: event.target.value })} />
@@ -115,7 +116,7 @@ export default function SettingsPage() {
         </dl>
       </section> : null}
       <div className="flex flex-wrap gap-3">
-        <Button type="button" tone="ghost" onClick={() => downloadExport().catch(() => setError('Export failed'))}>
+        <Button type="button" tone="ghost" onClick={() => downloadExport().catch(() => toast.error('Export failed'))}>
           Export my data
         </Button>
         <Button type="button" tone="danger" onClick={wipe}>
@@ -124,7 +125,7 @@ export default function SettingsPage() {
       </div>
       <section className="space-y-3 rounded-2xl border border-danger/30 p-4">
         <h2 className="font-semibold">Delete account</h2>
-        <Field label="Password">
+        <Field label="Password" error={passwordError}>
           <input className={inputClass} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
         </Field>
         <Button type="button" tone="danger" onClick={removeAccount}>

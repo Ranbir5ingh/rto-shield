@@ -83,11 +83,12 @@ export function Stat({ label, value, hint }: { label: string; value: string; hin
   );
 }
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+export function Field({ label, children, hint, error }: { label: string; children: ReactNode; hint?: string; error?: string }) {
   return (
     <label className="block">
       <span className="eyebrow">{label}</span>
       <div className="mt-2.5">{children}</div>
+      {error ? <span className="mt-2 block font-mono text-xs leading-5 text-risk" role="alert">{error}</span> : null}
       {hint ? <span className="mt-2 block font-mono text-xs leading-5 text-inksoft">{hint}</span> : null}
     </label>
   );

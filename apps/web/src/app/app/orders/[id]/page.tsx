@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button, CopyButton, Notice, RiskBadge, Skeleton } from '@/components/ui';
+import { useToast } from '@/components/Toaster';
+import { Button, CopyButton, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
 import type { OrderDetail } from '@/lib/types';
@@ -11,8 +12,9 @@ import type { OrderDetail } from '@/lib/types';
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id || '';
+  const toast = useToast();
   const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [error, setError] = useState('');
+  const [missing, setMissing] = useState(false);
   const [note, setNote] = useState('');
   const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
   const [saving, setSaving] = useState('');
@@ -21,12 +23,14 @@ export default function OrderDetailPage() {
     if (!id) return;
     api<OrderDetail>(`/orders/${id}`)
       .then(setOrder)
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Could not open the order'));
-  }, [id]);
+      .catch((err: unknown) => {
+        setMissing(true);
+        toast.error(err instanceof ApiError ? err.message : 'Could not open the order');
+      });
+  }, [id, toast]);
 
   async function voice() {
     if (!order) return;
-    setError('');
     setVoiceState('playing');
     try {
       const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
@@ -44,7 +48,7 @@ export default function OrderDetailPage() {
       }
     } catch (err) {
       setVoiceState('idle');
-      setError(err instanceof ApiError ? err.message : 'Voice failed');
+      toast.error(err instanceof ApiError ? err.message : 'Voice failed');
     }
   }
 
@@ -52,7 +56,6 @@ export default function OrderDetailPage() {
     if (!order || order.stage === 'closed' || saving) return;
     const previous = order;
     setSaving(value);
-    setError('');
     setOrder({ ...order, stage: 'closed', outcome: value });
     try {
       const next = await api<OrderDetail>(`/orders/${order.id}/outcome`, {
@@ -62,7 +65,7 @@ export default function OrderDetailPage() {
       setOrder(next);
     } catch (err) {
       setOrder(previous);
-      setError(err instanceof ApiError ? err.message : 'Could not save the outcome');
+      toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
     } finally {
       setSaving('');
     }
@@ -76,7 +79,7 @@ export default function OrderDetailPage() {
     setNote([body.locality || body.region, body.notice, body.fairness].filter(Boolean).join(' '));
   }
 
-  if (error && !order) return <Notice>{error}</Notice>;
+  if (missing && !order) return <p className="text-sm text-ink/70">This order did not open.</p>;
   if (!order) {
     return (
       <div className="mx-auto max-w-3xl space-y-4" aria-busy="true" aria-label="Opening the order">
@@ -108,7 +111,6 @@ export default function OrderDetailPage() {
           <span className="font-display text-3xl tabular-nums">{order.riskScore ?? '—'}</span>
         </div>
       </div>
-      {error ? <Notice>{error}</Notice> : null}
       <article className="panel p-5">
         <h2 className="font-semibold">Top factors</h2>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">

@@ -19,7 +19,7 @@ export class GeminiController {
   @Post()
   save(
     @CurrentUser() user: UserDocument,
-    @Body(new ZodValidationPipe(geminiKeySchema)) body: { apiKey: string },
+    @Body(new ZodValidationPipe(geminiKeySchema)) body: { apiKey?: string },
   ) {
     return this.gemini.save(user, body.apiKey);
   }

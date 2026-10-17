@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { useToast } from '@/components/Toaster';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
@@ -19,8 +20,12 @@ function StartForm() {
   const [shop, setShop] = useState('');
   const [pending, setPending] = useState(false);
   const [samplePending, setSamplePending] = useState(false);
-  const [error, setError] = useState(params?.get('shopify') === 'error' ? 'Shopify did not finish the install. Start again from the shop domain.' : '');
+  const toast = useToast();
   const [link, setLink] = useState<ShopifyStatus | null>(null);
+
+  useEffect(() => {
+    if (params?.get('shopify') === 'error') toast.error('Shopify did not finish the install. Start again from the shop domain.');
+  }, [params, toast]);
 
   useEffect(() => {
     let stop = false;
@@ -45,25 +50,23 @@ function StartForm() {
   async function connect(event: React.FormEvent) {
     event.preventDefault();
     setPending(true);
-    setError('');
     try {
       const body = await api<{ url: string }>('/shopify/install', { method: 'POST', body: JSON.stringify({ shop }) });
       window.location.assign(body.url);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not start Shopify');
+      toast.error(err instanceof ApiError ? err.message : 'Could not start Shopify');
       setPending(false);
     }
   }
 
   async function sample() {
     setSamplePending(true);
-    setError('');
     try {
       await api('/orders/sample', { method: 'POST' });
       await api('/orders/score', { method: 'POST' });
       router.push('/app');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not prepare the sample shop');
+      toast.error(err instanceof ApiError ? err.message : 'Could not prepare the sample shop');
       setSamplePending(false);
     }
   }
@@ -77,7 +80,6 @@ function StartForm() {
       <p className="text-sm leading-7 text-ink/75">
         Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted.
       </p>
-      {error ? <Notice>{error}</Notice> : null}
       {link?.connected ? (
         <article className="panel p-5">
           <h2 className="font-display text-2xl">{link.demo ? 'Demo store' : link.shop}</h2>
