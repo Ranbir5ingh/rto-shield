@@ -26,6 +26,7 @@ export function OrderActions({
   tour,
   showCallButton,
   compact,
+  showHint = true,
   onPrimary,
   onOutcome,
   onPrepaid,
@@ -39,6 +40,7 @@ export function OrderActions({
   tour?: boolean;
   showCallButton?: boolean;
   compact?: boolean;
+  showHint?: boolean;
   onPrimary: () => void;
   onOutcome: (value: 'confirmed' | 'cancelled' | 'no_response') => void;
   onPrepaid: () => void;
@@ -80,7 +82,7 @@ export function OrderActions({
           ) : null}
         </div>
       </div>
-      {order.interventionWhy ? <p className="mt-2 max-w-80 font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em] text-inksoft">{order.interventionWhy}</p> : null}
+      {showHint && order.interventionWhy ? <p className="mt-2 max-w-80 font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em] text-inksoft">{order.interventionWhy}</p> : null}
     </div>
   );
 }

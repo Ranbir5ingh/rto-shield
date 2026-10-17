@@ -7,7 +7,7 @@ import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { actionCopy, OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
-import { Button, CopyButton, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
+import { Button, CopyButton, Flag, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import { invalidateShop, qk, useMe, useQueue, useWhatsapp } from '@/lib/queries';
@@ -300,18 +300,34 @@ function QueueScreen() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full flex-col px-4 sm:px-6 lg:px-8 xl:px-10" data-tour-ready="true">
-      {/* header */}
-      <div className="shrink-0 pb-4 pt-5 lg:pt-6" data-tour="risk-queue">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+      {/* header: title, filters and message picker share one line */}
+      <div className="shrink-0 pb-3 pt-4" data-tour="risk-queue">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1 basis-64">
             <p className="eyebrow text-inksoft">
               Needs a decision · {orders.length} waiting
             </p>
-            <h1 className="mt-2 font-display text-[1.7rem] font-black uppercase leading-none tracking-tight md:text-4xl">
+            <h1 className="mt-1 font-display text-2xl font-black uppercase leading-none tracking-tight md:text-[1.7rem]">
               Confirmation queue
             </h1>
           </div>
-          <label className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Risk band">
+            {(['all', 'High', 'Medium'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={band === value}
+                className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
+                  band === value ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
+                }`}
+                onClick={() => setBand(value)}
+              >
+                {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2.5 text-sm">
             <span className="eyebrow text-inksoft">Message</span>
             <Dropdown
               label="Message language"
@@ -324,22 +340,6 @@ function QueueScreen() {
               ]}
             />
           </label>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Risk band">
-          {(['all', 'High', 'Medium'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={band === value}
-              className={`border-2 border-ink px-3.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
-                band === value ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
-              }`}
-              onClick={() => setBand(value)}
-            >
-              {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
-            </button>
-          ))}
         </div>
         {pickedIds.length > 0 ? (
           <div className="mt-3 flex flex-wrap items-center gap-2.5 border-2 border-ink bg-lime px-4 py-2.5 shadow-sticker-sm">
@@ -355,7 +355,7 @@ function QueueScreen() {
       </div>
 
       {/* body: list + detail */}
-      <div className="grid min-h-0 flex-1 gap-5 pb-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-5 pb-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
         <div
           className="sticker-sm min-h-0 overflow-y-auto overscroll-contain"
           role="listbox"
@@ -394,7 +394,7 @@ function QueueScreen() {
                     openRow(order.id);
                   }
                 }}
-                className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
+                className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_minmax(0,1fr)_auto] items-center gap-3 border-b-2 border-ink/60 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
                   active ? 'bg-hl/60' : 'bg-white'
                 }`}
               >
@@ -407,18 +407,14 @@ function QueueScreen() {
                   className="h-4 w-4 accent-[#1B1712]"
                 />
                 <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
-                <div className="min-w-0">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
-                    <RiskBadge band={order.riskBand} />
+                <span className="truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
+                <Flag
+                  tone={order.riskBand === 'High' ? 'red' : order.riskBand === 'Medium' ? 'banana' : order.riskBand === 'Low' ? 'go' : 'ghost'}
+                >
+                  <span title={order.riskBand ?? 'Unscored'} aria-label={order.riskBand ?? 'Unscored'}>
+                    {(order.riskBand || '—')[0]}
                   </span>
-                  <span className="mt-0.5 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-inksoft">
-                    {order.externalOrderId} · {order.city} · {inr(order.orderValue)}
-                  </span>
-                  <span className="mt-0.5 block truncate font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink/60">
-                    → {actionCopy(order).label}
-                  </span>
-                </div>
+                </Flag>
               </div>
             );
           })}
@@ -479,7 +475,7 @@ function QueueDetail({
     <article className="sticker">
       {/* sticky action deck: the action never scrolls away */}
       <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3">
           <div className="min-w-0 flex-1 basis-44">
             <p className="eyebrow text-inksoft">Now reviewing</p>
             <p className="mt-1 truncate font-display text-lg font-black uppercase tracking-tight">
@@ -492,6 +488,7 @@ function QueueDetail({
             canSend={canSend}
             showCallButton
             compact
+            showHint={false}
             onPrimary={onPrimary}
             onOutcome={onOutcome}
             onPrepaid={onPrepaid}
@@ -521,17 +518,16 @@ function QueueDetail({
             </button>
           </div>
         </div>
-        <div className="border-t-2 border-ink px-6 py-3.5">
-          <div
-            className="h-3 border-2 border-ink bg-paper"
-            role="progressbar"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Queue cleared"
-          >
-            <div className="h-full bg-lime transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
+        <div
+          className="h-1.5 border-t-2 border-ink bg-paper"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Queue cleared"
+          title={progress > 0 ? `${progress}% cleared` : 'Clear orders to fill this bar'}
+        >
+          <div className="h-full bg-lime transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -579,6 +575,12 @@ function QueueDetail({
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>
         {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
+
+        {order.interventionWhy ? (
+          <p className="mt-8 border-t-2 border-dashed border-ink/25 pt-5 font-mono text-[11px] font-bold uppercase leading-6 tracking-[0.08em] text-inksoft">
+            {order.interventionWhy}
+          </p>
+        ) : null}
 
         {canSend ? (
           <label className="mt-8 flex items-center gap-2.5 border-t-2 border-dashed border-ink/25 pt-6 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">

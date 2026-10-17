@@ -339,7 +339,7 @@ export function Page({
   className?: string;
 }) {
   return (
-    <div className={`mx-auto w-full max-w-page px-4 sm:px-6 lg:px-8 ${className}`}>
+    <div className={`mx-auto w-full px-4 sm:px-6 lg:px-8 xl:px-10 ${className}`}>
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 py-6 lg:py-8">
         <div className="min-w-0">
           {eyebrow ? <p className="eyebrow text-inksoft">{eyebrow}</p> : null}
