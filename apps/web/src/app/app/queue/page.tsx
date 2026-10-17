@@ -355,7 +355,7 @@ function QueueScreen() {
       </div>
 
       {/* body: list + detail */}
-      <div className="grid min-h-0 flex-1 gap-4 pb-6 lg:grid-cols-[21rem_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 pb-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
         <div
           className="sticker-sm min-h-0 overflow-y-auto overscroll-contain"
           role="listbox"
@@ -479,39 +479,15 @@ function QueueDetail({
     <article className="sticker">
       {/* sticky action deck: the action never scrolls away */}
       <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
-          <div className="min-w-0 flex-1 basis-56">
-            <p className="eyebrow flex flex-wrap items-center gap-x-2.5 gap-y-1 text-inksoft">
-              <span>
-                Now reviewing · {pos} of {total}
-              </span>
-              <span className="inline-flex items-center gap-1" role="group" aria-label="Walk the queue">
-                <button
-                  type="button"
-                  onClick={onPrev}
-                  disabled={pos <= 1}
-                  aria-label="Previous order"
-                  className="grid h-6 w-6 place-items-center border-2 border-ink bg-white font-display text-sm font-black transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  onClick={onNext}
-                  disabled={pos >= total}
-                  aria-label="Next order"
-                  className="grid h-6 w-6 place-items-center border-2 border-ink bg-white font-display text-sm font-black transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
-                >
-                  ›
-                </button>
-              </span>
-            </p>
-            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-display text-[1.65rem] font-black uppercase leading-none tracking-tight">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
+          <div className="min-w-0 flex-1 basis-64">
+            <p className="eyebrow text-inksoft">Now reviewing</p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-display text-3xl font-black uppercase leading-none tracking-tight">
                 {order.buyerName}
               </span>
               <RiskBadge band={order.riskBand} />
-              <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">
+              <span className="font-display text-3xl font-black tabular-nums leading-none">
                 {order.riskScore ?? '—'}
               </span>
             </p>
@@ -527,64 +503,89 @@ function QueueDetail({
             onVoice={onVoice}
             onPin={onPin}
           />
+          <div className="flex items-center gap-2.5" role="group" aria-label="Walk the queue">
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={pos <= 1}
+              aria-label="Previous order"
+              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white font-display text-lg font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+            >
+              ‹
+            </button>
+            <span className="font-mono text-[11px] font-bold tracking-[0.08em]">{pos} OF {total}</span>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={pos >= total}
+              aria-label="Next order"
+              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white font-display text-lg font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+            >
+              ›
+            </button>
+          </div>
         </div>
-        <div
-          className="h-2 border-t-2 border-ink bg-paper"
-          role="progressbar"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Queue cleared"
-        >
-          <div className="h-full bg-lime transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="border-t-2 border-ink px-6 py-3.5">
+          <div
+            className="h-3 border-2 border-ink bg-paper"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Queue cleared"
+          >
+            <div className="h-full bg-lime transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
         </div>
       </div>
 
       <div className="p-6 sm:p-8">
-        <p className="text-sm leading-6 text-ink/70">
-          {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
-          <br />
-          {order.city} {order.pincode}
-        </p>
-
-        <div className="mt-7 border-t-2 border-dashed border-ink/20 pt-6">
-          <p className="eyebrow text-inksoft">Why flagged</p>
-          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Risk reasons" data-tour="risk-reasons">
-            {order.reasons.map((reason) => (
-              <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
-                {reason}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 max-w-xl text-[15px] leading-7 text-ink/75">{order.address}</p>
+        <div className="grid gap-x-10 gap-y-8 md:grid-cols-2">
+          <div className="border-t-2 border-dashed border-ink/25 pt-5">
+            <p className="eyebrow text-inksoft">Why flagged</p>
+            <ul className="mt-3.5 flex flex-wrap gap-1.5" aria-label="Risk reasons" data-tour="risk-reasons">
+              {order.reasons.map((reason) => (
+                <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
+                  {reason}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm leading-6 text-ink/70">
+              {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
+              <br />
+              {order.city} {order.pincode}
+            </p>
+            <p className="mt-3 text-[15px] leading-7 text-ink/75">{order.address}</p>
+          </div>
+          <div className="border-t-2 border-dashed border-ink/25 pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="eyebrow text-inksoft">Message draft</p>
+              {text ? <CopyButton text={text} /> : null}
+            </div>
+            <p className="mt-3.5 font-hindi text-[15px] leading-7">{text}</p>
+            {order.messages ? (
+              <p className="mt-3 text-[13px] leading-6 text-ink/60">
+                Prepaid nudge: {order.messages.prepaid_nudge}
+              </p>
+            ) : null}
+          </div>
         </div>
 
-        {calling ? <div className="mt-6"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
+        {calling ? <div className="mt-8"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
         {order.prepaid?.invoiceUrl ? (
-          <p className="mt-6 border-2 border-ink bg-lime/40 p-4 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+          <p className="mt-8 border-2 border-ink bg-lime/40 p-4 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
             Prepaid {order.prepaid.status} · <a className="underline" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
           </p>
         ) : null}
 
-        <div className="mt-7 border-t-2 border-dashed border-ink/20 pt-6">
-          <div className="flex items-center justify-between gap-3">
-            <p className="eyebrow text-inksoft">Message draft</p>
-            {text ? <CopyButton text={text} /> : null}
-          </div>
-          <p className="mt-3 max-w-xl font-hindi text-[15px] leading-7">{text}</p>
-          {order.messages ? (
-            <p className="mt-2 max-w-xl text-[13px] leading-6 text-ink/60">
-              Prepaid nudge: {order.messages.prepaid_nudge}
-            </p>
-          ) : null}
-        </div>
-        <div className="mt-5 max-w-xl">
+        <div className="mt-8 border-t-2 border-dashed border-ink/25 pt-6">
+          <p className="eyebrow mb-4 text-inksoft">Conversation</p>
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>
-        {note ? <p className="mt-4 max-w-xl text-sm leading-6 text-ink/70">{note}</p> : null}
+        {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
 
         {canSend ? (
-          <label className="mt-6 flex items-center gap-2.5 border-t-2 border-dashed border-ink/20 pt-5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
+          <label className="mt-8 flex items-center gap-2.5 border-t-2 border-dashed border-ink/25 pt-6 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
             <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} className="h-4 w-4 accent-[#1B1712]" />
             Select for bulk send
           </label>
