@@ -299,7 +299,7 @@ function QueueScreen() {
   const pickedIds = Object.entries(picked).filter(([, on]) => on).map(([id]) => id);
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-page flex-col px-4 sm:px-6 lg:px-8" data-tour-ready="true">
+    <div className="mx-auto flex h-full min-h-0 w-full flex-col px-4 sm:px-6 lg:px-8 xl:px-10" data-tour-ready="true">
       {/* header */}
       <div className="shrink-0 pb-4 pt-5 lg:pt-6" data-tour="risk-queue">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -355,7 +355,7 @@ function QueueScreen() {
       </div>
 
       {/* body: list + detail */}
-      <div className="grid min-h-0 flex-1 gap-4 pb-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-5 pb-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
         <div
           className="sticker-sm min-h-0 overflow-y-auto overscroll-contain"
           role="listbox"
@@ -394,7 +394,7 @@ function QueueScreen() {
                     openRow(order.id);
                   }
                 }}
-                className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-4 py-3 text-left transition last:border-b-0 hover:bg-hl/30 ${
+                className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
                   active ? 'bg-hl/60' : 'bg-white'
                 }`}
               >
@@ -480,9 +480,9 @@ function QueueDetail({
       {/* sticky action deck: the action never scrolls away */}
       <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-4">
-          <div className="min-w-0 flex-1 basis-48">
+          <div className="min-w-0 flex-1 basis-44">
             <p className="eyebrow text-inksoft">Now reviewing</p>
-            <p className="mt-1 truncate font-display text-xl font-black uppercase tracking-tight">
+            <p className="mt-1 truncate font-display text-lg font-black uppercase tracking-tight">
               {order.buyerName} <span className="mx-1 font-bold text-ink/30">·</span> {order.riskScore ?? '—'}
             </p>
           </div>
@@ -491,6 +491,7 @@ function QueueDetail({
             busy={busy}
             canSend={canSend}
             showCallButton
+            compact
             onPrimary={onPrimary}
             onOutcome={onOutcome}
             onPrepaid={onPrepaid}
