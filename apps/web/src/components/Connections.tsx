@@ -54,8 +54,16 @@ export function Connections() {
       api<GeminiStatus>('/gemini'),
     ]);
     setShopify(shopBody);
-    setWhatsapp(waBody);
     setGemini(gemBody);
+    let whatsappStatus = waBody;
+    if (waBody.configured) {
+      try {
+        whatsappStatus = await api<WhatsAppStatus>('/whatsapp/template');
+      } catch {
+        whatsappStatus = waBody;
+      }
+    }
+    setWhatsapp(whatsappStatus);
   }
 
   useEffect(() => {

@@ -9,6 +9,14 @@ import { AuditEvent } from '../database/audit.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { User, type UserDocument, type WhatsAppLink } from '../database/user.schema';
 import { ShopifyService } from '../shopify/shopify.service';
+import {
+  ORDER_CONFIRMATION_EN,
+  TEMPLATE_REJECTED,
+  expectedTemplate,
+  explainMetaTemplateError,
+  pickTemplateStatus,
+  type ListedTemplate,
+} from './whatsapp-templates';
 
 const GRAPH = process.env.META_GRAPH_VERSION || 'v23.0';
 
@@ -98,44 +106,35 @@ export class WhatsAppService {
     const link = this.requireLink(user);
     const secret = this.vault.open(link.tokenEnvelope);
     const templates = [
-      { name: 'order_confirmation', language: 'en', text: 'Hi {{1}}, please confirm cash on delivery order {{2}} for Rs {{3}}.' },
-      { name: 'order_confirmation', language: 'hi', text: 'नमस्ते {{1}}, कृपया ₹{{3}} का कैश ऑन डिलीवरी ऑर्डर {{2}} कन्फर्म करें।' },
-      { name: 'order_confirmation_hinglish', language: 'en', text: 'Namaste {{1}}, aapka COD order {{2}} of Rs {{3}} confirm karna hai.' },
+      { name: 'order_confirmation', language: 'en' as const, text: ORDER_CONFIRMATION_EN },
+      { name: 'order_confirmation', language: 'hi' as const, text: 'नमस्ते {{1}}, कृपया ₹{{3}} का कैश ऑन डिलीवरी ऑर्डर {{2}} कन्फर्म करें।' },
+      { name: 'order_confirmation_hinglish', language: 'en' as const, text: 'Namaste {{1}}, aapka COD order {{2}} of Rs {{3}} confirm karna hai.' },
     ];
-    let status = 'submitted';
     for (const template of templates) {
-      const response = await fetch(`https://graph.facebook.com/${GRAPH}/${link.wabaId}/message_templates`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name: template.name,
-          language: template.language,
-          category: 'UTILITY',
-          components: [
-            { type: 'BODY', text: template.text, example: { body_text: [['Asha', '1042', '799']] } },
-            {
-              type: 'BUTTONS',
-              buttons: [
-                { type: 'QUICK_REPLY', text: 'Confirm' },
-                { type: 'QUICK_REPLY', text: 'Cancel' },
-              ],
-            },
-          ],
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok && response.status !== 400) status = 'error';
+      await this.createTemplate(link.wabaId, secret, template);
     }
-    const listed = await this.templateState(link, secret);
-    user.whatsapp = { ...link, templateStatus: listed || status };
+    const expected = expectedTemplate(user.messageLanguage);
+    const listed = await this.templateState(link, secret, expected);
+    user.whatsapp = {
+      ...link,
+      templateName: expected.name,
+      templateLanguage: expected.language,
+      templateStatus: listed || 'submitted',
+    };
     await user.save();
     return this.status(user);
   }
 
   async refreshTemplate(user: UserDocument) {
     const link = this.requireLink(user);
-    const listed = await this.templateState(link, this.vault.open(link.tokenEnvelope));
-    user.whatsapp = { ...link, templateStatus: listed || link.templateStatus };
+    const expected = expectedTemplate(user.messageLanguage);
+    const listed = await this.templateState(link, this.vault.open(link.tokenEnvelope), expected);
+    user.whatsapp = {
+      ...link,
+      templateName: expected.name,
+      templateLanguage: expected.language,
+      templateStatus: listed === null ? link.templateStatus : listed || 'missing',
+    };
     await user.save();
     return this.status(user);
   }
@@ -273,14 +272,70 @@ export class WhatsAppService {
     }
   }
 
-  private async templateState(link: WhatsAppLink, token: string) {
-    const response = await fetch(
-      `https://graph.facebook.com/${GRAPH}/${link.wabaId}/message_templates?name=order_confirmation`,
-      { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) },
-    );
-    if (!response.ok) return '';
-    const body = (await response.json()) as { data?: Array<{ status?: string }> };
-    return body.data?.[0]?.status || '';
+  private async createTemplate(
+    wabaId: string,
+    token: string,
+    template: { name: string; language: 'en' | 'hi'; text: string },
+  ) {
+    let response: Response;
+    try {
+      response = await fetch(`https://graph.facebook.com/${GRAPH}/${wabaId}/message_templates`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: template.name,
+          language: template.language,
+          category: 'UTILITY',
+          components: [
+            { type: 'BODY', text: template.text, example: { body_text: [['Asha', '1042', '799']] } },
+            {
+              type: 'BUTTONS',
+              buttons: [
+                { type: 'QUICK_REPLY', text: 'Confirm' },
+                { type: 'QUICK_REPLY', text: 'Cancel' },
+              ],
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (error) {
+      this.logger.warn(`WhatsApp template ${template.name} ${template.language} missed: ${error instanceof Error ? error.name : 'error'}`);
+      throw new BadRequestException('WhatsApp did not answer. Try submitting the template again.');
+    }
+    if (response.ok) return;
+    const explained = explainMetaTemplateError(response.status, await readJson(response));
+    this.logger.warn(`WhatsApp template ${template.name} ${template.language} rejected: ${explained.log}`);
+    throw new BadRequestException(explained.seller || TEMPLATE_REJECTED);
+  }
+
+  private async templateState(link: WhatsAppLink, token: string, expected: { name: string; language: 'en' | 'hi' }) {
+    const url = new URL(`https://graph.facebook.com/${GRAPH}/${link.wabaId}/message_templates`);
+    url.searchParams.set('name', expected.name);
+    url.searchParams.set('language', expected.language);
+    url.searchParams.set('limit', '50');
+    let next: string | null = url.toString();
+    const rows: ListedTemplate[] = [];
+    for (let page = 0; page < 3 && next; page += 1) {
+      let response: Response;
+      try {
+        response = await fetch(next, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) });
+      } catch (error) {
+        this.logger.warn(`WhatsApp template list missed: ${error instanceof Error ? error.name : 'error'}`);
+        return null;
+      }
+      if (!response.ok) {
+        const explained = explainMetaTemplateError(response.status, await readJson(response));
+        this.logger.warn(`WhatsApp template list rejected: ${explained.log}`);
+        return null;
+      }
+      const body = (await readJson(response)) as { data?: ListedTemplate[]; paging?: { next?: string } } | null;
+      rows.push(...(body?.data || []));
+      const status = pickTemplateStatus(rows, expected);
+      if (status) return status;
+      next = metaNextPage(body?.paging?.next);
+    }
+    return pickTemplateStatus(rows, expected);
   }
 
   private async graphSend(user: UserDocument, body: Record<string, unknown>) {
@@ -318,5 +373,26 @@ export class WhatsAppService {
     } catch {
       return 'ji';
     }
+  }
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function metaNextPage(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== 'graph.facebook.com') return null;
+    return url.toString();
+  } catch {
+    return null;
   }
 }
