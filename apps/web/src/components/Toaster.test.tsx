@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 import { maskedSecret, SecretField } from './SecretField';
 import { ToastProvider, useToast } from './Toaster';
 
@@ -38,5 +39,30 @@ describe('saved secrets', () => {
     expect(screen.getByText('Saved')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reveal' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.queryByLabelText('RTO Shield password')).toBeNull();
+  });
+
+  it('asks for the password in a modal and returns focus when it closes', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <ToastProvider>
+          <SecretField label="Permanent access token" field="whatsappToken" last4="a1B2" draft={null} onDraftChange={() => undefined} />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Reveal' }));
+      const dialog = screen.getByRole('dialog', { name: 'Show the saved key' });
+      expect(dialog.getAttribute('aria-modal')).toBe('true');
+      expect(screen.getByLabelText('RTO Shield password')).toBeTruthy();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(dialog.parentElement?.className).toContain('secret-modal-out');
+      act(() => {
+        vi.advanceTimersByTime(450);
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reveal' }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

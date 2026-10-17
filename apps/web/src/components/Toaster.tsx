@@ -8,6 +8,7 @@ interface ToastItem {
   id: number;
   tone: ToastTone;
   message: string;
+  leaving: boolean;
 }
 
 interface ToastApi {
@@ -23,15 +24,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const nextId = useRef(1);
   const timers = useRef<number[]>([]);
 
-  const dismiss = useCallback((id: number) => {
+  const remove = useCallback((id: number) => {
     setToasts((current) => current.filter((item) => item.id !== id));
   }, []);
+
+  const dismiss = useCallback(
+    (id: number) => {
+      if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        remove(id);
+        return;
+      }
+      setToasts((current) => current.map((item) => (item.id === id ? { ...item, leaving: true } : item)));
+      const timer = window.setTimeout(() => remove(id), 240);
+      timers.current.push(timer);
+    },
+    [remove],
+  );
 
   const push = useCallback(
     (tone: ToastTone, message: string) => {
       const id = nextId.current;
       nextId.current += 1;
-      setToasts((current) => [...current.slice(-3), { id, tone, message }]);
+      setToasts((current) => [...current.filter((item) => !item.leaving).slice(-3), { id, tone, message, leaving: false }]);
       const timer = window.setTimeout(() => dismiss(id), 4800);
       timers.current.push(timer);
     },
@@ -56,7 +70,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div
-        className="pointer-events-none fixed bottom-4 right-4 z-[80] flex w-[min(22rem,calc(100%-2rem))] flex-col gap-2"
+        className="pointer-events-none fixed bottom-4 right-4 z-[230] flex w-[min(22rem,calc(100%-2rem))] flex-col gap-3"
         aria-live="polite"
         aria-relevant="additions"
       >
@@ -64,12 +78,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={item.id}
             role={item.tone === 'error' ? 'alert' : 'status'}
-            className={`toast-in pointer-events-auto sticker-sm flex items-start justify-between gap-3 px-4 py-3 ${
-              item.tone === 'success' ? '!bg-lime/40' : item.tone === 'error' ? '!bg-risk/15' : '!bg-sky/25'
-            }`}
+            className={`pointer-events-auto flex items-start justify-between gap-3 border-2 border-ink px-4 py-3 shadow-sticker-sm ${
+              item.leaving ? 'toast-out' : 'toast-in'
+            } ${item.tone === 'success' ? 'bg-lime' : item.tone === 'error' ? 'bg-risk/15' : 'bg-hl'}`}
           >
-            <p className="font-mono text-xs leading-5 text-ink">{item.message}</p>
-            <button type="button" className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-ink/70" onClick={() => dismiss(item.id)}>
+            <div>
+              <p className={`eyebrow ${item.tone === 'error' ? 'text-risk' : 'text-ink'}`}>
+                {item.tone === 'success' ? 'Saved' : item.tone === 'error' ? 'Needs a look' : 'Note'}
+              </p>
+              <p className="mt-1 font-mono text-xs leading-5 text-ink">{item.message}</p>
+            </div>
+            <button type="button" className="eyebrow text-ink/70" onClick={() => dismiss(item.id)}>
               Close
             </button>
           </div>

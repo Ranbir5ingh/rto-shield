@@ -520,9 +520,54 @@ body {
 }
 
 @keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+
+.toast-in {
+  animation: toast-in 380ms cubic-bezier(0.22, 1.45, 0.36, 1) both;
+}
+
+.toast-out {
+  animation: toast-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.wake-overlay {
+  background-color: #faf6ee;
+  background-image: radial-gradient(rgba(27, 23, 18, 0.055) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.wake-overlay-enter {
+  animation: wake-in 460ms cubic-bezier(0.22, 1.35, 0.36, 1) both;
+}
+
+.wake-overlay-leave {
+  animation: wake-out 460ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+@keyframes wake-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -530,12 +575,83 @@ body {
   }
 }
 
-.toast-in {
-  animation: toast-in 180ms ease-out;
+@keyframes wake-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+}
+
+.secret-modal-in {
+  animation: secret-modal-in 280ms ease-out both;
+}
+
+.secret-modal-out {
+  animation: secret-modal-out 320ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+.secret-modal-in .secret-modal-card {
+  animation: secret-card-in 460ms cubic-bezier(0.18, 1.55, 0.32, 1) both;
+}
+
+.secret-modal-out .secret-modal-card {
+  animation: secret-card-out 280ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes secret-modal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes secret-modal-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes secret-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes secret-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast-in {
+  .toast-in,
+  .toast-out,
+  .wake-overlay-enter,
+  .wake-overlay-leave,
+  .secret-modal-in,
+  .secret-modal-out,
+  .secret-modal-in .secret-modal-card,
+  .secret-modal-out .secret-modal-card {
     animation: none;
   }
 }
