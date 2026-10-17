@@ -3,6 +3,7 @@ import { Archivo, Caveat, Inter_Tight, JetBrains_Mono, Noto_Sans } from 'next/fo
 import Script from 'next/script';
 import { WakeGate } from '@/components/WakeGate';
 import { Cursor } from '@/components/Cursor';
+import { QueryProvider } from '@/components/QueryProvider';
 import { ToastProvider } from '@/components/Toaster';
 import { landingWakeScript } from '@/lib/wake';
 import './globals.css';
@@ -56,8 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {landingWakeScript()}
         </Script>
         <ToastProvider>
-          <Cursor />
-          <WakeGate>{children}</WakeGate>
+          <QueryProvider>
+            <Cursor />
+            <WakeGate>{children}</WakeGate>
+          </QueryProvider>
         </ToastProvider>
       </body>
     </html>

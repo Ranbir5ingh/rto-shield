@@ -1,29 +1,34 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Connections } from '@/components/Connections';
 import { useToast } from '@/components/Toaster';
 import { Button, Dropdown, Field, inputClass } from '@/components/ui';
 import { ApiError, api, downloadExport } from '@/lib/api';
-import type { Integrations, PublicUser } from '@/lib/types';
+import { qk, useIntegrations, useMe } from '@/lib/queries';
+import type { PublicUser } from '@/lib/types';
 
 export default function SettingsPage() {
   const router = useRouter();
+  const client = useQueryClient();
+  const me = useMe();
+  const status = useIntegrations();
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [status, setStatus] = useState<Integrations | null>(null);
   const toast = useToast();
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
-    api<{ user: PublicUser }>('/auth/me').then((body) => setUser(body.user)).catch(() => undefined);
-    api<Integrations>('/integrations').then(setStatus).catch(() => undefined);
-  }, []);
+    if (me.data && !user) setUser(me.data);
+  }, [me.data, user]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!user) return;
+    const previous = user;
+    client.setQueryData(qk.me, user);
     try {
       const body = await api<{ user: PublicUser }>('/account/settings', {
         method: 'PATCH',
@@ -35,8 +40,11 @@ export default function SettingsPage() {
         }),
       });
       setUser(body.user);
+      client.setQueryData(qk.me, body.user);
       toast.success('Saved.');
     } catch (err) {
+      setUser(previous);
+      client.setQueryData(qk.me, previous);
       toast.error(err instanceof ApiError ? err.message : 'Could not save');
     }
   }
@@ -131,7 +139,7 @@ export default function SettingsPage() {
         </Button>
       </div>
       )}
-      {demo ? null : <section className="space-y-3 rounded-2xl border border-danger/30 p-4">
+      {demo ? null : <section className="space-y-3 border-2 border-risk p-4">
         <h2 className="font-semibold">Delete account</h2>
         <Field label="Password" error={passwordError}>
           <input className={inputClass} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />

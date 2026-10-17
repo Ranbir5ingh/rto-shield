@@ -26,7 +26,24 @@ const steps: TourStep[] = [
 ];
 
 describe('product tour', () => {
-  it('spotlights the target, moves with Next and Back, and skips from the keyboard', () => {
+  beforeEach(() => {
+    Element.prototype.getBoundingClientRect = () => ({
+      x: 40,
+      y: 80,
+      top: 80,
+      left: 40,
+      width: 160,
+      height: 48,
+      bottom: 128,
+      right: 200,
+      toJSON() {
+        return {};
+      },
+    });
+    Element.prototype.scrollIntoView = () => undefined;
+  });
+
+  it('waits for the target, then moves with Next, Back, and Escape', async () => {
     const onFinish = vi.fn();
     render(
       <div>
@@ -38,22 +55,31 @@ describe('product tour', () => {
       </div>,
     );
 
-    const dialog = screen.getByRole('dialog');
+    const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('Connect Shopify');
     expect(dialog.textContent).toContain('One click. Enter your store domain');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(document.querySelector('[data-tour-overlay]')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByRole('dialog').textContent).toContain('Other ways in');
+    expect((await screen.findByRole('dialog')).textContent).toContain('Other ways in');
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('dialog').textContent).toContain('One click. Enter your store domain');
+    expect((await screen.findByRole('dialog')).textContent).toContain('One click. Enter your store domain');
 
     fireEvent.keyDown(document, { key: 'ArrowRight' });
-    expect(screen.getByRole('dialog').textContent).toContain('CSV upload');
+    expect((await screen.findByRole('dialog')).textContent).toContain('CSV upload');
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onFinish).toHaveBeenCalledWith('skip');
+  });
+
+  it('does not open the card while the page is still loading its target', () => {
+    render(
+      <div data-tour-ready="false">
+        <Tour steps={steps} onFinish={vi.fn()} />
+      </div>,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

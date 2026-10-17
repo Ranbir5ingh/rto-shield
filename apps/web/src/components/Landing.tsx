@@ -477,7 +477,7 @@ export function Landing() {
       <OrderRain columns={9} />
 
       {/* HERO */}
-      <section ref={heroRef} className="relative flex min-h-screen flex-col justify-end overflow-hidden pb-16 pt-36">
+      <section ref={heroRef} className="relative flex min-h-screen flex-col justify-end overflow-hidden pb-28 pt-16 md:pb-16 md:pt-36">
         <div data-hero-scan className="pointer-events-none absolute inset-y-0 w-[3px] bg-risk opacity-0 shadow-[0_0_32px_4px_rgba(255,59,48,0.5)]" aria-hidden="true" />
 
         {/* parallax doodle layers (outer = parallax, inner = idle float) */}

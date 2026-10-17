@@ -2,32 +2,26 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { MessageThread } from '@/components/MessageThread';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
+import { invalidateShop, qk, useOrder } from '@/lib/queries';
 import type { OrderDetail } from '@/lib/types';
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id || '';
   const toast = useToast();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [missing, setMissing] = useState(false);
+  const client = useQueryClient();
+  const orderQuery = useOrder(id);
+  const order = orderQuery.data ?? null;
   const [note, setNote] = useState('');
   const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
   const [saving, setSaving] = useState('');
-
-  useEffect(() => {
-    if (!id) return;
-    api<OrderDetail>(`/orders/${id}`)
-      .then(setOrder)
-      .catch((err: unknown) => {
-        setMissing(true);
-        toast.error(err instanceof ApiError ? err.message : 'Could not open the order');
-      });
-  }, [id, toast]);
 
   async function voice() {
     if (!order) return;
@@ -56,15 +50,16 @@ export default function OrderDetailPage() {
     if (!order || order.stage === 'closed' || saving) return;
     const previous = order;
     setSaving(value);
-    setOrder({ ...order, stage: 'closed', outcome: value });
+    client.setQueryData<OrderDetail>(qk.order(order.id), { ...order, stage: 'closed', outcome: value });
     try {
       const next = await api<OrderDetail>(`/orders/${order.id}/outcome`, {
         method: 'PATCH',
         body: JSON.stringify({ outcome: value }),
       });
-      setOrder(next);
+      client.setQueryData(qk.order(order.id), next);
+      invalidateShop(client);
     } catch (err) {
-      setOrder(previous);
+      client.setQueryData(qk.order(order.id), previous);
       toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
     } finally {
       setSaving('');
@@ -79,7 +74,7 @@ export default function OrderDetailPage() {
     setNote([body.locality || body.region, body.notice, body.fairness].filter(Boolean).join(' '));
   }
 
-  if (missing && !order) return <p className="text-sm text-ink/70">This order did not open.</p>;
+  if (orderQuery.isError && !order) return <p className="text-sm text-ink/70">This order did not open.</p>;
   if (!order) {
     return (
       <div className="mx-auto max-w-3xl space-y-4" aria-busy="true" aria-label="Opening the order">
@@ -92,29 +87,33 @@ export default function OrderDetailPage() {
 
   const text = order.messages?.hinglish || '';
   const wa = order.waUrl && text ? `${order.waUrl.split('?')[0]}?text=${encodeURIComponent(text)}` : null;
+  const closed = order.stage === 'closed';
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Link href="/app/queue" className="text-sm font-medium underline">
+      <Link href="/app/queue" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
         ← Queue
       </Link>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="grid gap-4 border-2 border-ink bg-white p-4 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-ink/50">{order.externalOrderId}</p>
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-inksoft">{order.externalOrderId}</p>
           <h1 className="font-display text-display-2">{order.buyerName}</h1>
-          <p className="mt-1 text-sm text-ink/60">
-            {inr(order.orderValue)} · {order.paymentType.toUpperCase()} · {order.phoneMasked} · {order.city} {order.pincode}
+          <p className="mt-2 font-mono text-[12px] font-bold uppercase tracking-[0.12em]">
+            {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
           </p>
+          <p className="mt-1 text-sm text-ink/70">{order.city} {order.pincode}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <RiskBadge band={order.riskBand} />
-          <span className="font-display text-3xl tabular-nums">{order.riskScore ?? '—'}</span>
+          <span className="font-display text-5xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
         </div>
       </div>
-      <article className="panel p-5">
-        <h2 className="font-semibold">Top factors</h2>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-          {order.reasons.length ? order.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Not scored yet.</li>}
+      <article className="border-2 border-ink bg-white p-4">
+        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Why this score</h2>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {order.reasons.length ? order.reasons.map((reason) => (
+            <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 text-sm">{reason}</li>
+          )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
         </ul>
         {order.addressQuality ? (
           <p className="mt-3 text-sm text-ink/70">
@@ -124,14 +123,17 @@ export default function OrderDetailPage() {
         ) : null}
         <p className="mt-3 text-sm leading-6">{order.address}</p>
       </article>
+      <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
       {order.messages ? (
-        <article className="panel p-5">
-          <h2 className="font-semibold">Confirmation</h2>
-          <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-ink/20 bg-canvas p-3">
-            <p className="font-hindi text-sm leading-6">{text}</p>
+        <article className="border-2 border-ink bg-white p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Draft</h2>
+              <p className="mt-2 font-hindi text-sm leading-6">{text}</p>
+            </div>
             {text ? <CopyButton text={text} /> : null}
           </div>
-          <p className="mt-2 text-sm text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
+          <p className="mt-3 text-sm text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {wa ? (
               <a className="btn-go" href={wa} target="_blank" rel="noreferrer">
@@ -148,18 +150,18 @@ export default function OrderDetailPage() {
           {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
         </article>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => mark('confirmed')} disabled={order.stage === 'closed' || Boolean(saving)}>
+      <div className="sticky bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 flex flex-wrap gap-2 border-2 border-ink bg-paper p-3 shadow-sticker">
+        <Button type="button" onClick={() => mark('confirmed')} disabled={closed || Boolean(saving)}>
           {saving === 'confirmed' ? 'Saving…' : 'Confirmed'}
         </Button>
-        <Button type="button" tone="danger" onClick={() => mark('cancelled')} disabled={order.stage === 'closed' || Boolean(saving)}>
+        <Button type="button" tone="danger" onClick={() => mark('cancelled')} disabled={closed || Boolean(saving)}>
           {saving === 'cancelled' ? 'Saving…' : 'Cancelled'}
         </Button>
-        <Button type="button" tone="ghost" onClick={() => mark('no_response')} disabled={order.stage === 'closed' || Boolean(saving)}>
-          No response
+        <Button type="button" tone="ghost" onClick={() => mark('no_response')} disabled={closed || Boolean(saving)}>
+          Skip
         </Button>
+        {closed ? <p className="self-center font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
       </div>
-      {order.stage === 'closed' ? <p className="text-sm text-ink/70">Closed as {order.outcome}.</p> : null}
     </div>
   );
 }

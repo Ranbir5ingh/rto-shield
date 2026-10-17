@@ -1,35 +1,16 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { SecretField } from '@/components/SecretField';
 import { useToast } from '@/components/Toaster';
 import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { qk, useGemini, useShopify, useWhatsapp, type GeminiLink, type ShopifyLink, type WhatsAppLink } from '@/lib/queries';
 
-interface ShopifyStatus {
-  connected: boolean;
-  demo: boolean;
-  shop: string | null;
-  backfill: { status: string; processed: number; total: number; error: string | null };
-  rtoTag: string;
-  autoCancelOnBuyerCancel: boolean;
-  riskTags: { high: string; medium: string; low: string };
-}
-
-interface WhatsAppStatus {
-  configured: boolean;
-  demo: boolean;
-  phoneNumberId: string;
-  wabaId: string;
-  tokenLast4: string;
-  appSecretLast4: string;
-  templateStatus: string;
-  callbackUrl: string;
-  verifyTokenName: string;
-  verifyToken: string;
-  webhookVerified: boolean;
-}
+type ShopifyStatus = ShopifyLink;
+type WhatsAppStatus = WhatsAppLink;
 
 interface ConnectionCheck {
   id: string;
@@ -39,14 +20,13 @@ interface ConnectionCheck {
   hint: string;
 }
 
-interface GeminiStatus {
-  configured: boolean;
-  last4: string;
-  validatedAt: string | null;
-  demoFallback: boolean;
-}
+type GeminiStatus = GeminiLink;
 
 export function Connections({ locked = false }: { locked?: boolean }) {
+  const client = useQueryClient();
+  const shopifyQuery = useShopify();
+  const whatsappQuery = useWhatsapp();
+  const geminiQuery = useGemini();
   const [shopify, setShopify] = useState<ShopifyStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [gemini, setGemini] = useState<GeminiStatus | null>(null);
@@ -65,46 +45,42 @@ export function Connections({ locked = false }: { locked?: boolean }) {
   const [secretEpoch, setSecretEpoch] = useState(0);
   const [connectionChecks, setConnectionChecks] = useState<ConnectionCheck[] | null>(null);
 
-  async function load() {
-    const [shopBody, waBody, gemBody] = await Promise.all([
-      api<ShopifyStatus>('/shopify'),
-      api<WhatsAppStatus>('/whatsapp'),
-      api<GeminiStatus>('/gemini'),
-    ]);
-    setShopify(shopBody);
-    setGemini(gemBody);
-    let whatsappStatus = waBody;
-    if (waBody.configured) {
-      try {
-        whatsappStatus = await api<WhatsAppStatus>('/whatsapp/template');
-      } catch {
-        whatsappStatus = waBody;
-      }
-    }
-    setWhatsapp(whatsappStatus);
-    if (whatsappStatus.phoneNumberId) setPhoneNumberId(whatsappStatus.phoneNumberId);
-    if (whatsappStatus.wabaId) setWabaId(whatsappStatus.wabaId);
+  useEffect(() => {
+    const body = shopifyQuery.data;
+    if (!body) return;
+    setShopify((current) =>
+      current
+        ? { ...current, connected: body.connected, demo: body.demo, shop: body.shop, backfill: body.backfill }
+        : body,
+    );
+  }, [shopifyQuery.data]);
+
+  useEffect(() => {
+    const body = whatsappQuery.data;
+    if (!body) return;
+    setWhatsapp(body);
+    setPhoneNumberId((current) => current || body.phoneNumberId || '');
+    setWabaId((current) => current || body.wabaId || '');
+  }, [whatsappQuery.data]);
+
+  useEffect(() => {
+    if (geminiQuery.data) setGemini(geminiQuery.data);
+  }, [geminiQuery.data]);
+
+  function rememberShopify(body: ShopifyStatus) {
+    setShopify(body);
+    client.setQueryData(qk.shopify, body);
   }
 
-  useEffect(() => {
-    load().catch(() => undefined);
-  }, []);
+  function rememberWhatsapp(body: WhatsAppStatus) {
+    setWhatsapp(body);
+    client.setQueryData(qk.whatsapp, body);
+  }
 
-  useEffect(() => {
-    if (!shopify || shopify.demo || shopify.backfill.status !== 'running') return;
-    const timer = window.setTimeout(() => {
-      api<ShopifyStatus>('/shopify')
-        .then((body) => {
-          setShopify((current) =>
-            current
-              ? { ...current, connected: body.connected, demo: body.demo, shop: body.shop, backfill: body.backfill }
-              : body,
-          );
-        })
-        .catch(() => undefined);
-    }, 2000);
-    return () => window.clearTimeout(timer);
-  }, [shopify]);
+  function rememberGemini(body: GeminiStatus) {
+    setGemini(body);
+    client.setQueryData(qk.gemini, body);
+  }
 
   async function run(action: () => Promise<void>) {
     try {
@@ -188,7 +164,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                     riskTags: shopify.riskTags,
                   }),
                 });
-                setShopify(body);
+                rememberShopify(body);
                 toast.success('Shopify settings saved.');
               });
             }}
@@ -211,7 +187,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                 tone="ghost"
                 onClick={() =>
                   void run(async () => {
-                    setShopify(await api<ShopifyStatus>('/shopify/resync', { method: 'POST' }));
+                    rememberShopify(await api<ShopifyStatus>('/shopify/resync', { method: 'POST' }));
                     toast.info('Resync started.');
                   })
                 }
@@ -259,7 +235,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
               if (tokenDraft?.trim()) payload.accessToken = tokenDraft.trim();
               if (secretDraft?.trim()) payload.appSecret = secretDraft.trim();
               const body = await api<WhatsAppStatus>('/whatsapp', { method: 'POST', body: JSON.stringify(payload) });
-              setWhatsapp(body);
+              rememberWhatsapp(body);
               setTokenDraft(null);
               setSecretDraft(null);
               setSecretEpoch((current) => current + 1);
@@ -304,7 +280,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                     const body = await api<{ ok: boolean; checks: ConnectionCheck[] }>('/whatsapp/test-connection', { method: 'POST' });
                     setConnectionChecks(body.checks);
                     const fresh = await api<WhatsAppStatus>('/whatsapp');
-                    setWhatsapp(fresh);
+                    rememberWhatsapp(fresh);
                     toast[body.ok ? 'success' : 'info'](
                       body.ok ? 'WhatsApp connection looks ready.' : 'WhatsApp still needs a fix. The checks are listed below.',
                     );
@@ -318,7 +294,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                 tone="ghost"
                 onClick={() =>
                   void run(async () => {
-                    setWhatsapp(await api<WhatsAppStatus>('/whatsapp/template', { method: 'POST' }));
+                    rememberWhatsapp(await api<WhatsAppStatus>('/whatsapp/template', { method: 'POST' }));
                     toast.success('Template submitted. Approval can take a few minutes.');
                   })
                 }
@@ -330,7 +306,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                 tone="ghost"
                 onClick={() =>
                   void run(async () => {
-                    setWhatsapp(await api<WhatsAppStatus>('/whatsapp/template'));
+                    rememberWhatsapp(await api<WhatsAppStatus>('/whatsapp/template'));
                     toast.info('Template status refreshed.');
                   })
                 }
@@ -392,7 +368,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
             }
             void run(async () => {
               const body = await api<GeminiStatus>('/gemini', { method: 'POST', body: JSON.stringify({ apiKey: next }) });
-              setGemini(body);
+              rememberGemini(body);
               setGeminiDraft(null);
               setSecretEpoch((current) => current + 1);
               toast.success('Gemini key checked and sealed.');

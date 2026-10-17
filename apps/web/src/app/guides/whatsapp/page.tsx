@@ -37,7 +37,7 @@ export default function WhatsAppGuidePage() {
   return (
     <div>
       <SiteHeader />
-      <article className="mx-auto max-w-3xl px-5 pb-16 pt-28 sm:px-8">
+      <article className="mx-auto max-w-3xl px-5 pb-28 pt-16 sm:px-8 md:pb-16 md:pt-32">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Guide</p>
         <h1 className="mt-3 font-display text-display-2">Connect WhatsApp without a developer on the call</h1>

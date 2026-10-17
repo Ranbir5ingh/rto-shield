@@ -1,13 +1,16 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
 import { useToast } from '@/components/Toaster';
 import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { invalidateShop } from '@/lib/queries';
 
 export default function HistoryPage() {
   const toast = useToast();
+  const client = useQueryClient();
   const [pending, setPending] = useState(false);
 
   async function sample() {
@@ -15,6 +18,7 @@ export default function HistoryPage() {
     try {
       const result = await api<{ history: number; pending: number; notice: string }>('/orders/sample', { method: 'POST' });
       toast.success(`Loaded ${result.history} historical orders and ${result.pending} pending ones. ${result.notice}`);
+      invalidateShop(client);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not build sample data');
     } finally {
@@ -38,7 +42,7 @@ export default function HistoryPage() {
           Download generic template
         </a>
       </div>
-      <CsvImporter mode="history" />
+      <CsvImporter mode="history" onImported={() => invalidateShop(client)} />
     </div>
   );
 }

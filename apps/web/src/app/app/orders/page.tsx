@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
 import { useToast } from '@/components/Toaster';
-import { Button, Dropdown, Field, RiskBadge, Skeleton, inputClass } from '@/components/ui';
+import { Button, Dropdown, Field, Pager, RiskBadge, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
-import type { OrderSummary } from '@/lib/types';
+import { invalidateShop, useOrders } from '@/lib/queries';
 
 const empty = {
   buyerName: '',
@@ -23,23 +24,25 @@ const empty = {
   productName: '',
 };
 
+const PAGE = 12;
+
 export default function OrdersPage() {
   const [form, setForm] = useState(empty);
   const toast = useToast();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const client = useQueryClient();
+  const [page, setPage] = useState(0);
+  const list = useOrders('pending', page * PAGE, PAGE);
+  const orders = list.data?.orders ?? [];
+  const total = list.data?.total ?? 0;
   const [phase, setPhase] = useState<'idle' | 'fast' | 'upgrade' | 'done'>('idle');
-  const [ready, setReady] = useState(false);
-
-  async function load() {
-    const body = await api<{ orders: OrderSummary[] }>('/orders?stage=pending&limit=100');
-    setOrders(body.orders);
-  }
 
   useEffect(() => {
-    load()
-      .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Could not load orders'))
-      .finally(() => setReady(true));
-  }, [toast]);
+    if (list.isError && !list.data) toast.error(list.error instanceof ApiError ? list.error.message : 'Could not load orders');
+  }, [list.isError, list.data, list.error, toast]);
+
+  function refresh() {
+    invalidateShop(client);
+  }
 
   function set<K extends keyof typeof empty>(key: K, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -59,7 +62,7 @@ export default function OrdersPage() {
       });
       setForm(empty);
       toast.success('Order added. Score when the batch is ready.');
-      await load();
+      refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not add the order');
     }
@@ -73,7 +76,7 @@ export default function OrdersPage() {
         method: 'POST',
       });
       toast.success(`Fast scores are in for ${result.scored} orders. ${result.modelLabel || ''}`.trim());
-      await load();
+      refresh();
       if (!result.upgrading) {
         setPhase('done');
         return;
@@ -86,7 +89,7 @@ export default function OrdersPage() {
         if (!status.upgrading) {
           setPhase('done');
           toast.success(`Full model is in. ${status.model?.modelLabel || ''}`.trim());
-          await load();
+          refresh();
           return;
         }
       }
@@ -157,9 +160,9 @@ export default function OrdersPage() {
           <Button type="submit">Add pending order</Button>
         </div>
       </form>
-      <CsvImporter mode="pending" onImported={() => load()} />
-      {!ready ? <Skeleton className="h-48" /> : null}
-      <div className="panel overflow-x-auto shadow-card">
+      <CsvImporter mode="pending" onImported={refresh} />
+      {list.isLoading ? <Skeleton className="h-48" /> : null}
+      <div className={`panel overflow-x-auto shadow-card ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
         <table className="data-table">
           <thead>
             <tr>
@@ -191,7 +194,7 @@ export default function OrdersPage() {
                 <td className="py-3 pr-3 text-ink/75">{order.reasons.join(' · ') || 'Not scored'}</td>
               </tr>
             ))}
-            {ready && !orders.length ? (
+            {list.isFetched && !orders.length ? (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-ink/60">
                   No pending orders yet.
@@ -201,6 +204,7 @@ export default function OrdersPage() {
           </tbody>
         </table>
       </div>
+      <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
     </div>
   );
 }

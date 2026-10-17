@@ -5,7 +5,7 @@ export default function TermsPage() {
   return (
     <div>
       <SiteHeader />
-      <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
+      <div className="mx-auto max-w-3xl px-5 pb-28 pt-16 sm:px-8 md:pb-16 md:pt-32">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Terms</p>
         <h1 className="mt-3 font-display font-medium text-display-2">How the shop uses RTO Shield</h1>
         <div className="mt-8 space-y-5 text-base leading-7 text-ink/80">

@@ -6,15 +6,9 @@ import { Suspense, useEffect, useState } from 'react';
 import { useToast } from '@/components/Toaster';
 import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
 import { Button, Field, Notice, inputClass } from '@/components/ui';
-import type { GuideProgressInput } from '@/lib/whatsapp-guide';
 import { ApiError, api } from '@/lib/api';
-
-interface ShopifyStatus {
-  connected: boolean;
-  demo: boolean;
-  shop: string | null;
-  backfill: { status: string; processed: number; total: number; error: string | null };
-}
+import { invalidateShop, useShopify, useWhatsapp } from '@/lib/queries';
+import { useQueryClient } from '@tanstack/react-query';
 
 function StartForm() {
   const router = useRouter();
@@ -23,38 +17,15 @@ function StartForm() {
   const [pending, setPending] = useState(false);
   const [samplePending, setSamplePending] = useState(false);
   const toast = useToast();
-  const [link, setLink] = useState<ShopifyStatus | null>(null);
-  const [whatsapp, setWhatsapp] = useState<
-    (GuideProgressInput & { callbackUrl?: string; verifyToken?: string }) | null
-  >(null);
+  const client = useQueryClient();
+  const shopify = useShopify();
+  const whatsappQuery = useWhatsapp();
+  const link = shopify.data ?? null;
+  const whatsapp = whatsappQuery.data ?? null;
 
   useEffect(() => {
     if (params?.get('shopify') === 'error') toast.error('Shopify did not finish the install. Start again from the shop domain.');
   }, [params, toast]);
-
-  useEffect(() => {
-    let stop = false;
-    let timer = 0;
-    async function pull() {
-      try {
-        const [body, wa] = await Promise.all([
-          api<ShopifyStatus>('/shopify'),
-          api<GuideProgressInput & { callbackUrl?: string; verifyToken?: string }>('/whatsapp').catch(() => null),
-        ]);
-        if (stop) return;
-        setLink(body);
-        if (wa) setWhatsapp(wa);
-        if (body.connected && body.backfill.status === 'running') timer = window.setTimeout(() => void pull(), 2000);
-      } catch {
-        if (!stop) setLink(null);
-      }
-    }
-    void pull();
-    return () => {
-      stop = true;
-      window.clearTimeout(timer);
-    };
-  }, []);
 
   async function connect(event: React.FormEvent) {
     event.preventDefault();
@@ -73,6 +44,7 @@ function StartForm() {
     try {
       await api('/orders/sample', { method: 'POST' });
       await api('/orders/score', { method: 'POST' });
+      invalidateShop(client);
       router.push('/app');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not prepare the sample shop');
@@ -82,8 +54,12 @@ function StartForm() {
 
   const progress = link?.backfill.total ? Math.round((link.backfill.processed / link.backfill.total) * 100) : link?.backfill.status === 'done' ? 100 : 0;
 
+  if (!shopify.isFetched) {
+    return <div className="skeleton h-48" aria-busy="true" data-tour-ready="false" />;
+  }
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6" data-tour-ready="true">
       <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-inksoft">Shop setup</p>
       <h1 className="font-display text-display-2">Connect the shop.</h1>
       <p className="text-sm leading-7 text-ink/75">

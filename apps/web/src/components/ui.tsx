@@ -267,6 +267,37 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
 
 /* ---------- paper-tear collage primitives ---------- */
 
+export function Pager({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : page * pageSize + 1;
+  const end = Math.min(total, (page + 1) * pageSize);
+  return (
+    <div className="flex items-center justify-between gap-3 border-2 border-ink bg-paper px-3 py-2">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+        {start}–{end} of {total}
+      </p>
+      <div className="flex gap-2">
+        <button type="button" className="btn-ghost !px-3 !py-2 !text-[10px]" disabled={page <= 0} onClick={() => onPage(page - 1)}>
+          Prev
+        </button>
+        <button type="button" className="btn-ghost !px-3 !py-2 !text-[10px]" disabled={page >= pages - 1} onClick={() => onPage(page + 1)}>
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Tape({ className = '', pink = false, sky = false, lime = false }: { className?: string; pink?: boolean; sky?: boolean; lime?: boolean }) {
   const tone = pink ? 'tape-pink' : sky ? 'tape-sky' : lime ? 'tape-lime' : '';
   return <span className={`tape ${tone} ${className}`} aria-hidden="true" />;
