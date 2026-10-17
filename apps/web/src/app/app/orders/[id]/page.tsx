@@ -8,7 +8,7 @@ import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
-import { Button, CopyButton, RiskBadge, Skeleton } from '@/components/ui';
+import { Button, CopyButton, Page, RiskBadge, Section, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr, predictorLabel } from '@/lib/format';
 import { invalidateShop, qk, useOrder } from '@/lib/queries';
@@ -114,14 +114,22 @@ export default function OrderDetailPage() {
     setNote([body.locality || body.region, body.notice, body.fairness].filter(Boolean).join(' '));
   }
 
-  if (orderQuery.isError && !order) return <p className="text-sm text-ink/70">This order did not open.</p>;
+  if (orderQuery.isError && !order) {
+    return (
+      <Page eyebrow="/ Orders" title="Order">
+        <p className="text-sm text-ink/70">This order did not open.</p>
+      </Page>
+    );
+  }
   if (!order) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4" aria-busy="true" aria-label="Opening the order">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-16" />
-        <Skeleton className="h-40" />
-      </div>
+      <Page eyebrow="/ Orders" title="Order">
+        <div className="max-w-3xl space-y-4" aria-busy="true" aria-label="Opening the order">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-40" />
+        </div>
+      </Page>
     );
   }
 
@@ -130,113 +138,119 @@ export default function OrderDetailPage() {
   const closed = order.stage === 'closed';
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <Link href="/app/queue" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
-        ← Queue
-      </Link>
-      <div className="grid gap-4 border-2 border-ink bg-white p-4 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div>
-          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-inksoft">{order.externalOrderId}</p>
-          <h1 className="font-display text-display-2">{order.buyerName}</h1>
-          <p className="mt-2 font-mono text-[12px] font-bold uppercase tracking-[0.12em]">
-            {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
-          </p>
-          <p className="mt-1 text-sm text-ink/70">{order.city} {order.pincode}</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <Page
+      eyebrow={`/ Orders · ${order.externalOrderId}`}
+      title={order.buyerName}
+      sub={`${inr(order.orderValue)} · ${order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · ${order.phoneMasked} · ${order.city} ${order.pincode}`}
+      actions={
+        <>
           <RiskBadge band={order.riskBand} />
-          <span className="font-display text-5xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
-        </div>
-      </div>
-      <OrderActions
-        order={order}
-        busy={Boolean(saving)}
-        canSend
-        onPrimary={() => {
-          if (order.intervention === 'offer_prepaid') void prepaid();
-          else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
-          else void mark('confirmed');
-        }}
-        onOutcome={(value) => mark(value)}
-        onPrepaid={() => prepaid()}
-        onCall={() => setCalling(true)}
-        onVoice={() => voice()}
-        onPin={() => pin()}
-      />
-      {calling ? <CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /> : null}
+          <span className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+        </>
+      }
+    >
+      <Link href="/app/queue" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
+        ← Back to queue
+      </Link>
+
+      <Section eyebrow="Next action" title="Decide">
+        <OrderActions
+          order={order}
+          busy={Boolean(saving)}
+          canSend
+          onPrimary={() => {
+            if (order.intervention === 'offer_prepaid') void prepaid();
+            else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
+            else void mark('confirmed');
+          }}
+          onOutcome={(value) => mark(value)}
+          onPrepaid={() => prepaid()}
+          onCall={() => setCalling(true)}
+          onVoice={() => voice()}
+          onPin={() => pin()}
+        />
+        {calling ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /></div> : null}
+        {closed ? <p className="mt-4 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">Closed as {order.outcome}</p> : null}
+      </Section>
+
       {order.prepaid?.invoiceUrl ? (
-        <article className="border-2 border-ink bg-lime/40 p-4">
-          <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Prepaid {order.prepaid.status}</h2>
-          <p className="mt-2 text-sm">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
-          <a className="btn-go mt-3 inline-flex" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
-        </article>
+        <div className="border-2 border-ink bg-lime/40 p-5 shadow-sticker-sm sm:p-6">
+          <p className="eyebrow">Prepaid {order.prepaid.status}</p>
+          <p className="mt-2 text-[15px] leading-7">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
+          <a className="btn-go mt-4 inline-flex !px-5 !py-3 !text-[11px]" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+        </div>
       ) : null}
-      {closed ? <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
-      <article className="border-2 border-ink bg-white p-4">
-        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Why this score</h2>
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {order.reasons.length ? order.reasons.map((reason) => (
-            <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 text-sm">{reason}</li>
-          )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
-        </ul>
-        {order.addressQuality ? (
-          <p className="mt-3 text-sm text-ink/70">
-            Address notes from {order.addressQuality.source}. Quality {order.addressQuality.quality_score}.
-            {order.model ? ` Predictor: ${predictorLabel(order.model)}.` : ''}
-          </p>
-        ) : null}
-        <p className="mt-3 text-sm leading-6">{order.address}</p>
-      </article>
-      <article className="border-2 border-ink bg-white p-4">
-        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Timeline</h2>
-        <ol className="mt-3 space-y-2">
-          {(order.timeline || []).length ? (order.timeline || []).map((step) => (
-            <li key={`${step.at}-${step.step}`} className="border-2 border-ink bg-paper px-3 py-2">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{step.step.replaceAll('_', ' ')}</p>
-              <p className="mt-1 text-sm">{step.detail}</p>
-            </li>
-          )) : <li className="text-sm text-inksoft">No steps yet.</li>}
-        </ol>
-      </article>
-      <form onSubmit={saveAddress} className="border-2 border-ink bg-white p-4">
-        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Update address</h2>
-        <label className="mt-3 block text-sm">
-          Address
-          <input id="address" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} />
-        </label>
-        <label className="mt-3 block text-sm">
-          Landmark
-          <input className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
-        </label>
-        <Button className="mt-3" type="submit" disabled={saving === 'address'}>Save address</Button>
-      </form>
-      <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
-      {order.messages ? (
-        <article className="border-2 border-ink bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        <Section eyebrow="The score" title="Why this score">
+          <ul className="flex flex-wrap gap-2">
+            {order.reasons.length ? order.reasons.map((reason) => (
+              <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{reason}</li>
+            )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
+          </ul>
+          {order.addressQuality ? (
+            <p className="mt-4 text-sm leading-6 text-ink/70">
+              Address notes from {order.addressQuality.source}. Quality {order.addressQuality.quality_score}.
+              {order.model ? ` Predictor: ${predictorLabel(order.model)}.` : ''}
+            </p>
+          ) : null}
+          <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-[15px] leading-7">{order.address}</p>
+        </Section>
+
+        <Section eyebrow="History" title="Timeline">
+          <ol className="space-y-2.5">
+            {(order.timeline || []).length ? (order.timeline || []).map((step) => (
+              <li key={`${step.at}-${step.step}`} className="border-2 border-ink bg-paper px-4 py-3">
+                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{step.step.replaceAll('_', ' ')}</p>
+                <p className="mt-1 text-sm leading-6">{step.detail}</p>
+              </li>
+            )) : <li className="text-sm text-inksoft">No steps yet.</li>}
+          </ol>
+        </Section>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        <Section eyebrow="Fix it" title="Update address">
+          <form onSubmit={saveAddress} className="space-y-4">
             <div>
-              <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Draft</h2>
-              <p className="mt-2 font-hindi text-sm leading-6">{text}</p>
+              <label htmlFor="address" className="eyebrow text-inksoft">Address</label>
+              <input id="address" className="input-paper mt-2" value={address} onChange={(event) => setAddress(event.target.value)} />
             </div>
-            {text ? <CopyButton text={text} /> : null}
-          </div>
-          <p className="mt-3 text-sm text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {wa ? (
-              <a className="btn-go" href={wa} target="_blank" rel="noreferrer">
-                Open WhatsApp
-              </a>
-            ) : null}
-            <Button type="button" tone="ghost" onClick={voice} disabled={voiceState === 'playing'}>
-              {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
-            </Button>
-            <Button type="button" tone="ghost" onClick={pin}>
-              Pincode context
-            </Button>
-          </div>
-          {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
-        </article>
-      ) : null}
-    </div>
+            <div>
+              <label htmlFor="landmark" className="eyebrow text-inksoft">Landmark</label>
+              <input id="landmark" className="input-paper mt-2" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
+            </div>
+            <Button type="submit" disabled={saving === 'address'}>Save address</Button>
+          </form>
+        </Section>
+
+        {order.messages ? (
+          <Section eyebrow="Outreach" title="Message draft" action={text ? <CopyButton text={text} /> : null}>
+            <p className="font-hindi text-[15px] leading-7">{text}</p>
+            <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              {wa ? (
+                <a className="btn-go !px-5 !py-3 !text-[11px]" href={wa} target="_blank" rel="noreferrer">
+                  Open WhatsApp
+                </a>
+              ) : null}
+              <Button type="button" tone="ghost" onClick={voice} disabled={voiceState === 'playing'}>
+                {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
+              </Button>
+              <Button type="button" tone="ghost" onClick={pin}>
+                Pincode context
+              </Button>
+            </div>
+            {note ? <p className="mt-3 text-sm leading-6 text-ink/70">{note}</p> : null}
+          </Section>
+        ) : null}
+      </div>
+
+      <Section eyebrow="Thread" title="WhatsApp conversation" pad={false}>
+        <div className="mt-4 px-5 pb-5 sm:px-6 sm:pb-6">
+          <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
+        </div>
+      </Section>
+    </Page>
   );
 }

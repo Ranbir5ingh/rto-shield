@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { useToast } from '@/components/Toaster';
 import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
-import { Button, Field, Notice, inputClass } from '@/components/ui';
+import { Button, Field, Flag, Notice, Page, Section, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { invalidateShop, useShopify, useWhatsapp } from '@/lib/queries';
 import { useQueryClient } from '@tanstack/react-query';
@@ -55,99 +55,131 @@ function StartForm() {
   const progress = link?.backfill.total ? Math.round((link.backfill.processed / link.backfill.total) * 100) : link?.backfill.status === 'done' ? 100 : 0;
 
   if (!shopify.isFetched) {
-    return <div className="skeleton h-48" aria-busy="true" data-tour-ready="false" />;
+    return (
+      <Page eyebrow="/ Setup" title="Connect the shop">
+        <div className="skeleton h-48" aria-busy="true" data-tour-ready="false" />
+      </Page>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6" data-tour-ready="true">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-inksoft">Shop setup</p>
-      <h1 className="font-display text-display-2">Connect the shop.</h1>
-      <p className="text-sm leading-7 text-ink/75">
-        Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted.
-      </p>
-      {link?.connected ? (
-        <article className="panel p-5" data-tour="shopify-connected">
-          <h2 className="font-display text-2xl">{link.demo ? 'Demo store' : link.shop}</h2>
-          <p className="mt-2 text-sm text-ink/70">
-            {link.backfill.status === 'running'
-              ? `Reading orders… ${link.backfill.processed}`
-              : link.backfill.status === 'done'
-                ? `${link.backfill.processed} orders ready to score.`
-                : link.backfill.status === 'error'
-                  ? 'Shopify stopped the import.'
-                  : 'Waiting to read orders.'}
-          </p>
-          {link.backfill.status === 'error' ? (
-            <div className="mt-3">
-              <Notice>{link.backfill.error || 'Shopify could not finish the import.'}</Notice>
-            </div>
-          ) : null}
-          <div className="mt-4 h-2 border-2 border-ink bg-white">
-            <div className="h-full bg-lime" style={{ width: `${progress}%` }} />
+    <Page
+      eyebrow="/ Setup"
+      title="Connect the shop"
+      sub="Shopify pulls the last 60 days and keeps scoring new orders. A CSV is still there if you want it. Phones stay encrypted."
+    >
+      <div data-tour-ready="true" className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        <Section
+          eyebrow="Step 1 · Orders in"
+          title="Shopify"
+          action={<Flag tone={link?.connected ? 'go' : 'ghost'}>{link?.connected ? 'Connected' : 'Not connected'}</Flag>}
+        >
+          <div data-tour="shopify-connected">
+            {link?.connected ? (
+              <div>
+                <p className="font-display text-xl font-extrabold uppercase tracking-tight">{link.demo ? 'Demo store' : link.shop}</p>
+                <p className="mt-2 text-sm leading-6 text-ink/70">
+                  {link.backfill.status === 'running'
+                    ? `Reading orders… ${link.backfill.processed}`
+                    : link.backfill.status === 'done'
+                      ? `${link.backfill.processed} orders ready to score.`
+                      : link.backfill.status === 'error'
+                        ? 'Shopify stopped the import.'
+                        : 'Waiting to read orders.'}
+                </p>
+                {link.backfill.status === 'error' ? (
+                  <div className="mt-3">
+                    <Notice>{link.backfill.error || 'Shopify could not finish the import.'}</Notice>
+                  </div>
+                ) : null}
+                <div className="mt-4 h-3 border-2 border-ink bg-paper" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                  <div className="h-full bg-lime transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="mt-2 flex justify-between font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                  <span>Backfill</span>
+                  <span>{progress}%</span>
+                </div>
+                {link.backfill.status === 'done' ? (
+                  <Link href="/app" className="btn-go mt-5 inline-flex">
+                    See the first scores
+                  </Link>
+                ) : null}
+              </div>
+            ) : (
+              <form onSubmit={connect} data-tour="shopify-connect" className="space-y-4">
+                <Field label="Shop domain">
+                  <input
+                    className={inputClass}
+                    value={shop}
+                    onChange={(event) => setShop(event.target.value)}
+                    placeholder="your-store.myshopify.com"
+                    autoComplete="off"
+                    required
+                  />
+                </Field>
+                <Button type="submit" disabled={pending}>
+                  {pending ? 'Opening Shopify…' : 'Connect Shopify'}
+                </Button>
+              </form>
+            )}
           </div>
-          {link.backfill.status === 'done' ? (
-            <Link href="/app" className="btn-go mt-4 inline-flex">
-              See the first scores
-            </Link>
-          ) : null}
-        </article>
-      ) : (
-        <form onSubmit={connect} className="panel space-y-3 p-5" data-tour="shopify-connect">
-          <h2 className="font-display text-2xl">Connect Shopify</h2>
-          <Field label="Shop domain">
-            <input
-              className={inputClass}
-              value={shop}
-              onChange={(event) => setShop(event.target.value)}
-              placeholder="your-store.myshopify.com"
-              autoComplete="off"
-              required
+        </Section>
+
+        <Section
+          eyebrow="Step 2 · Talk to buyers"
+          title="WhatsApp"
+          action={
+            <WhatsAppSetupGuide
+              callbackUrl={whatsapp?.callbackUrl || ''}
+              verifyToken={whatsapp?.verifyToken || ''}
+              progress={whatsapp || {}}
             />
-          </Field>
-          <Button type="submit" disabled={pending}>
-            {pending ? 'Opening Shopify…' : 'Connect Shopify'}
-          </Button>
-        </form>
-      )}
-      <article className="panel p-5" data-tour="whatsapp-card">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-2xl">WhatsApp</h2>
-          <WhatsAppSetupGuide
-            callbackUrl={whatsapp?.callbackUrl || ''}
-            verifyToken={whatsapp?.verifyToken || ''}
-            progress={whatsapp || {}}
-          />
-        </div>
-        <p className="mt-2 text-sm leading-6 text-ink/70">
-          Your own Cloud API number. The setup guide walks through Meta, then you paste the token in Settings.
-        </p>
-        <Link href="/app/settings" className="btn btn-ghost mt-4">
-          Open WhatsApp settings
-        </Link>
-      </article>
-      <div className="grid gap-4 sm:grid-cols-2" data-tour="import-alternatives">
-        <article className="panel p-5">
-          <h2 className="font-display text-2xl">CSV, if you must</h2>
-          <p className="mt-2 text-sm leading-6 text-ink/70">A Shopify export, a Meesho-style file, or the generic template.</p>
-          <Link href="/app/history" className="btn btn-ghost mt-4">
-            Upload history
-          </Link>
-        </article>
-        <article className="panel p-5">
-          <h2 className="font-display text-2xl">Sample shop</h2>
-          <p className="mt-2 text-sm leading-6 text-ink/70">Invented buyers, so you can see a score without a store.</p>
-          <Button type="button" className="mt-4" tone="ghost" onClick={sample} disabled={samplePending}>
-            {samplePending ? 'Scoring sample orders…' : 'Load and score'}
-          </Button>
-        </article>
+          }
+        >
+          <div data-tour="whatsapp-card">
+            <p className="text-[15px] leading-7 text-ink/70">
+              Your own Cloud API number. The setup guide walks through Meta, then you paste the token in Settings.
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Saved' : 'Not configured'}</Flag>
+              {whatsapp?.templateStatus ? (
+                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                  Template {whatsapp.templateStatus}
+                </span>
+              ) : null}
+            </div>
+            <Link href="/app/settings" className="btn-ghost mt-5 inline-flex">
+              Open WhatsApp settings
+            </Link>
+          </div>
+        </Section>
       </div>
-    </div>
+
+      <Section eyebrow="No Shopify yet?" title="Other ways in">
+        <div className="grid gap-4 sm:grid-cols-2" data-tour="import-alternatives">
+          <div className="border-2 border-ink bg-paper p-5">
+            <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">CSV, if you must</h3>
+            <p className="mt-2 text-sm leading-6 text-ink/70">A Shopify export, a Meesho-style file, or the generic template.</p>
+            <Link href="/app/history" className="btn-ghost mt-4 inline-flex !px-5 !py-3 !text-[11px]">
+              Upload history
+            </Link>
+          </div>
+          <div className="border-2 border-ink bg-paper p-5">
+            <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">Sample shop</h3>
+            <p className="mt-2 text-sm leading-6 text-ink/70">Invented buyers, so you can see a score without a store.</p>
+            <Button type="button" className="mt-4 !px-5 !py-3 !text-[11px]" tone="ghost" onClick={sample} disabled={samplePending}>
+              {samplePending ? 'Scoring sample orders…' : 'Load and score'}
+            </Button>
+          </div>
+        </div>
+      </Section>
+    </Page>
   );
 }
 
 export default function StartPage() {
   return (
-    <Suspense fallback={<div className="skeleton h-48" aria-busy="true" />}>
+    <Suspense fallback={<Page eyebrow="/ Setup" title="Connect the shop"><div className="skeleton h-48" aria-busy="true" /></Page>}>
       <StartForm />
     </Suspense>
   );

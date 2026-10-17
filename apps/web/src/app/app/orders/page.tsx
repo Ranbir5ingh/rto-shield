@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
 import { useToast } from '@/components/Toaster';
 import { actionCopy } from '@/components/OrderActions';
-import { Button, Dropdown, Field, Pager, RiskBadge, Skeleton, inputClass } from '@/components/ui';
+import { Button, Dropdown, Field, Page, Pager, RiskBadge, Section, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import { invalidateShop, useOrders } from '@/lib/queries';
@@ -103,103 +103,125 @@ export default function OrdersPage() {
     }
   }
 
+  const scoring = phase === 'fast' || phase === 'upgrade';
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-[clamp(1.7rem,4vw,2.6rem)] font-black uppercase leading-none">Score pending orders</h1>
-          <p className="mt-2 text-sm text-ink/70">Low scores can ship. Medium and High go to the confirmation queue.</p>
-        </div>
-        <Button type="button" onClick={score} disabled={phase === 'fast' || phase === 'upgrade'}>
+    <Page
+      eyebrow="/ Scanner"
+      title="Score pending orders"
+      sub="Low scores can ship straight away. Medium and High go to the confirmation queue."
+      actions={
+        <Button type="button" onClick={score} disabled={scoring}>
           {phase === 'fast' ? 'Fast pass…' : phase === 'upgrade' ? 'Upgrading the full model…' : 'Score pending orders'}
         </Button>
-      </div>
-      {phase === 'fast' || phase === 'upgrade' ? (
-        <div className="h-2 w-full border-2 border-ink bg-paper" role="progressbar" aria-valuetext={phase === 'fast' ? 'Fast pass' : 'Full model'}>
-          <div className={`h-full bg-hl ${phase === 'fast' ? 'w-1/3' : 'w-2/3'}`} />
+      }
+    >
+      {scoring ? (
+        <div className="sticker-sm p-4" role="progressbar" aria-valuetext={phase === 'fast' ? 'Fast pass' : 'Full model'}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="eyebrow">{phase === 'fast' ? 'Fast pass scoring…' : 'Full model upgrading…'}</p>
+            <p className="font-mono text-[11px] font-bold text-inksoft">{phase === 'fast' ? '1/2' : '2/2'}</p>
+          </div>
+          <div className="mt-3 h-3 border-2 border-ink bg-paper">
+            <div className={`h-full bg-hl transition-all ${phase === 'fast' ? 'w-1/3' : 'w-2/3'}`} />
+          </div>
         </div>
       ) : null}
-      {list.isLoading ? <Skeleton className="h-48" /> : null}
-      <div id="scanner-list" className={`grid gap-3 ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
-        {orders.map((order) => (
-          <article key={order.id} className="grid gap-3 border-2 border-ink bg-white p-3 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center">
-            <div className="flex items-center gap-2 sm:block">
-              <p className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</p>
-              <div className="mt-1"><RiskBadge band={order.riskBand} /></div>
-            </div>
-            <div className="min-w-0">
-              <Link href={`/app/orders/${order.id}`} className="font-display text-xl font-extrabold uppercase underline decoration-lime decoration-2 underline-offset-4">
-                {order.externalOrderId}
-              </Link>
-              <p className="mt-1 text-sm">
-                {order.buyerName} · {order.city || '—'} · {order.pincode}
-              </p>
-              <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
-                {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.outcome || order.stage}
-              </p>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {(order.reasons.slice(0, 3).length ? order.reasons.slice(0, 3) : ['Not scored']).map((reason) => (
-                  <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em]">{reason}</li>
-                ))}
-              </ul>
-            </div>
-            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] sm:text-right">{actionCopy(order).label}</p>
-          </article>
-        ))}
-        {list.isFetched && !orders.length ? (
-          <p className="border-2 border-ink bg-white px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">No pending orders yet.</p>
-        ) : null}
-      </div>
-      <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
-      <details className="border-2 border-ink bg-white">
-        <summary className="cursor-pointer px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Add an order</summary>
-        <form onSubmit={createOrder} className="grid gap-3 border-t-2 border-ink p-4 md:grid-cols-2">
-          <Field label="Buyer name">
-            <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
-          </Field>
-          <Field label="Phone">
-            <input className={inputClass} value={form.phone} onChange={(event) => set('phone', event.target.value)} required />
-          </Field>
-          <Field label="Address">
-            <input className={inputClass} value={form.address} onChange={(event) => set('address', event.target.value)} required />
-          </Field>
-          <Field label="City">
-            <input className={inputClass} value={form.city} onChange={(event) => set('city', event.target.value)} />
-          </Field>
-          <Field label="State">
-            <input className={inputClass} value={form.state} onChange={(event) => set('state', event.target.value)} />
-          </Field>
-          <Field label="Pincode">
-            <input className={inputClass} value={form.pincode} onChange={(event) => set('pincode', event.target.value)} required pattern="[1-9][0-9]{5}" />
-          </Field>
-          <Field label="Order value (₹)">
-            <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
-          </Field>
-          <Field label="Payment">
-            <Dropdown
-              label="Payment"
-              value={form.paymentType}
-              onChange={(v) => set('paymentType', v)}
-              options={[
-                { value: 'cod', label: 'Cash on delivery' },
-                { value: 'prepaid', label: 'Prepaid' },
-              ]}
-            />
-          </Field>
-          <Field label="Prior orders">
-            <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />
-          </Field>
-          <Field label="Prior RTOs">
-            <input className={inputClass} type="number" min={0} value={form.priorRtos} onChange={(event) => set('priorRtos', event.target.value)} />
-          </Field>
-          <div className="md:col-span-2">
-            <Button type="submit">Add pending order</Button>
-          </div>
-        </form>
-        <div className="border-t-2 border-ink p-4">
-          <CsvImporter mode="pending" onImported={refresh} />
+
+      <Section eyebrow={`Pending · ${total}`} title="Orders waiting for a score" pad={false}>
+        <div id="scanner-list" className={`mt-4 border-t-2 border-ink ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
+          {list.isLoading ? <div className="p-5"><Skeleton className="h-48" /></div> : null}
+          {orders.map((order) => (
+            <article key={order.id} className="grid gap-4 border-b-2 border-ink/60 px-5 py-4 transition last:border-b-0 hover:bg-hl/20 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">
+              <div className="flex items-center gap-3 sm:block">
+                <p className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</p>
+                <div className="sm:mt-1.5"><RiskBadge band={order.riskBand} /></div>
+              </div>
+              <div className="min-w-0">
+                <Link href={`/app/orders/${order.id}`} className="font-display text-lg font-extrabold uppercase tracking-tight underline decoration-lime decoration-2 underline-offset-4">
+                  {order.externalOrderId}
+                </Link>
+                <p className="mt-1 text-sm text-ink/75">
+                  {order.buyerName} · {order.city || '—'} · {order.pincode}
+                </p>
+                <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                  {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.outcome || order.stage}
+                </p>
+                <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                  {(order.reasons.slice(0, 3).length ? order.reasons.slice(0, 3) : ['Not scored']).map((reason) => (
+                    <li key={reason} className="border-2 border-ink bg-hl px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em]">{reason}</li>
+                  ))}
+                </ul>
+              </div>
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft sm:max-w-[10rem] sm:text-right">{actionCopy(order).label}</p>
+            </article>
+          ))}
+          {list.isFetched && !orders.length ? (
+            <p className="px-5 py-10 text-center font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft sm:px-6">
+              No pending orders yet.<br />Add one below or connect Shopify.
+            </p>
+          ) : null}
         </div>
-      </details>
-    </div>
+        <div className="border-t-2 border-ink px-5 py-3 sm:px-6">
+          <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
+        </div>
+      </Section>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        <Section eyebrow="Manual entry" title="Add an order">
+          <form onSubmit={createOrder} className="grid gap-4 sm:grid-cols-2">
+            <Field label="Buyer name">
+              <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
+            </Field>
+            <Field label="Phone">
+              <input className={inputClass} value={form.phone} onChange={(event) => set('phone', event.target.value)} required />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Address">
+                <input className={inputClass} value={form.address} onChange={(event) => set('address', event.target.value)} required />
+              </Field>
+            </div>
+            <Field label="City">
+              <input className={inputClass} value={form.city} onChange={(event) => set('city', event.target.value)} />
+            </Field>
+            <Field label="State">
+              <input className={inputClass} value={form.state} onChange={(event) => set('state', event.target.value)} />
+            </Field>
+            <Field label="Pincode">
+              <input className={inputClass} value={form.pincode} onChange={(event) => set('pincode', event.target.value)} required pattern="[1-9][0-9]{5}" />
+            </Field>
+            <Field label="Order value (₹)">
+              <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
+            </Field>
+            <Field label="Payment">
+              <Dropdown
+                label="Payment"
+                value={form.paymentType}
+                onChange={(v) => set('paymentType', v)}
+                options={[
+                  { value: 'cod', label: 'Cash on delivery' },
+                  { value: 'prepaid', label: 'Prepaid' },
+                ]}
+              />
+            </Field>
+            <Field label="Prior orders">
+              <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />
+            </Field>
+            <Field label="Prior RTOs">
+              <input className={inputClass} type="number" min={0} value={form.priorRtos} onChange={(event) => set('priorRtos', event.target.value)} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Button type="submit">Add pending order</Button>
+            </div>
+          </form>
+        </Section>
+        <Section eyebrow="Bulk import" title="Upload a CSV">
+          <p className="-mt-2 mb-4 text-sm leading-6 text-ink/70">
+            A Shopify export, a Meesho-style file, or the generic template. Columns are matched automatically.
+          </p>
+          <CsvImporter mode="pending" onImported={refresh} />
+        </Section>
+      </div>
+    </Page>
   );
 }

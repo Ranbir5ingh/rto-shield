@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { actionCopy, OrderActions } from '@/components/OrderActions';
@@ -36,7 +35,7 @@ export default function QueuePage() {
 
 function QueueSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading the queue" data-tour-ready="false">
+    <div className="mx-auto w-full max-w-page space-y-4 px-4 py-8 sm:px-6 lg:px-8" aria-busy="true" aria-label="Loading the queue">
       <Skeleton className="h-12 w-64" />
       <Skeleton className="h-24" />
       <Skeleton className="h-24" />
@@ -62,9 +61,6 @@ function QueueScreen() {
   const [band, setBand] = useState<'all' | 'High' | 'Medium'>('all');
   const [callFor, setCallFor] = useState('');
   const [working, setWorking] = useState('');
-  const backRef = useRef<HTMLButtonElement>(null);
-  const sheetWasOpen = useRef(false);
-  const lastRow = useRef('');
 
   useEffect(() => {
     if (me.data?.messageLanguage) setLanguage(me.data.messageLanguage);
@@ -89,6 +85,7 @@ function QueueScreen() {
     router.replace(query ? `/app/queue?${query}` : '/app/queue', { scroll: false });
   }, [params, router]);
 
+  // Desktop: keep the first order selected so the detail pane is never empty.
   useEffect(() => {
     if (!wide || orderParam || !filtered[0]) return;
     replace(filtered[0].id);
@@ -98,18 +95,11 @@ function QueueScreen() {
     if (orderParam && queue.isSuccess && !orders.some((order) => order.id === orderParam)) replace('');
   }, [orderParam, orders, queue.isSuccess, replace]);
 
-  useEffect(() => {
-    if (!wide && orderParam) {
-      sheetWasOpen.current = true;
-      lastRow.current = orderParam;
-      backRef.current?.focus();
-      return;
-    }
-    if (sheetWasOpen.current && !orderParam) {
-      sheetWasOpen.current = false;
-      document.getElementById(`queue-row-${lastRow.current}`)?.focus();
-    }
-  }, [orderParam, wide]);
+  // Mobile: rows open the full order page. Desktop: rows select inline.
+  const openRow = useCallback((id: string) => {
+    if (wide) replace(id);
+    else router.push(`/app/orders/${id}`);
+  }, [wide, replace, router]);
 
   function textFor(order: OrderDetail) {
     if (!order.messages) return '';
@@ -237,7 +227,7 @@ function QueueScreen() {
     if (!filtered.length) return;
     const index = Math.max(0, filtered.findIndex((order) => order.id === (selected?.id || filtered[0].id)));
     const next = filtered[Math.min(filtered.length - 1, Math.max(0, index + delta))];
-    replace(next.id);
+    openRow(next.id);
     document.getElementById(`queue-row-${next.id}`)?.focus();
   }
 
@@ -262,63 +252,76 @@ function QueueScreen() {
       onCloseCall={() => setCallFor('')}
     />
   ) : (
-    <p className="border-2 border-dashed border-ink px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
-      Select an order to read the message and take the next action.
-    </p>
+    <div className="sticker-sm p-8 text-center">
+      <p className="eyebrow text-inksoft">No order selected</p>
+      <p className="mt-3 text-sm leading-6 text-ink/70">
+        Pick an order from the list to read the message and take the next action.
+      </p>
+    </div>
   );
 
+  const pickedIds = Object.entries(picked).filter(([, on]) => on).map(([id]) => id);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3" data-tour-ready="true">
-      <div className="flex shrink-0 flex-wrap items-end justify-between gap-3" data-tour="risk-queue">
-        <div>
-          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft">Needs a decision</p>
-          <h1 className="font-display text-[clamp(1.7rem,4vw,2.6rem)] font-black uppercase leading-none">Confirmation queue</h1>
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-page flex-col px-4 sm:px-6 lg:px-8" data-tour-ready="true">
+      {/* header */}
+      <div className="shrink-0 pb-4 pt-5 lg:pt-6" data-tour="risk-queue">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow text-inksoft">
+              Needs a decision · {orders.length} waiting
+            </p>
+            <h1 className="mt-2 font-display text-[1.7rem] font-black uppercase leading-none tracking-tight md:text-4xl">
+              Confirmation queue
+            </h1>
+          </div>
+          <label className="flex items-center gap-3 text-sm">
+            <span className="eyebrow text-inksoft">Message</span>
+            <Dropdown
+              label="Message language"
+              value={language}
+              onChange={(v) => setLanguage(v as PublicUser['messageLanguage'])}
+              options={[
+                { value: 'hinglish', label: 'Hinglish' },
+                { value: 'hindi', label: 'Hindi' },
+                { value: 'english', label: 'English' },
+              ]}
+            />
+          </label>
         </div>
-        <label className="text-sm">
-          Message
-          <Dropdown
-            label="Message language"
-            value={language}
-            onChange={(v) => setLanguage(v as PublicUser['messageLanguage'])}
-            options={[
-              { value: 'hinglish', label: 'Hinglish' },
-              { value: 'hindi', label: 'Hindi' },
-              { value: 'english', label: 'English' },
-            ]}
-          />
-        </label>
+        <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Risk band">
+          {(['all', 'High', 'Medium'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={band === value}
+              className={`border-2 border-ink px-3.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
+                band === value ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
+              }`}
+              onClick={() => setBand(value)}
+            >
+              {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
+            </button>
+          ))}
+        </div>
+        {pickedIds.length > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2.5 border-2 border-ink bg-lime px-4 py-2.5 shadow-sticker-sm">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+              {pickedIds.length} selected
+            </span>
+            <Button type="button" disabled={sending || !canSend} onClick={() => send(pickedIds)}>
+              {sending ? 'Sending…' : 'Send selected'}
+            </Button>
+            <Button type="button" tone="ghost" onClick={() => setPicked({})}>Clear</Button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap gap-2" role="tablist" aria-label="Risk band">
-        {(['all', 'High', 'Medium'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={band === value}
-            className={`border-2 border-ink px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] ${band === value ? 'bg-lime' : 'bg-white'}`}
-            onClick={() => setBand(value)}
-          >
-            {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
-          </button>
-        ))}
-      </div>
-
-      {Object.values(picked).some(Boolean) ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-2 border-ink bg-lime px-3 py-2">
-          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
-            {Object.values(picked).filter(Boolean).length} selected
-          </span>
-          <Button type="button" disabled={sending || !canSend} onClick={() => send(Object.entries(picked).filter(([, on]) => on).map(([id]) => id))}>
-            Send selected
-          </Button>
-          <Button type="button" tone="ghost" onClick={() => setPicked({})}>Clear</Button>
-        </div>
-      ) : null}
-
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(280px,22rem)_minmax(0,1fr)]">
+      {/* body: list + detail */}
+      <div className="grid min-h-0 flex-1 gap-4 pb-6 lg:grid-cols-[21rem_minmax(0,1fr)]">
         <div
-          className="min-h-0 overflow-y-auto border-2 border-ink bg-white"
+          className="sticker-sm min-h-0 overflow-y-auto overscroll-contain"
           role="listbox"
           aria-label="Orders waiting for a decision"
           aria-activedescendant={selected ? `queue-row-${selected.id}` : undefined}
@@ -332,11 +335,11 @@ function QueueScreen() {
           }}
         >
           {!filtered.length ? (
-            <p className="px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
-              No medium or high risk orders. Score a batch, or ship the low-risk ones.
+            <p className="px-5 py-10 text-center font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft">
+              No medium or high risk orders.<br />Score a batch, or ship the low-risk ones.
             </p>
           ) : filtered.map((order, index) => {
-            const active = selected?.id === order.id;
+            const active = wide && selected?.id === order.id;
             return (
               <div
                 key={order.id}
@@ -344,14 +347,16 @@ function QueueScreen() {
                 role="option"
                 aria-selected={active}
                 tabIndex={0}
-                onClick={() => replace(order.id)}
+                onClick={() => openRow(order.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    replace(order.id);
+                    openRow(order.id);
                   }
                 }}
-                className={`grid w-full grid-cols-[auto_3.25rem_1fr] items-center gap-3 border-b-2 border-ink px-3 py-3 text-left last:border-b-0 ${active ? 'bg-hl/50' : 'bg-white'}`}
+                className={`grid w-full cursor-pointer grid-cols-[auto_3.5rem_1fr] items-center gap-3 border-b-2 border-ink/60 px-4 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
+                  active ? 'bg-hl/60' : 'bg-white'
+                }`}
               >
                 <input
                   type="checkbox"
@@ -359,66 +364,30 @@ function QueueScreen() {
                   checked={Boolean(picked[order.id])}
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
+                  className="h-4 w-4 accent-[#1B1712]"
                 />
-                <span className="font-display text-3xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+                <span className="font-display text-[2rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
                 <div className="min-w-0">
                   <span className="flex items-center justify-between gap-2">
-                    <span className="truncate font-display text-lg font-extrabold uppercase">{order.buyerName}</span>
+                    <span className="truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
                     <RiskBadge band={order.riskBand} />
                   </span>
                   <span className="mt-1 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
                     {order.externalOrderId} · {order.city} · {inr(order.orderValue)}
                   </span>
-                  <span className="mt-1 block font-mono text-[10px] font-bold uppercase tracking-[0.14em]" data-tour={index === 0 ? 'risk-reasons' : undefined}>
+                  <span className="mt-1 block truncate font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink/60" data-tour={index === 0 ? 'risk-reasons' : undefined}>
                     {(order.reasons[0] || actionCopy(order).label)}
                   </span>
-                  {index === 0 ? (
-                    <div className="mt-1" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                      <OrderActions
-                        order={order}
-                        busy={sending || working === order.id}
-                        canSend={canSend}
-                        tour
-                        onPrimary={() => {
-                          replace(order.id);
-                          runPrimary(order);
-                        }}
-                        onOutcome={(value) => outcome(order.id, value)}
-                        onPrepaid={() => {
-                          replace(order.id);
-                          prepaid(order.id);
-                        }}
-                        onCall={() => {
-                          replace(order.id);
-                          setCallFor(order.id);
-                        }}
-                        onVoice={() => voice(order)}
-                        onPin={() => pin(order)}
-                      />
-                    </div>
-                  ) : null}
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="hidden min-h-0 overflow-y-auto lg:block">
+        <div className="hidden min-h-0 overflow-y-auto overscroll-contain pb-2 pr-0.5 lg:block">
           {detail}
         </div>
       </div>
-
-      {selected && !wide ? (
-        <div className="fixed inset-x-0 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] top-0 z-[60] flex flex-col bg-paper" role="dialog" aria-label={selected.buyerName}>
-          <div className="flex shrink-0 items-center gap-3 border-b-2 border-ink px-4 py-3">
-            <button ref={backRef} type="button" className="btn-ghost" onClick={() => replace('')}>Back</button>
-            <h2 className="truncate font-display text-xl font-extrabold uppercase">{selected.buyerName}</h2>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {detail}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -457,65 +426,79 @@ function QueueDetail({
   onCloseCall: () => void;
 }) {
   return (
-    <article className="border-2 border-ink bg-paper p-4 shadow-sticker">
+    <article className="sticker p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-2xl">
-            <Link href={`/app/orders/${order.id}`} className="underline decoration-lime decoration-2 underline-offset-4">
-              {order.buyerName}
-            </Link>
+          <p className="eyebrow text-inksoft">Order detail</p>
+          <h2 className="mt-1.5 font-display text-2xl font-black uppercase tracking-tight md:text-3xl">
+            {order.buyerName}
           </h2>
+          <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
+            {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'}
+          </p>
           <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-            {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked} · {order.city} {order.pincode}
+            {order.phoneMasked} · {order.city} {order.pincode}
           </p>
         </div>
-        {canSend ? (
-          <label className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
-            <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} />
-            Select
-          </label>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          <RiskBadge band={order.riskBand} />
+          <span className="font-display text-5xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+        </div>
       </div>
-      <ul className="mt-3 flex flex-wrap gap-2">
+
+      <ul className="mt-4 flex flex-wrap gap-2" aria-label="Risk reasons">
         {order.reasons.map((reason) => (
-          <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">
+          <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">
             {reason}
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-sm leading-6">{order.address}</p>
-      <OrderActions
-        order={order}
-        busy={busy}
-        canSend={canSend}
-        onPrimary={onPrimary}
-        onOutcome={onOutcome}
-        onPrepaid={onPrepaid}
-        onCall={onCall}
-        onVoice={onVoice}
-        onPin={onPin}
-      />
-      {calling ? <div className="mt-3"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
+
+      <p className="mt-4 border-t-2 border-dashed border-ink/20 pt-4 text-[15px] leading-7 text-ink/80">{order.address}</p>
+
+      <div className="mt-4">
+        <OrderActions
+          order={order}
+          busy={busy}
+          canSend={canSend}
+          onPrimary={onPrimary}
+          onOutcome={onOutcome}
+          onPrepaid={onPrepaid}
+          onCall={onCall}
+          onVoice={onVoice}
+          onPin={onPin}
+        />
+      </div>
+      {calling ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
       {order.prepaid?.invoiceUrl ? (
-        <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+        <p className="mt-4 border-2 border-ink bg-lime/40 p-4 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
           Prepaid {order.prepaid.status} · <a className="underline" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
         </p>
       ) : null}
-      <div className="mt-4 grid gap-4">
-        <div className="border-2 border-ink bg-white p-3">
+
+      <div className="mt-6 grid gap-4">
+        <div className="border-2 border-ink bg-white p-4">
           <div className="flex items-start justify-between gap-3">
-            <p className="font-hindi text-sm leading-6">{text}</p>
+            <p className="eyebrow text-inksoft">Message draft</p>
             {text ? <CopyButton text={text} /> : null}
           </div>
+          <p className="mt-3 font-hindi text-[15px] leading-7">{text}</p>
           {order.messages ? (
-            <p className="mt-3 border-t-2 border-dashed border-ink/30 pt-3 text-sm text-ink/75">
+            <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">
               Prepaid nudge: {order.messages.prepaid_nudge}
             </p>
           ) : null}
         </div>
         <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
       </div>
-      {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
+      {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
+
+      {canSend ? (
+        <label className="mt-5 flex items-center gap-2.5 border-t-2 border-dashed border-ink/20 pt-4 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
+          <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} className="h-4 w-4 accent-[#1B1712]" />
+          Select for bulk send
+        </label>
+      ) : null}
     </article>
   );
 }

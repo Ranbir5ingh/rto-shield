@@ -318,3 +318,75 @@ export function DoodleArrow({ className = '', flip = false }: { className?: stri
     </svg>
   );
 }
+
+/* ---------- app page primitives (dashboard layout system) ---------- */
+
+/** Consistent page frame: max-width, gutters, header hierarchy. The page
+ *  scroller lives in Shell; pages only own their inner padding. */
+export function Page({
+  eyebrow,
+  title,
+  sub,
+  actions,
+  children,
+  className = '',
+}: {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  sub?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mx-auto w-full max-w-page px-4 sm:px-6 lg:px-8 ${className}`}>
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 py-6 lg:py-8">
+        <div className="min-w-0">
+          {eyebrow ? <p className="eyebrow text-inksoft">{eyebrow}</p> : null}
+          <h1 className="mt-2 font-display text-[1.7rem] font-black uppercase leading-[1.02] tracking-tight md:text-4xl">
+            {title}
+          </h1>
+          {sub ? <p className="mt-3 max-w-2xl text-[15px] leading-7 text-ink/70">{sub}</p> : null}
+        </div>
+        {actions ? <div className="flex flex-wrap items-center gap-2.5">{actions}</div> : null}
+      </header>
+      <div className="space-y-6 pb-12 lg:space-y-8 lg:pb-16">{children}</div>
+    </div>
+  );
+}
+
+/** A separated content section: sticker card with eyebrow + title header. */
+export function Section({
+  eyebrow,
+  title,
+  action,
+  children,
+  className = '',
+  pad = true,
+}: {
+  eyebrow?: ReactNode;
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  pad?: boolean;
+}) {
+  return (
+    <section className={`sticker ${className}`}>
+      {(eyebrow || title || action) && (
+        <div className={`flex flex-wrap items-start justify-between gap-3 ${pad ? 'p-5 sm:p-6 lg:p-7' : 'px-5 pt-5 sm:px-6 sm:pt-6 lg:px-7 lg:pt-7'} pb-0`}>
+          <div className="min-w-0">
+            {eyebrow ? <p className="eyebrow text-inksoft">{eyebrow}</p> : null}
+            {title ? (
+              <h2 className="mt-2 font-display text-xl font-extrabold uppercase tracking-tight md:text-2xl">
+                {title}
+              </h2>
+            ) : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
+      )}
+      <div className={pad ? 'p-5 sm:p-6 lg:p-7' : ''}>{children}</div>
+    </section>
+  );
+}

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { SecretField } from '@/components/SecretField';
 import { useToast } from '@/components/Toaster';
 import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
-import { Button, Field, Notice, inputClass } from '@/components/ui';
+import { Button, Field, Flag, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { qk, useGemini, useShopify, useWhatsapp, type GeminiLink, type ShopifyLink, type WhatsAppLink } from '@/lib/queries';
 
@@ -21,6 +21,36 @@ interface ConnectionCheck {
 }
 
 type GeminiStatus = GeminiLink;
+
+function Card({
+  title,
+  desc,
+  flag,
+  guide,
+  children,
+}: {
+  title: string;
+  desc: string;
+  flag: React.ReactNode;
+  guide?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-2 border-ink bg-white shadow-sticker-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-ink px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">{title}</h3>
+            {guide}
+          </div>
+          <p className="mt-1 text-sm leading-6 text-ink/70">{desc}</p>
+        </div>
+        <div className="shrink-0">{flag}</div>
+      </div>
+      <div className="space-y-4 p-5">{children}</div>
+    </div>
+  );
+}
 
 export function Connections({ locked = false }: { locked?: boolean }) {
   const client = useQueryClient();
@@ -93,40 +123,31 @@ export function Connections({ locked = false }: { locked?: boolean }) {
   if (locked) {
     return (
       <div className="space-y-4">
-        <section className="panel space-y-2 p-5 shadow-card">
-          <h2 className="font-display text-2xl">Shopify</h2>
-          <p className="text-sm text-ink/70">{shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'}</p>
-        </section>
-        <section className="panel space-y-2 p-5 shadow-card">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-display text-2xl">WhatsApp</h2>
-            <WhatsAppSetupGuide
-              callbackUrl={whatsapp?.callbackUrl || ''}
-              verifyToken=""
-              progress={{ templateStatus: whatsapp?.templateStatus, webhookVerified: whatsapp?.webhookVerified }}
-            />
+        {[
+          ['Shopify', shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'],
+          ['WhatsApp', whatsapp?.configured ? 'Saved · ••••••••' : 'Not configured'],
+          ['Gemini', gemini?.configured ? 'Saved · ••••••••' : 'Not configured'],
+        ].map(([title, state]) => (
+          <div key={title} className="flex items-center justify-between gap-4 border-2 border-ink bg-white px-5 py-4 shadow-sticker-sm">
+            <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">{title}</h3>
+            <span className="font-mono text-xs font-bold uppercase tracking-[0.12em] text-inksoft">{state}</span>
           </div>
-          <p className="text-sm text-ink/70">
-            {whatsapp?.configured ? 'Saved · ••••••••' : 'Not configured'}
-            {whatsapp?.templateStatus ? ` · template ${whatsapp.templateStatus}` : ''}
-          </p>
-        </section>
-        <section className="panel space-y-2 p-5 shadow-card">
-          <h2 className="font-display text-2xl">Gemini</h2>
-          <p className="text-sm text-ink/70">{gemini?.configured ? 'Saved · ••••••••' : 'Not configured'}</p>
-        </section>
+        ))}
         <p className="text-sm leading-6 text-ink/70">Demo sessions can look, not change the shop.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <section className="panel space-y-3 p-5 shadow-card">
-        <h2 className="font-display text-2xl">Shopify</h2>
+    <div className="space-y-5">
+      <Card
+        title="Shopify"
+        desc="Pulls the last 60 days of orders and keeps scoring new ones."
+        flag={<Flag tone={shopify?.connected ? 'go' : 'ghost'}>{shopify?.connected ? 'Connected' : 'Not connected'}</Flag>}
+      >
         {shopify?.connected ? (
           <>
-            <p className="text-sm text-ink/70">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.12em]">
               {shopify.demo ? 'Demo store' : shopify.shop} · backfill {shopify.backfill.status} ({shopify.backfill.processed})
             </p>
             {shopify.backfill.status === 'error' ? (
@@ -135,7 +156,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
           </>
         ) : (
           <form
-            className="space-y-3"
+            className="max-w-sm space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               void run(async () => {
@@ -152,7 +173,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
         )}
         {shopify?.connected && !shopify.demo ? (
           <form
-            className="space-y-3"
+            className="max-w-md space-y-4 border-t-2 border-dashed border-ink/20 pt-4"
             onSubmit={(event) => {
               event.preventDefault();
               void run(async () => {
@@ -169,18 +190,20 @@ export function Connections({ locked = false }: { locked?: boolean }) {
               });
             }}
           >
+            <p className="eyebrow text-inksoft">Shopify preferences</p>
             <Field label="Tag that means RTO in your shop">
               <input className={inputClass} value={shopify.rtoTag} onChange={(event) => setShopify({ ...shopify, rtoTag: event.target.value })} />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-3 border-2 border-ink bg-paper px-4 py-3.5">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-[#1B1712]"
                 checked={shopify.autoCancelOnBuyerCancel}
                 onChange={(event) => setShopify({ ...shopify, autoCancelOnBuyerCancel: event.target.checked })}
               />
-              Cancel the Shopify order when the buyer taps Cancel
+              <span className="text-[15px]">Cancel the Shopify order when the buyer taps Cancel</span>
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2.5">
               <Button type="submit">Save Shopify</Button>
               <Button
                 type="button"
@@ -197,11 +220,13 @@ export function Connections({ locked = false }: { locked?: boolean }) {
             </div>
           </form>
         ) : null}
-      </section>
+      </Card>
 
-      <section className="panel space-y-3 p-5 shadow-card">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-2xl">WhatsApp</h2>
+      <Card
+        title="WhatsApp"
+        desc="Your own Cloud API number. Templates only, until the buyer replies."
+        flag={<Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Saved' : 'Not configured'}</Flag>}
+        guide={
           <WhatsAppSetupGuide
             callbackUrl={whatsapp?.callbackUrl || ''}
             verifyToken={whatsapp?.verifyToken || ''}
@@ -214,10 +239,10 @@ export function Connections({ locked = false }: { locked?: boolean }) {
               webhookVerified: whatsapp?.webhookVerified,
             }}
           />
-        </div>
-        <p className="text-sm leading-6 text-ink/70">Your own Cloud API number. Templates only, until the buyer replies.</p>
+        }
+      >
         <form
-          className="space-y-3"
+          className="grid max-w-2xl gap-4 sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
             const phoneOk = /^\d{6,30}$/.test(phoneNumberId.trim());
@@ -243,36 +268,43 @@ export function Connections({ locked = false }: { locked?: boolean }) {
             });
           }}
         >
-          <SecretField
-            key={`whatsapp-token-${secretEpoch}`}
-            label="Permanent access token"
-            field="whatsappToken"
-            last4={whatsapp?.tokenLast4 || ''}
-            draft={tokenDraft}
-            onDraftChange={setTokenDraft}
-            error={tokenError}
-          />
+          <div className="sm:col-span-2">
+            <SecretField
+              key={`whatsapp-token-${secretEpoch}`}
+              label="Permanent access token"
+              field="whatsappToken"
+              last4={whatsapp?.tokenLast4 || ''}
+              draft={tokenDraft}
+              onDraftChange={setTokenDraft}
+              error={tokenError}
+            />
+          </div>
           <Field label="Phone Number ID" error={phoneError}>
             <input className={inputClass} value={phoneNumberId} onChange={(event) => setPhoneNumberId(event.target.value)} inputMode="numeric" />
           </Field>
           <Field label="WABA ID" error={wabaError}>
             <input className={inputClass} value={wabaId} onChange={(event) => setWabaId(event.target.value)} inputMode="numeric" />
           </Field>
-          <SecretField
-            key={`whatsapp-secret-${secretEpoch}`}
-            label="App secret, optional but required for replies"
-            field="whatsappAppSecret"
-            last4={whatsapp?.appSecretLast4 || ''}
-            draft={secretDraft}
-            onDraftChange={setSecretDraft}
-          />
-          <Button type="submit">Save WhatsApp</Button>
+          <div className="sm:col-span-2">
+            <SecretField
+              key={`whatsapp-secret-${secretEpoch}`}
+              label="App secret, optional but required for replies"
+              field="whatsappAppSecret"
+              last4={whatsapp?.appSecretLast4 || ''}
+              draft={secretDraft}
+              onDraftChange={setSecretDraft}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit">Save WhatsApp</Button>
+          </div>
         </form>
         {whatsapp ? (
-          <div className="space-y-2 text-sm">
-            <p>Template order_confirmation: {whatsapp.templateStatus}</p>
-            <p className="break-all font-mono text-xs">Callback {whatsapp.callbackUrl}</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-3 border-t-2 border-dashed border-ink/20 pt-4">
+            <p className="eyebrow text-inksoft">Diagnostics</p>
+            <p className="text-sm">Template order_confirmation: <span className="font-mono text-xs font-bold">{whatsapp.templateStatus}</span></p>
+            <p className="break-all font-mono text-xs text-inksoft">Callback {whatsapp.callbackUrl}</p>
+            <div className="flex flex-wrap gap-2.5">
               <Button
                 type="button"
                 onClick={() =>
@@ -315,7 +347,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
               </Button>
             </div>
             <form
-              className="flex flex-wrap items-end gap-2"
+              className="flex max-w-md flex-wrap items-end gap-2.5"
               onSubmit={(event) => {
                 event.preventDefault();
                 void run(async () => {
@@ -324,10 +356,12 @@ export function Connections({ locked = false }: { locked?: boolean }) {
                 });
               }}
             >
-              <Field label="Send test to">
-                <input className={inputClass} value={testTo} onChange={(event) => setTestTo(event.target.value)} placeholder="98xxxxxxxx" />
-              </Field>
-              <Button type="submit">Send test message</Button>
+              <div className="min-w-0 flex-1">
+                <Field label="Send test to">
+                  <input className={inputClass} value={testTo} onChange={(event) => setTestTo(event.target.value)} placeholder="98xxxxxxxx" />
+                </Field>
+              </div>
+              <Button type="submit">Send test</Button>
             </form>
             {connectionChecks ? (
               <ul className="space-y-2">
@@ -344,16 +378,16 @@ export function Connections({ locked = false }: { locked?: boolean }) {
             ) : null}
           </div>
         ) : null}
-      </section>
+      </Card>
 
-      <section className="panel space-y-3 p-5 shadow-card">
-        <h2 className="font-display text-2xl">Gemini</h2>
-        <p className="text-sm leading-6 text-ink/70">
-          Notes for this shop use your key.
-          {gemini?.demoFallback ? ' The demo shop can use the platform key.' : ''}
-        </p>
+      <Card
+        title="Gemini"
+        desc="Notes for this shop use your key."
+        flag={<Flag tone={gemini?.configured ? 'go' : 'ghost'}>{gemini?.configured ? 'Saved' : 'Not configured'}</Flag>}
+      >
+        {gemini?.demoFallback ? <p className="text-sm leading-6 text-ink/70">The demo shop can use the platform key.</p> : null}
         <form
-          className="space-y-3"
+          className="max-w-sm space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             const next = geminiDraft?.trim() || '';
@@ -386,7 +420,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
           />
           <Button type="submit">Test and save</Button>
         </form>
-      </section>
+      </Card>
     </div>
   );
 }
