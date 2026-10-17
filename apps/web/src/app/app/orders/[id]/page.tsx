@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
+import { OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, RiskBadge, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -22,6 +24,9 @@ export default function OrderDetailPage() {
   const [note, setNote] = useState('');
   const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
   const [saving, setSaving] = useState('');
+  const [calling, setCalling] = useState(false);
+  const [address, setAddress] = useState('');
+  const [landmark, setLandmark] = useState('');
 
   async function voice() {
     if (!order) return;
@@ -61,6 +66,41 @@ export default function OrderDetailPage() {
     } catch (err) {
       client.setQueryData(qk.order(order.id), previous);
       toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
+    } finally {
+      setSaving('');
+    }
+  }
+
+  async function prepaid() {
+    if (!order) return;
+    setSaving('prepaid');
+    try {
+      const next = await api<OrderDetail & { notice?: string | null }>(`/orders/${order.id}/prepaid`, { method: 'POST' });
+      client.setQueryData(qk.order(order.id), next);
+      invalidateShop(client);
+      toast.success(next.notice || 'Prepaid checkout is ready.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not create the prepaid link');
+    } finally {
+      setSaving('');
+    }
+  }
+
+  async function saveAddress(event: React.FormEvent) {
+    event.preventDefault();
+    if (!order || !address.trim()) return;
+    setSaving('address');
+    try {
+      const next = await api<OrderDetail>(`/orders/${order.id}/address`, {
+        method: 'POST',
+        body: JSON.stringify({ address, landmark, source: 'seller' }),
+      });
+      client.setQueryData(qk.order(order.id), next);
+      setAddress('');
+      setLandmark('');
+      toast.success('Address updated.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not update the address');
     } finally {
       setSaving('');
     }
@@ -123,6 +163,36 @@ export default function OrderDetailPage() {
         ) : null}
         <p className="mt-3 text-sm leading-6">{order.address}</p>
       </article>
+      <article className="border-2 border-ink bg-white p-4">
+        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Timeline</h2>
+        <ol className="mt-3 space-y-2">
+          {(order.timeline || []).length ? (order.timeline || []).map((step) => (
+            <li key={`${step.at}-${step.step}`} className="border-2 border-ink bg-paper px-3 py-2">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{step.step.replaceAll('_', ' ')}</p>
+              <p className="mt-1 text-sm">{step.detail}</p>
+            </li>
+          )) : <li className="text-sm text-inksoft">No steps yet.</li>}
+        </ol>
+      </article>
+      {order.prepaid?.invoiceUrl ? (
+        <article className="border-2 border-ink bg-lime/40 p-4">
+          <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Prepaid {order.prepaid.status}</h2>
+          <p className="mt-2 text-sm">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
+          <a className="btn-go mt-3 inline-flex" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+        </article>
+      ) : null}
+      <form onSubmit={saveAddress} className="border-2 border-ink bg-white p-4">
+        <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Update address</h2>
+        <label className="mt-3 block text-sm">
+          Address
+          <input id="address" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} />
+        </label>
+        <label className="mt-3 block text-sm">
+          Landmark
+          <input className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
+        </label>
+        <Button className="mt-3" type="submit" disabled={saving === 'address'}>Save address</Button>
+      </form>
       <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
       {order.messages ? (
         <article className="border-2 border-ink bg-white p-4">
@@ -150,18 +220,23 @@ export default function OrderDetailPage() {
           {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
         </article>
       ) : null}
-      <div className="sticky bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 flex flex-wrap gap-2 border-2 border-ink bg-paper p-3 shadow-sticker">
-        <Button type="button" onClick={() => mark('confirmed')} disabled={closed || Boolean(saving)}>
-          {saving === 'confirmed' ? 'Saving…' : 'Confirmed'}
-        </Button>
-        <Button type="button" tone="danger" onClick={() => mark('cancelled')} disabled={closed || Boolean(saving)}>
-          {saving === 'cancelled' ? 'Saving…' : 'Cancelled'}
-        </Button>
-        <Button type="button" tone="ghost" onClick={() => mark('no_response')} disabled={closed || Boolean(saving)}>
-          Skip
-        </Button>
-        {closed ? <p className="self-center font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
-      </div>
+      <OrderActions
+        order={order}
+        busy={Boolean(saving)}
+        canSend
+        onPrimary={() => {
+          if (order.intervention === 'offer_prepaid') void prepaid();
+          else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
+          else void mark('confirmed');
+        }}
+        onOutcome={(value) => mark(value)}
+        onPrepaid={() => prepaid()}
+        onCall={() => setCalling(true)}
+        onVoice={() => voice()}
+        onPin={() => pin()}
+      />
+      {calling ? <CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /> : null}
+      {closed ? <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
     </div>
   );
 }

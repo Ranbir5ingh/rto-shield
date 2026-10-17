@@ -12,6 +12,7 @@ import { User, type UserDocument, type WhatsAppLink } from '../database/user.sch
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
 import { demoSendCap, effectiveRole } from '../demo/demo.policy';
+import { pushTimeline, reductionSettings } from '../orders/action';
 import { ShopifyService } from '../shopify/shopify.service';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
@@ -238,6 +239,7 @@ export class WhatsAppService {
       if (visitor && !allowlisted) {
         await this.holdDemoSend(user);
         this.markSimulated(order, name);
+        this.stampEscalation(user, order);
         await order.save();
         await this.demoState.note(user, 'demo.whatsapp.simulated', String(order._id), { template: name });
         sent.push(String(order._id));
@@ -246,6 +248,7 @@ export class WhatsAppService {
       }
       if (synthetic) {
         this.markSimulated(order, name);
+        this.stampEscalation(user, order);
         await order.save();
         sent.push(String(order._id));
         continue;
@@ -277,6 +280,7 @@ export class WhatsAppService {
         ...(order.conversation || []),
         { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${name} ${order.externalOrderId}` },
       ];
+      this.stampEscalation(user, order);
       await order.save();
       if (visitor) {
         await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: name });
@@ -325,6 +329,7 @@ export class WhatsAppService {
         const messages = Array.isArray(value.messages) ? (value.messages as Array<Record<string, unknown>>) : [];
         for (const message of messages) {
           await this.applyButton(user, message);
+          await this.applyText(user, message);
         }
       }
     }
@@ -346,6 +351,71 @@ export class WhatsAppService {
       { sellerId: user._id, whatsappMessageId: wamid },
       { $set: { whatsappStatus: next } },
     );
+  }
+
+  async sendCheckoutLink(user: UserDocument, order: OrderDocument, url: string): Promise<{ delivered: boolean; notice: string | null }> {
+    const phone = this.phoneOf(order);
+    const visitor = effectiveRole(user) === 'demo';
+    const note = 'WhatsApp can only send a template on the first message. The checkout link is on the order.';
+    if (!phone || !user.whatsapp?.tokenEnvelope || visitor) {
+      order.conversation = [
+        ...(order.conversation || []),
+        { at: new Date().toISOString(), direction: 'out', kind: 'link', text: 'Prepaid checkout link' },
+      ];
+      await order.save();
+      return { delivered: false, notice: visitor ? 'In the demo, the checkout link stays on this order.' : note };
+    }
+    try {
+      await this.graphSend(user, {
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'text',
+        text: { body: `Pay now and save: ${url}`.slice(0, 1000) },
+      });
+      order.conversation = [
+        ...(order.conversation || []),
+        { at: new Date().toISOString(), direction: 'out', kind: 'text', text: 'Prepaid checkout link' },
+      ];
+      await order.save();
+      return { delivered: true, notice: null };
+    } catch (error) {
+      this.logger.warn(`Checkout link missed: ${error instanceof Error ? error.name : 'error'}`);
+      return { delivered: false, notice: note };
+    }
+  }
+
+  private stampEscalation(user: UserDocument, order: OrderDocument) {
+    if (order.riskBand !== 'High' || order.callDueAt) return;
+    const minutes = reductionSettings(user).escalationMinutes;
+    const delay = effectiveRole(user) === 'demo' ? 0 : minutes * 60_000;
+    order.callDueAt = new Date(Date.now() + delay);
+    order.timeline = pushTimeline(order.timeline, 'whatsapp', 'WhatsApp sent. A call follows if there is no reply.');
+  }
+
+  private async applyText(user: UserDocument, message: Record<string, unknown>) {
+    const context = (message.context || {}) as { id?: string };
+    const text = String((message.text as { body?: string } | undefined)?.body || '').trim();
+    if (!context.id || text.length < 8 || /^(confirm|cancel|haan|nahi|ok|yes|no)$/i.test(text)) return;
+    const order = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
+    if (!order || order.stage !== 'pending') return;
+    order.addressEnc = this.crypto.encrypt(text.slice(0, 300));
+    order.addressFixedAt = new Date();
+    order.timeline = pushTimeline(order.timeline, 'address', 'Buyer reply updated the address');
+    order.conversation = [
+      ...(order.conversation || []),
+      { at: new Date().toISOString(), direction: 'in', kind: 'text', text: 'Address reply' },
+    ];
+    await order.save();
+    void this.shopify
+      .updateShippingAddress(user, order.shopifyGid, {
+        address1: text.slice(0, 200),
+        city: order.city,
+        province: order.state,
+        zip: order.pincode,
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+      });
   }
 
   private async applyButton(user: UserDocument, message: Record<string, unknown>) {

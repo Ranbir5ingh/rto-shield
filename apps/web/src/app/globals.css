@@ -466,7 +466,7 @@ body {
   left: 0;
   top: 0;
   pointer-events: none;
-  z-index: 200;
+  z-index: 400;
 }
 
 .cur-dot {
@@ -839,14 +839,76 @@ body {
   transform: translate(2px, 2px);
 }
 
+.dock-label {
+  white-space: nowrap;
+}
+
+.dock-tip {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 2px solid #1b1712;
+  background: #faf6ee;
+  box-shadow: 3px 3px 0 #1b1712;
+  padding: 0.35rem 0.45rem;
+  color: #1b1712;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+[data-dock='responsive'] .dock-tip {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+@media (min-width: 768px) {
+  [data-dock='responsive'] .dock-tip {
+    bottom: auto;
+    top: calc(100% + 8px);
+  }
+}
+
+.dock-item:focus-visible .dock-tip,
+.dock-item[data-held='1'] .dock-tip {
+  display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dock-item:hover .dock-tip {
+    display: block;
+  }
+}
+
 @media (max-width: 767px) {
   .dock-item {
     flex-direction: column;
-    gap: 0.1rem;
-    min-width: 2.6rem;
-    padding: 0.4rem 0.3rem;
-    letter-spacing: 0.06em;
-    font-size: 9px;
+    gap: 0;
+    min-width: 2.75rem;
+    padding: 0.55rem 0.35rem;
+  }
+  .dock-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  [data-dock='responsive'] .dock-tip,
+  [data-dock='bottom'] .dock-tip {
+    bottom: calc(100% + 8px);
+    top: auto;
   }
 }
 

@@ -35,6 +35,18 @@ export interface GeminiLink {
   validatedAt: string | null;
 }
 
+export interface ReductionSettings {
+  prepaidEnabled: boolean;
+  discountPct: number;
+  minRisk: number;
+  escalationMinutes: number;
+}
+
+export interface ElevenLabsLink {
+  keyEnvelope: Envelope | null;
+  last4: string;
+}
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
@@ -75,6 +87,12 @@ export class User {
 
   @Prop({ type: Object, default: null })
   gemini!: GeminiLink | null;
+
+  @Prop({ type: Object, default: null })
+  reduction!: ReductionSettings | null;
+
+  @Prop({ type: Object, default: null })
+  elevenlabs!: ElevenLabsLink | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

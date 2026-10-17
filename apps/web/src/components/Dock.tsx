@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 
 export interface DockItem {
   id: string;
@@ -96,53 +96,100 @@ export function Dock({
               }}
             />
           ) : null}
-          {items.map((item) => {
-            const Icon = item.icon;
-            const className = `dock-item ${item.current ? 'text-ink' : 'text-inksoft'}`;
-            const inner = (
-              <>
-                {item.mark ? item.mark : null}
-                {Icon ? <Icon size={16} aria-hidden="true" /> : null}
-                <span className="md:hidden">{item.short}</span>
-                <span className="hidden md:inline">{item.label}</span>
-              </>
-            );
-            if (!item.href) {
-              return (
-                <button key={item.id} type="button" className={className} onClick={item.onSelect}>
-                  {inner}
-                </button>
-              );
-            }
-            if (item.href.startsWith('#') || item.href.startsWith('/#')) {
-              return (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  aria-current={item.current ? 'page' : undefined}
-                  className={className}
-                  onClick={item.onSelect}
-                >
-                  {inner}
-                </a>
-              );
-            }
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                aria-current={item.current ? 'page' : undefined}
-                className={className}
-                onMouseEnter={item.onPrefetch}
-                onFocus={item.onPrefetch}
-                onClick={item.onSelect}
-              >
-                {inner}
-              </Link>
-            );
-          })}
+          {items.map((item) => (
+            <DockEntry key={item.id} item={item} />
+          ))}
         </div>
       </nav>
     </div>
+  );
+}
+
+function DockEntry({ item }: { item: DockItem }) {
+  const held = useRef(false);
+  const timer = useRef(0);
+  const Icon = item.icon;
+  const className = `dock-item ${item.current ? 'text-ink' : 'text-inksoft'}`;
+  const inner = (
+    <>
+      {item.mark ? item.mark : null}
+      {Icon ? <Icon size={16} aria-hidden="true" /> : null}
+      <span className="dock-label">{item.label}</span>
+      <span className="dock-tip" role="tooltip">
+        {item.label}
+      </span>
+    </>
+  );
+
+  function pointerDown(event: PointerEvent<HTMLElement>) {
+    if (event.pointerType === 'mouse') return;
+    held.current = false;
+    const node = event.currentTarget;
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      held.current = true;
+      node.dataset.held = '1';
+    }, 420);
+  }
+
+  function pointerEnd(event: PointerEvent<HTMLElement>) {
+    window.clearTimeout(timer.current);
+    const node = event.currentTarget;
+    if (node.dataset.held === '1') {
+      window.setTimeout(() => {
+        delete node.dataset.held;
+      }, 1200);
+      return;
+    }
+    delete node.dataset.held;
+  }
+
+  function click(event: MouseEvent) {
+    if (held.current) {
+      event.preventDefault();
+      held.current = false;
+      return;
+    }
+    item.onSelect?.();
+  }
+
+  if (!item.href) {
+    return (
+      <button type="button" className={className} aria-label={item.label} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClick={click}>
+        {inner}
+      </button>
+    );
+  }
+  if (item.href.startsWith('#') || item.href.startsWith('/#')) {
+    return (
+      <a
+        href={item.href}
+        aria-label={item.label}
+        aria-current={item.current ? 'page' : undefined}
+        className={className}
+        onPointerDown={pointerDown}
+        onPointerUp={pointerEnd}
+        onPointerCancel={pointerEnd}
+        onClick={click}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <Link
+      href={item.href}
+      aria-label={item.label}
+      aria-current={item.current ? 'page' : undefined}
+      className={className}
+      onMouseEnter={item.onPrefetch}
+      onFocus={item.onPrefetch}
+      onPointerDown={pointerDown}
+      onPointerUp={pointerEnd}
+      onPointerCancel={pointerEnd}
+      onClick={click}
+    >
+      {inner}
+    </Link>
   );
 }

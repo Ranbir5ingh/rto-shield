@@ -6,6 +6,8 @@ import {
   importSchema,
   listQuerySchema,
   manualOrderSchema,
+  addressUpdateSchema,
+  callSchema,
   outcomeSchema,
   previewSchema,
   type ImportInput,
@@ -84,5 +86,33 @@ export class OrdersController {
     @Body(new ZodValidationPipe(outcomeSchema)) body: { outcome: 'confirmed' | 'cancelled' | 'no_response' },
   ) {
     return this.orders.markOutcome(user, id, body.outcome);
+  }
+
+  @Post('orders/:id/prepaid')
+  prepaid(@CurrentUser() user: UserDocument, @Param('id') id: string) {
+    return this.orders.offerPrepaid(user, id);
+  }
+
+  @Post('orders/:id/address')
+  address(
+    @CurrentUser() user: UserDocument,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(addressUpdateSchema)) body: { address: string; landmark?: string; source: 'reply' | 'call' | 'seller' },
+  ) {
+    return this.orders.fixAddress(user, id, body);
+  }
+
+  @Post('orders/:id/call')
+  call(
+    @CurrentUser() user: UserDocument,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(callSchema)) body: { browser?: boolean },
+  ) {
+    return this.orders.placeCall(user, id, Boolean(body.browser));
+  }
+
+  @Post('orders/:id/escalate')
+  escalate(@CurrentUser() user: UserDocument, @Param('id') id: string) {
+    return this.orders.escalate(user, id);
   }
 }

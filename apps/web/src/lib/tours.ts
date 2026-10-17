@@ -23,7 +23,13 @@ export const sellerTour: TourStep[] = [
     id: 'risk-queue',
     route: '/app/queue',
     title: 'The risk queue',
-    body: 'Scores run from 0 to 100. Higher scores are the orders worth confirming before they ship.',
+    body: 'Each order picks a next action from its reasons: landmark, prepaid, hold, or a WhatsApp confirm.',
+  },
+  {
+    id: 'next-action',
+    route: '/app/queue',
+    title: 'The next action',
+    body: 'A weak address asks for a landmark. High-risk cash on delivery offers prepaid. A repeat refuser waits for you.',
   },
   {
     id: 'whatsapp-setup',
@@ -35,7 +41,7 @@ export const sellerTour: TourStep[] = [
     id: 'approve-send',
     route: '/app/queue',
     title: 'Approve and send',
-    body: 'Approve a risky order and the confirmation goes out on WhatsApp. Skip the ones you will ship anyway.',
+    body: 'The primary button on the card sends WhatsApp. More holds the rest: call, prepaid, or a decision.',
   },
 ];
 
@@ -57,7 +63,13 @@ export const demoTour: TourStep[] = [
     id: 'risk-reasons',
     route: '/app/queue',
     title: 'Why this one is risky',
-    body: 'Each high-risk order lists the reasons behind the score.',
+    body: 'Each order shows the reasons and the action those reasons chose.',
+  },
+  {
+    id: 'next-action',
+    route: '/app/queue',
+    title: 'Reason, then action',
+    body: 'Address gaps ask for a landmark. Risky cash on delivery gets a prepaid link. Quiet orders confirm themselves.',
   },
   {
     id: 'whatsapp-card',
@@ -69,12 +81,12 @@ export const demoTour: TourStep[] = [
     id: 'approve-send',
     route: '/app/queue',
     title: 'Approve and send',
-    body: 'In this demo, messages stay on our test phone.',
+    body: 'In this demo, messages stay on our test phone. Call the buyer opens in the browser unless the number is allowlisted.',
   },
   {
     id: 'impact',
     route: '/app',
     title: 'Impact',
-    body: 'Rupees still at risk, and how many orders still need a decision.',
+    body: 'Rupees kept from going back, plus prepaid conversions, address fixes, and confirmations.',
   },
 ];

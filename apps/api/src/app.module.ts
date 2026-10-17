@@ -18,6 +18,7 @@ import { InboxModule } from './inbox/inbox.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { OrdersModule } from './orders/orders.module';
 import { ShopifyModule } from './shopify/shopify.module';
+import { VoiceModule } from './voice/voice.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
@@ -55,6 +56,7 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
     IntegrationsModule,
     ShopifyModule,
     WhatsAppModule,
+    VoiceModule,
     InboxModule,
     GeminiModule,
     DemoModule,

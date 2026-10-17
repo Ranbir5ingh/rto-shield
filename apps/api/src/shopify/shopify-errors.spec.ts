@@ -58,6 +58,7 @@ describe('shopify error explanations', () => {
     expect(topicsToRegister(['ORDERS_CREATE', 'APP_UNINSTALLED'])).toEqual([
       'ORDERS_UPDATED',
       'ORDERS_CANCELLED',
+      'ORDERS_PAID',
       'FULFILLMENTS_CREATE',
       'FULFILLMENTS_UPDATE',
       'REFUNDS_CREATE',

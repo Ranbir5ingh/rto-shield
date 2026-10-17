@@ -10,6 +10,25 @@ export interface PublicUser {
   officialDemo?: boolean;
   sellerGemini?: boolean;
   tour?: { sellerSeen: boolean; demoSeen: boolean };
+  reduction?: { prepaidEnabled: boolean; discountPct: number; minRisk: number; escalationMinutes: number };
+  elevenlabsConfigured?: boolean;
+  elevenlabsLast4?: string;
+}
+
+export type Intervention = 'auto_confirm' | 'request_address' | 'offer_prepaid' | 'hold_review' | 'confirm';
+
+export interface PrepaidOffer {
+  invoiceUrl: string;
+  discountPct: number;
+  status: 'offered' | 'paid' | 'expired' | 'converted';
+  linkedOrderId: string;
+  expiresAt: string;
+}
+
+export interface TimelineEvent {
+  at: string;
+  step: string;
+  detail: string;
 }
 
 export interface AddressQuality {
@@ -48,6 +67,12 @@ export interface OrderSummary {
   model: string | null;
   whatsappStatus?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
   shopifyGid?: string;
+  intervention?: Intervention | null;
+  interventionWhy?: string;
+  callState?: 'idle' | 'due' | 'called' | 'held';
+  callDueAt?: string | null;
+  addressFixedAt?: string | null;
+  prepaid?: PrepaidOffer | null;
 }
 
 export interface OrderDetail extends OrderSummary {
@@ -62,6 +87,7 @@ export interface OrderDetail extends OrderSummary {
   } | null;
   waUrl: string | null;
   conversation?: Array<{ at: string; direction: 'in' | 'out'; kind: string; text: string }>;
+  timeline?: TimelineEvent[];
 }
 
 export interface ModelSnapshot {
@@ -108,6 +134,7 @@ export interface DashboardData {
   confirmationRate?: number | null;
   pinInsights?: Array<{ pincode: string; orders: number; rto: number; rate: number }>;
   buyers?: { fresh: number; repeat: number };
+  impact?: { preventedInr: number; conversions: number; addressFixes: number; confirmations: number };
 }
 
 export interface Integrations {

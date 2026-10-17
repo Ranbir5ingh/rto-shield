@@ -6,7 +6,7 @@ application_url = "https://www.rtoshield.tech/shopify"
 embedded = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_fulfillments,read_customers"
+scopes = "read_orders,write_orders,read_fulfillments,read_customers,write_draft_orders"
 
 [auth]
 redirect_urls = [
@@ -21,6 +21,7 @@ api_version = "2026-10"
     "orders/create",
     "orders/updated",
     "orders/cancelled",
+    "orders/paid",
     "fulfillments/create",
     "fulfillments/update",
     "refunds/create",

@@ -230,6 +230,9 @@ describe('RTO Shield API', () => {
     const pin = await agent.get('/api/pincode/560038').expect(200);
     expect(pin.body.fairness).toMatch(/never a ban/i);
     expect(pin.body.locality).toMatch(/Indiranagar/);
+    delete process.env.ELEVENLABS_API_KEY;
+    await agent.post('/api/elevenlabs/agent').expect(401);
+    await agent.post('/api/elevenlabs/agent').set('x-inbox-secret', 'inbox-test-secret').expect(400);
     const voice = await agent.post(`/api/orders/${top.id}/voice`).set('x-csrf-token', csrfToken).expect(201);
     expect(voice.body.audioBase64).toBeNull();
     expect(voice.body.notice).toMatch(/ELEVENLABS_API_KEY/);
@@ -274,7 +277,9 @@ describe('RTO Shield API', () => {
     const opened = await agent.post('/api/auth/demo').set('x-csrf-token', token).expect(201);
     expect(opened.body.scored).toBe(true);
     const orders = await agent.get('/api/orders?stage=pending&limit=50').expect(200);
-    expect(orders.body.orders.length).toBe(24);
+    const closed = await agent.get('/api/orders?stage=closed&limit=50').expect(200);
+    expect(orders.body.total + closed.body.total).toBe(24);
+    expect(orders.body.orders.length).toBeGreaterThan(0);
     expect(
       orders.body.orders.every(
         (order: { riskScore: number | null; riskBand: string | null }) =>

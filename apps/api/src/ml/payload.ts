@@ -1,7 +1,7 @@
 import type { MlOrder } from './ml.types';
 
 export function trainingLabel(outcome: string | null): number | undefined {
-  if (outcome === 'delivered' || outcome === 'confirmed') return 0;
+  if (outcome === 'delivered' || outcome === 'confirmed' || outcome === 'converted') return 0;
   if (outcome === 'rto' || outcome === 'cancelled') return 1;
   return undefined;
 }

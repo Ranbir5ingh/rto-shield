@@ -110,6 +110,22 @@ export const geminiKeySchema = z.object({
   apiKey: z.union([z.literal(''), z.string().trim().min(20).max(400)]).optional(),
 });
 
+export const elevenKeySchema = z.object({
+  apiKey: z.union([z.literal(''), z.string().trim().min(20).max(400)]).optional(),
+});
+
+export const addressUpdateSchema = z.object({
+  address: z.string().trim().min(3).max(300),
+  landmark: z.string().trim().max(160).optional(),
+  source: z.enum(['reply', 'call', 'seller']),
+});
+
+export const callSchema = z
+  .object({
+    browser: z.boolean().optional(),
+  })
+  .default({});
+
 export const secretRevealSchema = z.object({
   field: z.enum(['whatsappToken', 'whatsappAppSecret', 'geminiKey']),
   password: z.string().min(1).max(72),
@@ -137,6 +153,10 @@ export const settingsSchema = z
     messageLanguage: z.enum(['hindi', 'hinglish', 'english']).optional(),
     shopName: z.string().trim().min(1).max(80).optional(),
     name: z.string().trim().min(1).max(80).optional(),
+    prepaidEnabled: z.boolean().optional(),
+    discountPct: z.number().min(0).max(50).optional(),
+    minRisk: z.number().min(0).max(100).optional(),
+    escalationMinutes: z.number().min(0).max(24 * 60).optional(),
   })
   .refine((value) => Object.values(value).some((item) => item !== undefined), {
     message: 'No changes',

@@ -219,8 +219,12 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `COOKIE_SECURE` | API | `true` in production behind HTTPS. |
 | `SENTRY_DSN` | API, web, ML | Optional. Spans record latency and token counts for Gemma and TabPFN. PII is stripped. |
 | `SENTRY_TRACES_SAMPLE_RATE` | API, web, ML | Default `0.2`. |
-| `ELEVENLABS_API_KEY` | API | Optional Hindi audio. Without it, the script is text only. |
-| `ELEVENLABS_VOICE_ID` | API | Optional. Default multilingual voice. |
+| `ELEVENLABS_API_KEY` | API | Hindi audio and the Conversational AI agent. The server creates or updates the agent on boot and stores the id. Never commit the key. |
+| `ELEVENLABS_AGENT_ID` | API | Optional. When set, boot updates this agent instead of searching by name. |
+| `ELEVENLABS_WEBHOOK_SECRET` | API | HMAC secret from the post-call webhook. Set it from `node --experimental-strip-types scripts/elevenlabs-agent.mjs`. |
+| `ELEVENLABS_PHONE_NUMBER_ID` | API | Optional Twilio number id in ElevenLabs. Without it, calls stay in the browser. |
+| `ELEVENLABS_WEBHOOK_URL` | API | Optional. Default `https://api.rtoshield.tech/api/elevenlabs/webhook`. |
+| `ELEVENLABS_VOICE_ID` | API | Optional. Default multilingual voice for the script player. |
 | `ELEVENLABS_MODEL_ID` | API | Default `eleven_multilingual_v2`. |
 | `SERPAPI_KEY` | API | Optional pincode search. Without it, embedded localities and PIN-prefix regions. |
 | `RATE_LIMIT_MAX` | API | Default 300 / minute. |
@@ -243,9 +247,9 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `SHOPIFY_API_KEY` | API | Partner app client id. |
 | `SHOPIFY_API_SECRET` | API, Vercel | Partner app secret. Vercel uses it to verify webhook HMAC before the API wakes. |
 | `SHOPIFY_APP_URL` | API | Public app origin, `https://www.rtoshield.tech`. OAuth redirect is `{SHOPIFY_APP_URL}/api/shopify/callback`. |
-| `SHOPIFY_SCOPES` | API | Default `read_orders,write_orders,read_fulfillments,read_customers`. |
+| `SHOPIFY_SCOPES` | API | Default `read_orders,write_orders,read_fulfillments,read_customers,write_draft_orders`. Reinstall the app after adding `write_draft_orders`. |
 | `SHOPIFY_API_VERSION` | API | Default `2026-10`. GraphQL Admin only. |
-| `INBOX_DRAIN_SECRET` | API, Vercel | Shared secret for `POST /api/inbox/drain`. |
+| `INBOX_DRAIN_SECRET` | API, Vercel | Shared secret for `POST /api/inbox/drain` and `POST /api/elevenlabs/agent`. |
 | `WHATSAPP_VERIFY_TOKEN` | API, Vercel | Value you paste into the Meta webhook verify token field. |
 | `META_GRAPH_VERSION` | API | Default `v23.0`. |
 | `NEXT_PUBLIC_SHOPIFY_API_KEY` | Vercel | Public client id for the embedded App Bridge page. Same as `SHOPIFY_API_KEY`. |
@@ -274,6 +278,25 @@ WhatsApp Cloud API (your own number):
 The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Gemini notes for a real shop use that seller's key. The platform `GEMINI_API_KEY` is only the demo fallback.
 
 See `docs/shopify-production.md` for the public app, Level 2 protected data, and `read_all_orders`.
+
+## Create the voice agent
+
+`ELEVENLABS_API_KEY` stays on the Render API. On boot the server creates or updates the agent named `RTO Shield order desk` and stores the id under the platform flag `elevenlabs.agentId`. Boot does not register the webhook, so a restart does not rotate the secret.
+
+From a machine that has the key (the key is never printed):
+
+```bash
+ELEVENLABS_API_KEY=... npm run elevenlabs:agent
+```
+
+After the API is deployed, the same sync can run with the key that is already on Render. The caller does not send the key:
+
+```bash
+curl -sS -X POST https://api.rtoshield.tech/api/elevenlabs/agent \
+  -H "x-inbox-secret: $INBOX_DRAIN_SECRET"
+```
+
+Both print `agentId`. `webhookSecret` appears only when ElevenLabs issues a new one. Put that value in `ELEVENLABS_WEBHOOK_SECRET` on Render, and put `agentId` in `ELEVENLABS_AGENT_ID`. For real outbound calls, import a Twilio number in ElevenLabs and set `ELEVENLABS_PHONE_NUMBER_ID`. Without that id, Call the buyer stays in the browser. Reinstall the Shopify app so `write_draft_orders` is granted, then resync webhooks so `orders/paid` is subscribed. The post-call URL is `https://api.rtoshield.tech/api/elevenlabs/webhook`.
 
 ## Security notes
 

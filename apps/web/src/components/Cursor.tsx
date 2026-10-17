@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Hand-drawn custom cursor: an ink dot plus a dashed, slowly-spinning
@@ -81,7 +82,7 @@ export function Cursor() {
   }, [on]);
 
   if (!on) return null;
-  return (
+  return createPortal(
     <>
       <div ref={dot} className="cur-dot" aria-hidden="true" />
       <div ref={wrap} className="cur-wrap" aria-hidden="true">
@@ -90,6 +91,7 @@ export function Cursor() {
         </svg>
         <span ref={label} className="cur-label" />
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

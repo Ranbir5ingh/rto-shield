@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { CsvImporter } from '@/components/CsvImporter';
 import { useToast } from '@/components/Toaster';
+import { actionCopy } from '@/components/OrderActions';
 import { Button, Dropdown, Field, Pager, RiskBadge, Skeleton, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
@@ -162,47 +163,35 @@ export default function OrdersPage() {
       </form>
       <CsvImporter mode="pending" onImported={refresh} />
       {list.isLoading ? <Skeleton className="h-48" /> : null}
-      <div className={`panel overflow-x-auto shadow-card ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Buyer</th>
-              <th>Value</th>
-              <th>Score</th>
-              <th>Top factors</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td>
-                  <Link href={`/app/orders/${order.id}`} className="font-medium underline-offset-2 hover:underline">
-                    {order.externalOrderId}
-                  </Link>
-                  <div className="text-xs text-ink/50">{order.pincode} · {order.paymentType}</div>
-                </td>
-                <td className="py-3">
-                  {order.buyerName}
-                  <div className="text-xs text-ink/50">{order.phoneMasked}</div>
-                </td>
-                <td className="py-3">{inr(order.orderValue)}</td>
-                <td className="py-3">
-                  <RiskBadge band={order.riskBand} />
-                  <div className="mt-1 tabular-nums">{order.riskScore ?? '—'}</div>
-                </td>
-                <td className="py-3 pr-3 text-ink/75">{order.reasons.join(' · ') || 'Not scored'}</td>
-              </tr>
-            ))}
-            {list.isFetched && !orders.length ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-ink/60">
-                  No pending orders yet.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+      <div className={`grid gap-3 ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
+        {orders.map((order) => (
+          <article key={order.id} className="grid gap-3 border-2 border-ink bg-white p-3 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center">
+            <div className="flex items-center gap-2 sm:block">
+              <p className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</p>
+              <div className="mt-1"><RiskBadge band={order.riskBand} /></div>
+            </div>
+            <div className="min-w-0">
+              <Link href={`/app/orders/${order.id}`} className="font-display text-xl font-extrabold uppercase underline decoration-lime decoration-2 underline-offset-4">
+                {order.externalOrderId}
+              </Link>
+              <p className="mt-1 text-sm">
+                {order.buyerName} · {order.city || '—'} · {order.pincode}
+              </p>
+              <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+                {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.outcome || order.stage}
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {(order.reasons.slice(0, 3).length ? order.reasons.slice(0, 3) : ['Not scored']).map((reason) => (
+                  <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em]">{reason}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] sm:text-right">{actionCopy(order).label}</p>
+          </article>
+        ))}
+        {list.isFetched && !orders.length ? (
+          <p className="border-2 border-ink bg-white px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">No pending orders yet.</p>
+        ) : null}
       </div>
       <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
     </div>

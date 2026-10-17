@@ -13,6 +13,7 @@ import { AuditEvent } from '../database/audit.schema';
 import { DemoSession } from '../database/demo-session.schema';
 import { User, type UserDocument } from '../database/user.schema';
 import { demoSessionMs, effectiveRole, hashDemoIp, isOfficialDemoAccount } from '../demo/demo.policy';
+import { reductionSettings } from '../orders/action';
 
 export interface PublicUser {
   id: string;
@@ -26,6 +27,9 @@ export interface PublicUser {
   officialDemo: boolean;
   sellerGemini: boolean;
   tour: { sellerSeen: boolean; demoSeen: boolean };
+  reduction: { prepaidEnabled: boolean; discountPct: number; minRisk: number; escalationMinutes: number };
+  elevenlabsConfigured: boolean;
+  elevenlabsLast4: string;
 }
 
 @Injectable()
@@ -64,6 +68,9 @@ export class AuthService implements OnModuleInit {
         sellerSeen: Boolean(user.sellerTourSeenAt),
         demoSeen: Boolean(user.$locals?.demoTourSeen),
       },
+      reduction: reductionSettings(user),
+      elevenlabsConfigured: Boolean(user.elevenlabs?.keyEnvelope || process.env.ELEVENLABS_API_KEY),
+      elevenlabsLast4: effectiveRole(user) === 'demo' ? '' : user.elevenlabs?.last4 || '',
     };
   }
 

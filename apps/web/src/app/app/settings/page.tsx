@@ -37,6 +37,10 @@ export default function SettingsPage() {
           shopName: user.shopName,
           rtoCostInr: Number(user.rtoCostInr),
           messageLanguage: user.messageLanguage,
+          prepaidEnabled: user.reduction?.prepaidEnabled !== false,
+          discountPct: Number(user.reduction?.discountPct ?? 5),
+          minRisk: Number(user.reduction?.minRisk ?? 60),
+          escalationMinutes: Number(user.reduction?.escalationMinutes ?? 120),
         }),
       });
       setUser(body.user);
@@ -72,6 +76,34 @@ export default function SettingsPage() {
     }
   }
 
+function ElevenLabsKey({ demo, configured, last4, onSaved }: { demo: boolean; configured: boolean; last4: string; onSaved: (last4: string) => void }) {
+  const toast = useToast();
+  const [apiKey, setApiKey] = useState('');
+  if (demo) return null;
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      const body = await api<{ last4: string; configured: boolean }>('/elevenlabs', { method: 'POST', body: JSON.stringify({ apiKey }) });
+      setApiKey('');
+      onSaved(body.last4 || '');
+      toast.success(body.configured ? 'ElevenLabs key saved.' : 'Saved.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not save the ElevenLabs key');
+    }
+  }
+  return (
+    <form onSubmit={save} className="panel space-y-3 p-5 shadow-card">
+      <h2 className="font-display text-xl">ElevenLabs</h2>
+      <p className="text-sm leading-6">Optional seller key. The platform key on the server is used when this is empty. It is stored encrypted.</p>
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em]">{configured ? `Saved ${last4}` : 'No seller key'}</p>
+      <Field label="API key">
+        <input className={inputClass} type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
+      </Field>
+      <Button type="submit">Save key</Button>
+    </form>
+  );
+}
+
   if (!user) return <div className="skeleton h-48" aria-busy="true" aria-label="Loading settings" />;
   const demo = user.role === 'demo';
 
@@ -105,8 +137,29 @@ export default function SettingsPage() {
             />
           )}
         </Field>
+        <Field label="Prepaid offers">
+          <label className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+            <input
+              type="checkbox"
+              checked={user.reduction?.prepaidEnabled !== false}
+              disabled={demo}
+              onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: event.target.checked, discountPct: user.reduction?.discountPct ?? 5, minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })}
+            />
+            Offer prepaid on high-risk COD
+          </label>
+        </Field>
+        <Field label="Prepaid discount %">
+          <input className={inputClass} type="number" min={0} max={50} readOnly={demo} value={user.reduction?.discountPct ?? 5} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: Number(event.target.value), minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })} />
+        </Field>
+        <Field label="Minimum risk for prepaid">
+          <input className={inputClass} type="number" min={0} max={100} readOnly={demo} value={user.reduction?.minRisk ?? 60} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: user.reduction?.discountPct ?? 5, minRisk: Number(event.target.value), escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })} />
+        </Field>
+        <Field label="Call if no WhatsApp reply (minutes)">
+          <input className={inputClass} type="number" min={0} max={1440} readOnly={demo} value={user.reduction?.escalationMinutes ?? 120} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: user.reduction?.discountPct ?? 5, minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: Number(event.target.value) } })} />
+        </Field>
         {demo ? null : <Button type="submit">Save</Button>}
       </form>
+      <ElevenLabsKey demo={demo} configured={Boolean(user.elevenlabsConfigured)} last4={user.elevenlabsLast4 || ''} onSaved={(last4) => setUser({ ...user, elevenlabsConfigured: true, elevenlabsLast4: last4 })} />
       <Connections locked={demo} />
       {status && !status.sellerView ? <section className="panel p-5 text-sm">
         <h2 className="font-medium">Integrations</h2>

@@ -24,6 +24,20 @@ export class AccountService {
     if (input.shopName !== undefined) user.shopName = input.shopName;
     if (input.rtoCostInr !== undefined) user.rtoCostInr = input.rtoCostInr;
     if (input.messageLanguage !== undefined) user.messageLanguage = input.messageLanguage;
+    const reduction = {
+      prepaidEnabled: input.prepaidEnabled ?? user.reduction?.prepaidEnabled ?? true,
+      discountPct: input.discountPct ?? user.reduction?.discountPct ?? 5,
+      minRisk: input.minRisk ?? user.reduction?.minRisk ?? 60,
+      escalationMinutes: input.escalationMinutes ?? user.reduction?.escalationMinutes ?? 120,
+    };
+    if (
+      input.prepaidEnabled !== undefined ||
+      input.discountPct !== undefined ||
+      input.minRisk !== undefined ||
+      input.escalationMinutes !== undefined
+    ) {
+      user.reduction = reduction;
+    }
     await user.save();
     return { user: this.auth.toPublic(user) };
   }

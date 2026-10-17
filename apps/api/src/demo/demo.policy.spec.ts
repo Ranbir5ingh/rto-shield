@@ -28,6 +28,11 @@ describe('demo policy', () => {
     expect(demoAllows('GET', '/api/orders')).toBe(true);
     expect(demoAllows('PATCH', '/api/orders/abc/outcome')).toBe(true);
     expect(demoAllows('POST', '/api/orders/score')).toBe(true);
+    expect(demoAllows('POST', '/api/orders/abc/prepaid')).toBe(true);
+    expect(demoAllows('POST', '/api/orders/abc/address')).toBe(true);
+    expect(demoAllows('POST', '/api/orders/abc/call')).toBe(true);
+    expect(demoAllows('POST', '/api/orders/abc/escalate')).toBe(true);
+    expect(demoAllows('POST', '/api/elevenlabs')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp/send')).toBe(true);
     expect(demoAllows('POST', '/api/settings/secrets/reveal')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp')).toBe(false);

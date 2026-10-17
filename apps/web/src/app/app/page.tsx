@@ -101,6 +101,18 @@ export default function DashboardPage() {
             hint={`${data.rto} returned · ${data.delivered} delivered`}
           />
         </div>
+        <div data-reveal="pop">
+          <Stat label="RTO prevented" value={inr(data.impact?.preventedInr || 0)} hint="Converted and cancelled risky orders, plus shipping" />
+        </div>
+        <div data-reveal="pop">
+          <Stat label="Conversions" value={String(data.impact?.conversions || 0)} hint="Cash on delivery orders paid as prepaid" />
+        </div>
+        <div data-reveal="pop">
+          <Stat label="Address fixes" value={String(data.impact?.addressFixes || 0)} hint="Landmarks and new addresses written back" />
+        </div>
+        <div data-reveal="pop">
+          <Stat label="Confirmations" value={String(data.impact?.confirmations || 0)} hint="Orders confirmed before they shipped" />
+        </div>
       </section>
 
       <section className="grid gap-6 py-4 lg:grid-cols-5">

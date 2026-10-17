@@ -99,6 +99,24 @@ export class DashboardService {
       counts: { history, pending, closed },
       liveWire: spreadWire(wireRows),
       ...(await this.action(user)),
+      impact: await this.impact(user),
+    };
+  }
+
+  private async impact(user: UserDocument) {
+    const sellerId = user._id;
+    const [conversions, addressFixes, confirmations, convertedOrders, cancelledOrders] = await Promise.all([
+      this.orders.countDocuments({ sellerId, outcome: 'converted' }),
+      this.orders.countDocuments({ sellerId, addressFixedAt: { $ne: null } }),
+      this.orders.countDocuments({ sellerId, outcome: 'confirmed' }),
+      this.orders.find({ sellerId, outcome: 'converted' }).select('orderValue').lean(),
+      this.orders.find({ sellerId, outcome: 'cancelled', riskBand: { $in: ['High', 'Medium'] } }).select('orderValue').lean(),
+    ]);
+    return {
+      preventedInr: moneyAtRisk([...convertedOrders, ...cancelledOrders], user.rtoCostInr),
+      conversions,
+      addressFixes,
+      confirmations,
     };
   }
 

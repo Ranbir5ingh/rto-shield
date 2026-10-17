@@ -16,7 +16,8 @@
     "test": "npm run test -w @rto/api && npm run test -w @rto/web",
     "build": "npm run build -w @rto/api && npm run build -w @rto/web",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "elevenlabs:agent": "node --experimental-strip-types scripts/elevenlabs-agent.mjs"
   },
   "devDependencies": {
     "prettier": "^3.4.2"

@@ -53,6 +53,16 @@ export class DemoService {
     await this.audit.create({ sellerId: user._id, action, orderId, meta });
   }
 
+  async actionsToday(user: UserDocument, actions: string[]): Promise<number> {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    return this.audit.countDocuments({
+      sellerId: user._id,
+      action: { $in: actions },
+      at: { $gte: start },
+    });
+  }
+
   async sendsToday(user: UserDocument): Promise<number> {
     const start = new Date();
     start.setUTCHours(0, 0, 0, 0);

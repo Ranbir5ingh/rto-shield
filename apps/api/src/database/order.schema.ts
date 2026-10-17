@@ -60,7 +60,7 @@ export class Order {
   stage!: 'history' | 'pending' | 'closed';
 
   @Prop({ type: String, default: null })
-  outcome!: 'delivered' | 'rto' | 'confirmed' | 'cancelled' | 'no_response' | null;
+  outcome!: 'delivered' | 'rto' | 'confirmed' | 'cancelled' | 'no_response' | 'converted' | null;
 
   @Prop({ required: true, enum: ['shopify', 'meesho', 'generic', 'manual', 'sample'] })
   source!: 'shopify' | 'meesho' | 'generic' | 'manual' | 'sample';
@@ -101,6 +101,38 @@ export class Order {
 
   @Prop({ type: [Object], default: [] })
   conversation!: Array<{ at: string; direction: 'in' | 'out'; kind: string; text: string }>;
+
+  @Prop({ type: String, default: null })
+  intervention!: 'auto_confirm' | 'request_address' | 'offer_prepaid' | 'hold_review' | 'confirm' | null;
+
+  @Prop({ default: '' })
+  interventionWhy!: string;
+
+  @Prop({ type: Object, default: null })
+  prepaid!: {
+    draftGid: string;
+    invoiceUrl: string;
+    discountPct: number;
+    status: 'offered' | 'paid' | 'expired' | 'converted';
+    linkedOrderId: string;
+    offeredAt: string;
+    expiresAt: string;
+  } | null;
+
+  @Prop({ type: [Object], default: [] })
+  timeline!: Array<{ at: string; step: string; detail: string }>;
+
+  @Prop({ type: Date, default: null })
+  callDueAt!: Date | null;
+
+  @Prop({ type: String, default: 'idle' })
+  callState!: 'idle' | 'due' | 'called' | 'held';
+
+  @Prop({ default: '' })
+  callConversationId!: string;
+
+  @Prop({ type: Date, default: null })
+  addressFixedAt!: Date | null;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

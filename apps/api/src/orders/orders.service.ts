@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, HttpException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -24,11 +24,15 @@ import { generateSample } from '../common/sample';
 import type { ColumnMapping, ImportInput, ManualOrderInput } from '../common/validation';
 import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
-import type { UserDocument } from '../database/user.schema';
+import { User, type UserDocument } from '../database/user.schema';
 import { MlService, type GeminiCall } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
-import { effectiveRole } from '../demo/demo.policy';
+import { whatsappAllowlist } from '../demo/demo-send';
+import { demoSendCap, effectiveRole } from '../demo/demo.policy';
 import { ShopifyService } from '../shopify/shopify.service';
+import { ElevenLabsService } from '../voice/elevenlabs.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { buyerReplied, chooseIntervention, pushTimeline, reductionSettings } from './action';
 import { toMlOrder } from '../ml/payload';
 import type { AddressQuality, PredictResponse, Prediction } from '../ml/ml.types';
 import {
@@ -42,19 +46,36 @@ import {
 import { buyerSignal, phoneLedger, pinLedger, pinSignal } from './shop-signals';
 
 @Injectable()
-export class OrdersService {
+export class OrdersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrdersService.name);
   private readonly upgrading = new Set<string>();
+  private sweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     @InjectModel(ModelRun.name) private readonly runs: Model<ModelRun>,
+    @InjectModel(User.name) private readonly users: Model<User>,
     private readonly crypto: CryptoService,
     private readonly vault: VaultService,
     private readonly ml: MlService,
     @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
+    @Inject(forwardRef(() => ElevenLabsService)) private readonly calls: ElevenLabsService,
+    private readonly whatsapp: WhatsAppService,
     private readonly demo: DemoService,
   ) {}
+
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    this.sweepTimer = setInterval(() => {
+      void this.sweepEscalations().catch((error: unknown) => {
+        this.logger.warn(`Escalation sweep missed: ${error instanceof Error ? error.name : 'error'}`);
+      });
+    }, 60_000);
+  }
+
+  onModuleDestroy() {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
 
   template() {
     return GENERIC_TEMPLATE;
@@ -294,7 +315,11 @@ export class OrdersService {
     const filter: Record<string, unknown> = { sellerId: user._id };
     if (stage) filter.stage = stage;
     const [items, total] = await Promise.all([
-      this.orders.find(filter).sort({ orderedAt: -1 }).skip(offset).limit(limit),
+      this.orders
+        .find(filter)
+        .sort(stage === 'pending' ? { riskScore: -1, orderedAt: -1 } : { orderedAt: -1 })
+        .skip(offset)
+        .limit(limit),
       this.orders.countDocuments(filter),
     ]);
     return { total, orders: items.map((order) => this.toList(order)) };
@@ -319,6 +344,7 @@ export class OrdersService {
     await this.demo.capture(user, [order]);
     order.outcome = outcome;
     order.stage = 'closed';
+    order.timeline = pushTimeline(order.timeline, outcome, `Seller marked ${outcome.replace('_', ' ')}`);
     await order.save();
     if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.outcome', String(order._id), { outcome });
     return this.toDetail(user, order);
@@ -556,7 +582,7 @@ export class OrdersService {
           outcome:
             order.outcome === 'rto' || order.outcome === 'cancelled'
               ? 'rto'
-              : order.outcome === 'delivered' || order.outcome === 'confirmed'
+              : order.outcome === 'delivered' || order.outcome === 'confirmed' || order.outcome === 'converted'
                 ? 'delivered'
                 : null,
         };
@@ -580,6 +606,27 @@ export class OrdersService {
         draft.voice_script_hi = assertSafeVoiceScript(draft.voice_script_hi, user.shopName, order.orderValue);
         order.messages = draft;
       }
+      const choice = chooseIntervention({
+        paymentType: order.paymentType,
+        riskScore: prediction.score,
+        riskBand: prediction.band,
+        reasons: prediction.reasons,
+        priorRtos: order.priorRtos,
+        addressQuality: prediction.address_quality,
+        settings: reductionSettings(user),
+      });
+      order.intervention = choice.action;
+      order.interventionWhy = choice.why;
+      const timeline = [...(order.timeline || [])];
+      const already = timeline.some((step) => step.step === 'action' || step.step === 'auto_confirm');
+      if (choice.action === 'auto_confirm' && order.stage === 'pending' && !order.outcome) {
+        order.outcome = 'confirmed';
+        order.stage = 'closed';
+        timeline.push({ at: now.toISOString(), step: 'auto_confirm', detail: choice.why });
+      } else if (!already) {
+        timeline.push({ at: now.toISOString(), step: 'action', detail: choice.why });
+      }
+      order.timeline = timeline;
       writes.push({
         updateOne: {
           filter: { _id: order._id, sellerId: user._id },
@@ -591,6 +638,11 @@ export class OrdersService {
               addressQuality: order.addressQuality,
               messages: order.messages,
               predictor: order.predictor,
+              intervention: order.intervention,
+              interventionWhy: order.interventionWhy,
+              timeline: order.timeline,
+              stage: order.stage,
+              outcome: order.outcome,
               updatedAt: now,
             },
           },
@@ -856,6 +908,20 @@ export class OrdersService {
       model: order.predictor,
       whatsappStatus: order.whatsappStatus,
       shopifyGid: order.shopifyGid || '',
+      intervention: order.intervention,
+      interventionWhy: order.interventionWhy || '',
+      callState: order.callState || 'idle',
+      callDueAt: order.callDueAt,
+      addressFixedAt: order.addressFixedAt,
+      prepaid: order.prepaid
+        ? {
+            invoiceUrl: order.prepaid.invoiceUrl,
+            discountPct: order.prepaid.discountPct,
+            status: order.prepaid.status,
+            linkedOrderId: order.prepaid.linkedOrderId,
+            expiresAt: order.prepaid.expiresAt,
+          }
+        : null,
     };
   }
 
@@ -879,6 +945,230 @@ export class OrdersService {
       messages: order.messages,
       waUrl: number && text ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : null,
       conversation: order.conversation || [],
+      timeline: order.timeline || [],
     };
+  }
+
+  async offerPrepaid(user: UserDocument, id: string) {
+    const order = await this.findOwned(user, id);
+    const settings = reductionSettings(user);
+    if (!settings.prepaidEnabled) throw new BadRequestException('Prepaid offers are off for this shop');
+    if (order.paymentType !== 'cod') throw new BadRequestException('This order is already prepaid');
+    if (order.prepaid?.status === 'offered' && order.prepaid.invoiceUrl) return this.toDetail(user, order);
+    if (order.prepaid?.status === 'converted') return this.toDetail(user, order);
+    await this.holdDemo(user, ['demo.prepaid'], 'The demo has offered enough prepaid checkouts for today.');
+    const draft = await this.shopify.createPrepaidDraft(user, {
+      externalOrderId: order.externalOrderId,
+      productName: order.productName,
+      orderValue: order.orderValue,
+      discountPct: settings.discountPct,
+      buyerName: this.crypto.decrypt(order.buyerNameEnc),
+      address1: this.crypto.decrypt(order.addressEnc),
+      city: order.city,
+      province: order.state,
+      zip: order.pincode,
+    });
+    const offeredAt = new Date();
+    order.prepaid = {
+      draftGid: draft.draftGid,
+      invoiceUrl: draft.invoiceUrl,
+      discountPct: settings.discountPct,
+      status: 'offered',
+      linkedOrderId: '',
+      offeredAt: offeredAt.toISOString(),
+      expiresAt: new Date(offeredAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    order.intervention = 'offer_prepaid';
+    order.interventionWhy = `Prepaid checkout is ready at ${settings.discountPct}% off.`;
+    order.timeline = pushTimeline(order.timeline, 'prepaid', draft.simulated ? 'Prepaid link saved on the order.' : 'Shopify draft invoice created.');
+    await order.save();
+    const sent = await this.whatsapp.sendCheckoutLink(user, order, draft.invoiceUrl);
+    if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.prepaid', String(order._id), { simulated: draft.simulated });
+    const detail = this.toDetail(user, order);
+    return { ...detail, notice: sent.notice };
+  }
+
+  async fixAddress(user: UserDocument, id: string, input: { address: string; landmark?: string; source: 'reply' | 'call' | 'seller' }) {
+    const order = await this.findOwned(user, id);
+    await this.holdDemo(user, ['demo.address'], 'The demo has updated enough addresses for today.');
+    const line = [input.address.trim(), input.landmark?.trim()].filter(Boolean).join(', ').slice(0, 300);
+    order.addressEnc = this.crypto.encrypt(line);
+    order.addressFixedAt = new Date();
+    order.timeline = pushTimeline(order.timeline, 'address', `Address updated from ${input.source}`);
+    if (order.intervention === 'request_address') {
+      order.intervention = 'confirm';
+      order.interventionWhy = 'Address updated. Confirm before it ships.';
+    }
+    await order.save();
+    try {
+      await this.shopify.updateShippingAddress(user, order.shopifyGid, {
+        address1: input.address.trim().slice(0, 200),
+        address2: input.landmark?.trim() || '',
+        city: order.city,
+        province: order.state,
+        zip: order.pincode,
+      });
+    } catch (error) {
+      this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+    if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.address', String(order._id), { source: input.source });
+    return this.toDetail(user, order);
+  }
+
+  async placeCall(user: UserDocument, id: string, browser: boolean) {
+    const order = await this.findOwned(user, id);
+    await this.holdDemo(user, ['demo.call', 'demo.call.browser'], 'The demo has started enough buyer calls for today.');
+    const plan = await this.dial(user, order, browser ? 'browser' : 'auto');
+    if (plan.mode === 'phone') {
+      order.callState = 'called';
+      order.callConversationId = plan.conversationId;
+      order.timeline = pushTimeline(order.timeline, 'call', 'Outbound call placed');
+      await order.save();
+    }
+    if (effectiveRole(user) === 'demo') {
+      await this.demo.note(user, plan.mode === 'phone' ? 'demo.call' : 'demo.call.browser', String(order._id), { mode: plan.mode });
+    }
+    return { ...plan, order: this.toDetail(user, order) };
+  }
+
+  async escalate(user: UserDocument, id: string) {
+    const order = await this.findOwned(user, id);
+    if (order.stage !== 'pending') return this.toDetail(user, order);
+    if (buyerReplied(order)) return this.toDetail(user, order);
+    if (order.callState === 'called') return this.holdUnconfirmed(user, order);
+    order.callDueAt = new Date();
+    return this.runEscalation(user, order);
+  }
+
+  async applyVoiceOutcome(parsed: { orderId: string; outcome: string; landmark: string; address: string; conversationId: string }) {
+    if (!Types.ObjectId.isValid(parsed.orderId)) return;
+    const order = await this.orders.findById(parsed.orderId);
+    if (!order) return;
+    const user = await this.users.findById(order.sellerId);
+    if (!user) return;
+    order.callConversationId = parsed.conversationId || order.callConversationId;
+    order.callState = 'called';
+    order.timeline = pushTimeline(order.timeline, 'call', `Call finished: ${parsed.outcome}`);
+    if (parsed.outcome === 'confirmed') {
+      order.outcome = 'confirmed';
+      order.stage = 'closed';
+    } else if (parsed.outcome === 'cancelled') {
+      order.outcome = 'cancelled';
+      order.stage = 'closed';
+      if (order.shopifyGid) {
+        void this.shopify.cancelOrder(user, order.shopifyGid).catch((error: unknown) => {
+          this.logger.warn(`Cancel after call missed: ${error instanceof Error ? error.name : 'error'}`);
+        });
+      }
+    } else if (parsed.outcome === 'address') {
+      const line = [parsed.address, parsed.landmark].filter(Boolean).join(', ').slice(0, 300);
+      if (line) {
+        order.addressEnc = this.crypto.encrypt(line);
+        order.addressFixedAt = new Date();
+        order.timeline = pushTimeline(order.timeline, 'address', 'Call collected a landmark or address');
+        void this.shopify
+          .updateShippingAddress(user, order.shopifyGid, {
+            address1: (parsed.address || line).slice(0, 200),
+            address2: parsed.landmark,
+            city: order.city,
+            province: order.state,
+            zip: order.pincode,
+          })
+          .catch((error: unknown) => {
+            this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+          });
+      }
+    } else if (parsed.outcome === 'prepaid') {
+      await order.save();
+      await this.offerPrepaid(user, String(order._id));
+      return;
+    } else {
+      order.callState = 'held';
+      order.intervention = 'hold_review';
+      order.interventionWhy = 'The call did not confirm the order. Hold it for the seller.';
+    }
+    await order.save();
+  }
+
+  private async sweepEscalations() {
+    const now = new Date();
+    await this.orders.updateMany(
+      { 'prepaid.status': 'offered', 'prepaid.expiresAt': { $lt: now.toISOString(), $ne: '' } },
+      { $set: { 'prepaid.status': 'expired' } },
+    );
+    const due = await this.orders
+      .find({
+        stage: 'pending',
+        riskBand: 'High',
+        whatsappStatus: { $in: ['sent', 'delivered', 'read'] },
+        callDueAt: { $lte: now },
+        callState: { $in: ['idle', null] },
+      })
+      .limit(5);
+    for (const order of due) {
+      if (buyerReplied(order)) continue;
+      const user = await this.users.findById(order.sellerId);
+      if (user) await this.runEscalation(user, order);
+    }
+    const holdAfter = new Date(now.getTime() - 15 * 60 * 1000);
+    const called = await this.orders.find({ stage: 'pending', callState: 'called', callDueAt: { $lte: holdAfter } }).limit(5);
+    for (const order of called) {
+      if (buyerReplied(order)) continue;
+      const user = await this.users.findById(order.sellerId);
+      if (user) await this.holdUnconfirmed(user, order);
+    }
+  }
+
+  private async runEscalation(user: UserDocument, order: OrderDocument) {
+    const plan = await this.dial(user, order, 'phone');
+    if (plan.mode === 'phone') {
+      order.callState = 'called';
+      order.callConversationId = plan.conversationId;
+      order.timeline = pushTimeline(order.timeline, 'call', 'Outbound call placed');
+    } else {
+      order.callState = 'due';
+      order.timeline = pushTimeline(order.timeline, 'call_due', plan.notice || 'Call the buyer from the order');
+    }
+    await order.save();
+    return this.toDetail(user, order);
+  }
+
+  private async holdUnconfirmed(user: UserDocument, order: OrderDocument) {
+    order.callState = 'held';
+    order.intervention = 'hold_review';
+    order.interventionWhy = 'No confirmation after WhatsApp and a call. Hold for the seller.';
+    order.timeline = pushTimeline(order.timeline, 'hold', order.interventionWhy);
+    await order.save();
+    return this.toDetail(user, order);
+  }
+
+  private async dial(user: UserDocument, order: OrderDocument, prefer: 'phone' | 'browser' | 'auto') {
+    const phone = whatsappNumber(this.crypto.decrypt(order.phoneEnc));
+    const visitor = effectiveRole(user) === 'demo';
+    const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
+    const allowPhone = Boolean(phone) && (!visitor || (phone ? allow.has(phone) : false));
+    const mode: 'phone' | 'browser' =
+      prefer === 'browser' ? 'browser' : prefer === 'phone' ? 'phone' : allowPhone ? 'phone' : 'browser';
+    const settings = reductionSettings(user);
+    return this.calls.place(
+      user,
+      {
+        order_id: order.externalOrderId.slice(0, 40),
+        rto_order: String(order._id),
+        shop_name: user.shopName.slice(0, 60),
+        amount: String(Math.round(order.orderValue)),
+        action: order.intervention || 'confirm',
+        discount: String(settings.discountPct),
+      },
+      phone,
+      allowPhone,
+      mode,
+    );
+  }
+
+  private async holdDemo(user: UserDocument, actions: string[], message: string) {
+    if (effectiveRole(user) !== 'demo') return;
+    const used = await this.demo.actionsToday(user, actions);
+    if (used >= demoSendCap()) throw new HttpException(message, 429);
   }
 }

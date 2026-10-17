@@ -21,6 +21,7 @@ import {
   topicsToRegister,
   webhookAlreadyRegistered,
 } from './shopify-errors';
+import { pushTimeline } from '../orders/action';
 import { mapGraphqlOrder, mapRestOrder, normalizeShop, type MappedOrder } from './shopify-map';
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-10';
@@ -47,7 +48,7 @@ function defaultLink(shop: string, demo: boolean): ShopifyLink {
   return {
     shopDomain: shop,
     demo,
-    scopes: process.env.SHOPIFY_SCOPES || 'read_orders,write_orders,read_fulfillments,read_customers',
+    scopes: process.env.SHOPIFY_SCOPES || 'read_orders,write_orders,read_fulfillments,read_customers,write_draft_orders',
     tokenEnvelope: null,
     installedAt: new Date().toISOString(),
     uninstalledAt: null,
@@ -79,7 +80,7 @@ export class ShopifyService {
   }
 
   scopes() {
-    return this.config.get<string>('SHOPIFY_SCOPES') || 'read_orders,write_orders,read_fulfillments,read_customers';
+    return this.config.get<string>('SHOPIFY_SCOPES') || 'read_orders,write_orders,read_fulfillments,read_customers,write_draft_orders';
   }
 
   status(user: UserDocument) {
@@ -399,7 +400,10 @@ export class ShopifyService {
     }
     const user = await this.findByShop(domain);
     if (!user) return;
-    if (topic === 'orders/create' || topic === 'orders/updated' || topic === 'orders/cancelled') {
+    if (topic === 'orders/paid' || (topic === 'orders/updated' && String(body.financial_status || '').toLowerCase() === 'paid')) {
+      await this.notePrepaidPaid(user, body);
+    }
+    if (topic === 'orders/create' || topic === 'orders/updated' || topic === 'orders/cancelled' || topic === 'orders/paid') {
       await this.applyRestOrder(user, body);
       this.scheduleScore(user);
       return;
@@ -527,6 +531,160 @@ export class ShopifyService {
       this.warnShopify('Webhook list missed', error);
       return null;
     }
+  }
+
+  async createPrepaidDraft(
+    user: UserDocument,
+    input: {
+      externalOrderId: string;
+      productName: string;
+      orderValue: number;
+      discountPct: number;
+      buyerName: string;
+      address1: string;
+      city: string;
+      province: string;
+      zip: string;
+    },
+  ): Promise<{ draftGid: string; invoiceUrl: string; simulated: boolean }> {
+    const token = this.tokenOf(user);
+    const shop = user.shopify?.shopDomain;
+    if (!token || !shop || user.shopify?.demo) {
+      return {
+        draftGid: '',
+        invoiceUrl: `https://www.rtoshield.tech/pay/demo?order=${encodeURIComponent(input.externalOrderId)}`,
+        simulated: true,
+      };
+    }
+    const data = await this.graphql<{
+      draftOrderCreate?: {
+        draftOrder?: { id?: string; invoiceUrl?: string } | null;
+        userErrors?: Array<{ message?: string | null }>;
+      };
+    }>(
+      shop,
+      token,
+      `mutation($input: DraftOrderInput!) {
+        draftOrderCreate(input: $input) {
+          draftOrder { id invoiceUrl }
+          userErrors { field message }
+        }
+      }`,
+      {
+        input: {
+          lineItems: [
+            {
+              title: (input.productName || 'Order').slice(0, 120),
+              originalUnitPrice: input.orderValue.toFixed(2),
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            address1: input.address1.slice(0, 200),
+            city: input.city,
+            province: input.province,
+            zip: input.zip,
+            countryCode: 'IN',
+            firstName: input.buyerName.split(/\s+/)[0]?.slice(0, 40) || 'Buyer',
+          },
+          appliedDiscount:
+            input.discountPct > 0
+              ? { value: input.discountPct, valueType: 'PERCENTAGE', title: 'RTO Shield prepaid', description: 'Pay now' }
+              : undefined,
+          note: `rto-source:${input.externalOrderId}`,
+          tags: ['rto-shield-prepaid'],
+        },
+      },
+    );
+    const errors = (data.draftOrderCreate?.userErrors || []).map((item) => item.message || '').filter(Boolean);
+    if (errors.length || !data.draftOrderCreate?.draftOrder?.invoiceUrl) {
+      const explained = explainShopify({ userErrors: data.draftOrderCreate?.userErrors || [] });
+      if (/access denied|write_draft_orders|scope/i.test(explained.log)) {
+        throw new BadRequestException('Shopify needs the write_draft_orders scope before a prepaid draft can be created.');
+      }
+      throw new BadRequestException(explained.seller || 'Shopify could not create the prepaid draft.');
+    }
+    return {
+      draftGid: data.draftOrderCreate.draftOrder.id || '',
+      invoiceUrl: data.draftOrderCreate.draftOrder.invoiceUrl,
+      simulated: false,
+    };
+  }
+
+  async updateShippingAddress(
+    user: UserDocument,
+    gid: string,
+    address: { address1: string; address2?: string; city: string; province: string; zip: string },
+  ) {
+    const token = this.tokenOf(user);
+    const shop = user.shopify?.shopDomain;
+    if (!token || !shop || !gid || user.shopify?.demo) return;
+    await this.graphql(shop, token, `mutation($input: OrderInput!) { orderUpdate(input: $input) { userErrors { message } } }`, {
+      input: {
+        id: gid,
+        shippingAddress: {
+          address1: address.address1.slice(0, 200),
+          address2: (address.address2 || '').slice(0, 160),
+          city: address.city,
+          province: address.province,
+          zip: address.zip,
+          countryCode: 'IN',
+        },
+      },
+    });
+  }
+
+  async notePrepaidPaid(user: UserDocument, body: Record<string, unknown>) {
+    const note = String(body.note || '');
+    const match = note.match(/rto-source:(\S+)/);
+    const sourceId = match?.[1];
+    if (!sourceId) return;
+    const order = await this.orders.findOne({ sellerId: user._id, externalOrderId: sourceId });
+    if (!order || order.outcome === 'converted') return;
+    const paidGid = String(body.admin_graphql_api_id || (body.id ? `gid://shopify/Order/${body.id}` : ''));
+    const token = this.tokenOf(user);
+    const shop = user.shopify?.shopDomain;
+    if (token && shop && order.shopifyGid && !user.shopify?.demo) {
+      try {
+        await this.graphql(
+          shop,
+          token,
+          `mutation($orderId: ID!, $reason: OrderCancelReason!, $refund: Boolean!, $restock: Boolean!, $notifyCustomer: Boolean, $staffNote: String) {
+            orderCancel(orderId: $orderId, reason: $reason, refund: $refund, restock: $restock, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+              userErrors { message }
+            }
+          }`,
+          {
+            orderId: order.shopifyGid,
+            reason: 'CUSTOMER',
+            refund: false,
+            restock: true,
+            notifyCustomer: false,
+            staffNote: 'RTO Shield: buyer paid the prepaid invoice. Original cash on delivery order cancelled.',
+          },
+        );
+        await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`, {
+          id: order.shopifyGid,
+          tags: ['rto-shield-converted'],
+        });
+      } catch (error) {
+        this.warnShopify('Prepaid conversion missed', error);
+      }
+    }
+    order.outcome = 'converted';
+    order.stage = 'closed';
+    order.prepaid = {
+      draftGid: order.prepaid?.draftGid || '',
+      invoiceUrl: order.prepaid?.invoiceUrl || '',
+      discountPct: order.prepaid?.discountPct || 0,
+      status: 'converted',
+      linkedOrderId: paidGid,
+      offeredAt: order.prepaid?.offeredAt || new Date().toISOString(),
+      expiresAt: order.prepaid?.expiresAt || '',
+    };
+    order.timeline = pushTimeline(order.timeline, 'converted', 'Buyer paid the prepaid draft. Original cash on delivery order cancelled.');
+    await order.save();
+    await this.audit.create({ sellerId: user._id, action: 'shopify.converted', orderId: String(order._id), meta: { linked: Boolean(paidGid) } });
   }
 
   private warnShopify(label: string, error: unknown) {

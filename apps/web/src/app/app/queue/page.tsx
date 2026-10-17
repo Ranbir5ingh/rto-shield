@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
+import { actionCopy, OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, Pager, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -22,13 +24,13 @@ export default function QueuePage() {
   const orders = queue.data?.orders ?? [];
   const [language, setLanguage] = useState<PublicUser['messageLanguage']>('hinglish');
   const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
-  const [voiceId, setVoiceId] = useState('');
-  const [voiceState, setVoiceState] = useState<'playing' | 'played' | ''>('');
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [band, setBand] = useState<'all' | 'High' | 'Medium'>('all');
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState('');
+  const [callFor, setCallFor] = useState('');
+  const [working, setWorking] = useState('');
 
   useEffect(() => {
     if (me.data?.messageLanguage) setLanguage(me.data.messageLanguage);
@@ -115,8 +117,6 @@ export default function QueuePage() {
   }
 
   async function voice(order: OrderDetail) {
-    setVoiceId(order.id);
-    setVoiceState('playing');
     try {
       const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
         `/orders/${order.id}/voice`,
@@ -125,16 +125,39 @@ export default function QueuePage() {
       if (result.audioBase64 && result.mime) {
         const audio = new Audio(`data:${result.mime};base64,${result.audioBase64}`);
         await audio.play();
-        setVoiceState('played');
       } else if (result.notice) {
-        setVoiceState('');
         toast.info(result.notice);
-      } else {
-        setVoiceState('played');
       }
     } catch (err) {
-      setVoiceState('');
       toast.error(err instanceof ApiError ? err.message : 'Voice failed');
+    }
+  }
+
+  async function prepaid(id: string) {
+    setWorking(id);
+    try {
+      const body = await api<{ notice?: string | null }>(`/orders/${id}/prepaid`, { method: 'POST' });
+      toast.success(body.notice || 'Prepaid checkout is ready.');
+      invalidateShop(client);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not create the prepaid link');
+    } finally {
+      setWorking('');
+    }
+  }
+
+  function runPrimary(order: OrderDetail) {
+    const action = actionCopy(order);
+    if (action.id === 'prepaid') {
+      void prepaid(order.id);
+      return;
+    }
+    if (action.id === 'address' || action.id === 'send') {
+      if (canSend) void send([order.id]);
+      else {
+        const link = waLink(order, textFor(order));
+        if (link) window.open(link, '_blank', 'noopener');
+      }
     }
   }
 
@@ -199,6 +222,18 @@ export default function QueuePage() {
         ))}
       </div>
 
+      {Object.values(picked).some(Boolean) ? (
+        <div className="flex flex-wrap items-center gap-2 border-2 border-ink bg-lime px-3 py-2">
+          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+            {Object.values(picked).filter(Boolean).length} selected
+          </span>
+          <Button type="button" disabled={sending || !canSend} onClick={() => send(Object.entries(picked).filter(([, on]) => on).map(([id]) => id))}>
+            Send selected
+          </Button>
+          <Button type="button" tone="ghost" onClick={() => setPicked({})}>Clear</Button>
+        </div>
+      ) : null}
+
       {!filtered.length ? (
         <p className="border-2 border-ink bg-white px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
           No medium or high risk orders. Score a batch, or ship the low-risk ones.
@@ -208,12 +243,26 @@ export default function QueuePage() {
           {visible.map((order) => {
             const active = selected?.id === order.id;
             return (
-              <button
+              <div
                 key={order.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedId(order.id)}
-                className={`grid w-full grid-cols-[4.25rem_1fr] items-center gap-3 border-b-2 border-ink px-3 py-3 text-left last:border-b-0 sm:grid-cols-[4.25rem_5.5rem_1fr_auto] ${active ? 'bg-hl/50' : 'bg-white'}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedId(order.id);
+                  }
+                }}
+                className={`grid w-full grid-cols-[auto_4.25rem_1fr] items-center gap-3 border-b-2 border-ink px-3 py-3 text-left last:border-b-0 sm:grid-cols-[auto_4.25rem_5.5rem_1fr_auto] ${active ? 'bg-hl/50' : 'bg-white'}`}
               >
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${order.externalOrderId}`}
+                  checked={Boolean(picked[order.id])}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
+                />
                 <span className="font-display text-3xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
                 <RiskBadge band={order.riskBand} />
                 <span className="min-w-0">
@@ -225,10 +274,10 @@ export default function QueuePage() {
                 <span className="hidden text-right sm:block">
                   <span className="block font-mono text-sm font-bold tabular-nums">{inr(order.orderValue)}</span>
                   <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-inksoft">
-                    {order.whatsappStatus || 'Not sent'}
+                    {actionCopy(order).label}
                   </span>
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -283,42 +332,24 @@ export default function QueuePage() {
             <MessageThread status={selected.whatsappStatus} conversation={selected.conversation} />
           </div>
           {pincodeNote[selected.id] ? <p className="mt-3 text-xs leading-5 text-ink/70">{pincodeNote[selected.id]}</p> : null}
-          <div className="sticky bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 mt-4 flex flex-wrap gap-2 border-2 border-ink bg-paper p-3 shadow-sticker">
-            <Button type="button" onClick={() => outcome(selected.id, 'confirmed')}>Confirmed</Button>
-            <Button type="button" tone="danger" onClick={() => outcome(selected.id, 'cancelled')}>Cancelled</Button>
-            <Button type="button" tone="ghost" onClick={() => outcome(selected.id, 'no_response')}>Skip</Button>
-            <span data-tour="approve-send">
-              {canSend ? (
-                <Button
-                  type="button"
-                  disabled={sending || Boolean(selected.whatsappStatus && selected.whatsappStatus !== 'failed')}
-                  onClick={() => send([selected.id])}
-                >
-                  {sending ? 'Sending…' : selected.whatsappStatus ? `WhatsApp ${selected.whatsappStatus}` : 'Approve & send'}
-                </Button>
-              ) : waLink(selected, textFor(selected)) ? (
-                <a className="btn-go" href={waLink(selected, textFor(selected)) || '#'} target="_blank" rel="noreferrer">
-                  Open WhatsApp
-                </a>
-              ) : (
-                <Button type="button" disabled>Approve & send</Button>
-              )}
-            </span>
-            {canSend ? (
-              <Button
-                type="button"
-                tone="ghost"
-                disabled={sending || !Object.values(picked).some(Boolean)}
-                onClick={() => send(Object.entries(picked).filter(([, on]) => on).map(([id]) => id))}
-              >
-                Send selected
-              </Button>
-            ) : null}
-            <Button type="button" tone="ghost" onClick={() => voice(selected)} disabled={voiceId === selected.id && voiceState === 'playing'}>
-              {voiceId === selected.id && voiceState === 'playing' ? 'Playing…' : 'Play Hindi'}
-            </Button>
-            <Button type="button" tone="ghost" onClick={() => pin(selected)}>Pincode</Button>
-          </div>
+          <OrderActions
+            order={selected}
+            busy={sending || working === selected.id}
+            canSend={canSend}
+            tour
+            onPrimary={() => runPrimary(selected)}
+            onOutcome={(value) => outcome(selected.id, value)}
+            onPrepaid={() => prepaid(selected.id)}
+            onCall={() => setCallFor(selected.id)}
+            onVoice={() => voice(selected)}
+            onPin={() => pin(selected)}
+          />
+          {callFor === selected.id ? <div className="mt-3"><CallBuyer orderId={selected.id} open onClose={() => setCallFor('')} /></div> : null}
+          {selected.prepaid?.invoiceUrl ? (
+            <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+              Prepaid {selected.prepaid.status} · <a className="underline" href={selected.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+            </p>
+          ) : null}
         </article>
       ) : (
         <div data-tour="approve-send" className="sr-only">Approve and send</div>
