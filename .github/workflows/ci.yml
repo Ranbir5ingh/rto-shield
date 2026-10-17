@@ -17,7 +17,19 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
-      - run: npm run build
+      # next/font downloads Google CSS at build time. A blip makes the loader
+      # throw "Cannot read properties of null (reading '1')" with no code change.
+      - name: Build
+        run: |
+          attempt=1
+          until npm run build; do
+            if [ "$attempt" -ge 3 ]; then
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            echo "Build failed. Retrying ($attempt/3)..."
+            sleep 8
+          done
 
   python:
     runs-on: ubuntu-latest
