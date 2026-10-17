@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { History, LayoutDashboard, ListChecks, LogOut, ScanLine, Search, Settings } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, ScanLine, Search, Settings } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { Tour } from '@/components/Tour';
 import { Notice, Skeleton } from '@/components/ui';
@@ -104,7 +105,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [tour, setTour] = useState<'seller' | 'demo' | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('rto-sidebar') === 'collapsed';
+  });
+  const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
   const tourStarted = useRef(false);
+
+  useEffect(() => {
+    window.localStorage.setItem('rto-sidebar', collapsed ? 'collapsed' : 'open');
+  }, [collapsed]);
 
   useEffect(() => {
     if (me.isError) router.replace('/login');
@@ -164,47 +174,91 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-paper text-ink">
-      {/* ------- desktop sidebar ------- */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r-2 border-ink bg-paper lg:flex" aria-label="Primary">
-        <Link
-          href="/app"
-          className="flex items-center gap-3 border-b-2 border-ink px-5 py-5"
-          onMouseEnter={() => prefetchRoute(client, '/app')}
-          aria-label="RTO Shield home"
-        >
-          <LogoMark size={32} ink="#1B1712" pulse="#FF3B30" />
-          <span className="font-display text-lg font-black uppercase tracking-tight">
-            RTO<span className="text-risk">&nbsp;Shield</span>
-          </span>
-        </Link>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      {/* ------- desktop sidebar (collapsible icon rail) ------- */}
+      <aside
+        className={`hidden shrink-0 flex-col border-r-2 border-ink bg-paper transition-[width] duration-200 ease-out lg:flex ${
+          collapsed ? 'w-[4.5rem]' : 'w-60'
+        }`}
+        aria-label="Primary"
+      >
+        <div className={`flex items-center border-b-2 border-ink py-5 ${collapsed ? 'flex-col gap-3 px-0' : 'justify-between px-5'}`}>
+          <Link
+            href="/app"
+            className="flex shrink-0 items-center gap-3"
+            onMouseEnter={() => prefetchRoute(client, '/app')}
+            aria-label="RTO Shield home"
+          >
+            <LogoMark size={32} ink="#1B1712" pulse="#FF3B30" />
+            {collapsed ? null : (
+              <span className="whitespace-nowrap font-display text-lg font-black uppercase tracking-tight">
+                RTO<span className="text-risk">&nbsp;Shield</span>
+              </span>
+            )}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            className="grid h-9 w-9 shrink-0 place-items-center border-2 border-ink bg-white text-inksoft shadow-sticker-sm transition hover:text-ink"
+          >
+            {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+          </button>
+        </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-3" aria-label="Sections">
           {links.map(([href, label, , Icon]) => {
             const active = activeNav(pathname || '', href);
+            const badge = href === '/app/queue' && queueCount > 0;
             return (
               <Link
                 key={href}
                 href={href}
+                aria-label={label}
                 aria-current={active ? 'page' : undefined}
-                onMouseEnter={() => prefetchRoute(client, href)}
-                className={`flex items-center gap-3 border-2 px-3.5 py-3 transition ${
+                onMouseEnter={(e) => {
+                  prefetchRoute(client, href);
+                  if (collapsed) {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setTip({ label, top: r.top + r.height / 2 });
+                  }
+                }}
+                onMouseLeave={() => setTip(null)}
+                onFocus={(e) => {
+                  if (collapsed) {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setTip({ label, top: r.top + r.height / 2 });
+                  }
+                }}
+                onBlur={() => setTip(null)}
+                className={`relative flex items-center border-2 transition ${
+                  collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3.5 py-3'
+                } ${
                   active
                     ? 'border-ink bg-lime shadow-sticker-sm'
                     : 'border-transparent hover:border-ink hover:bg-hl/40'
                 }`}
               >
                 <Icon size={17} aria-hidden="true" className="shrink-0" />
-                <span className="font-mono text-xs font-bold uppercase tracking-[0.14em]">{label}</span>
-                {href === '/app/queue' && queueCount > 0 ? (
-                  <span className="ml-auto border-2 border-ink bg-risk px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
-                    {queueCount}
-                  </span>
+                {collapsed ? null : (
+                  <span className="whitespace-nowrap font-mono text-xs font-bold uppercase tracking-[0.14em]">{label}</span>
+                )}
+                {badge ? (
+                  collapsed ? (
+                    <span className="absolute right-1.5 top-1.5 grid h-5 min-w-5 place-items-center border border-ink bg-risk px-1 font-mono text-[9px] font-bold text-white">
+                      {queueCount}
+                    </span>
+                  ) : (
+                    <span className="ml-auto border-2 border-ink bg-risk px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+                      {queueCount}
+                    </span>
+                  )
                 ) : null}
               </Link>
             );
           })}
         </nav>
-        <div className="border-t-2 border-ink p-3">
-          {user ? (
+        <div className={`border-t-2 border-ink p-3 ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
+          {user && !collapsed ? (
             <div className="mb-2 px-1.5">
               <p className="truncate font-display text-sm font-extrabold uppercase">{user.shopName}</p>
               <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-inksoft">
@@ -215,13 +269,35 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex w-full items-center gap-3 border-2 border-transparent px-3.5 py-3 font-mono text-xs font-bold uppercase tracking-[0.14em] text-inksoft transition hover:border-ink hover:bg-hl/40 hover:text-ink"
+            aria-label="Log out"
+            onMouseEnter={(e) => {
+              if (collapsed) {
+                const r = e.currentTarget.getBoundingClientRect();
+                setTip({ label: 'Log out', top: r.top + r.height / 2 });
+              }
+            }}
+            onMouseLeave={() => setTip(null)}
+            className={`flex items-center border-2 border-transparent font-mono text-xs font-bold uppercase tracking-[0.14em] text-inksoft transition hover:border-ink hover:bg-hl/40 hover:text-ink ${
+              collapsed ? 'justify-center px-0 py-3 w-full' : 'w-full gap-3 px-3.5 py-3'
+            }`}
           >
             <LogOut size={17} aria-hidden="true" className="shrink-0" />
-            Log out
+            {collapsed ? null : 'Log out'}
           </button>
         </div>
       </aside>
+      {tip && collapsed
+        ? createPortal(
+            <span
+              className="pointer-events-none fixed z-[100] -translate-y-1/2 whitespace-nowrap border-2 border-ink bg-paper px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink shadow-sticker-sm"
+              style={{ left: '4.9rem', top: tip.top }}
+              role="tooltip"
+            >
+              {tip.label}
+            </span>,
+            document.body,
+          )
+        : null}
 
       {/* ------- main column ------- */}
       <div className="flex min-w-0 flex-1 flex-col">

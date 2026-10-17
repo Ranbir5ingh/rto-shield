@@ -3,32 +3,17 @@
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { CsvImporter } from '@/components/CsvImporter';
+import { Plus, Upload } from 'lucide-react';
 import { useToast } from '@/components/Toaster';
 import { actionCopy } from '@/components/OrderActions';
-import { Button, Dropdown, Field, Page, Pager, RiskBadge, Section, Skeleton, inputClass } from '@/components/ui';
+import { Button, Page, Pager, RiskBadge, Section, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import { invalidateShop, useOrders } from '@/lib/queries';
 
-const empty = {
-  buyerName: '',
-  phone: '',
-  address: '',
-  city: '',
-  state: '',
-  pincode: '',
-  orderValue: '799',
-  paymentType: 'cod',
-  priorOrders: '0',
-  priorRtos: '0',
-  productName: '',
-};
-
 const PAGE = 12;
 
 export default function OrdersPage() {
-  const [form, setForm] = useState(empty);
   const toast = useToast();
   const client = useQueryClient();
   const [page, setPage] = useState(0);
@@ -43,31 +28,6 @@ export default function OrdersPage() {
 
   function refresh() {
     invalidateShop(client);
-  }
-
-  function set<K extends keyof typeof empty>(key: K, value: string) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  async function createOrder(event: React.FormEvent) {
-    event.preventDefault();
-    try {
-      await api('/orders/manual', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          orderValue: Number(form.orderValue),
-          priorOrders: Number(form.priorOrders),
-          priorRtos: Number(form.priorRtos),
-        }),
-      });
-      setForm(empty);
-      toast.success('Order added. Score when the batch is ready.');
-      refresh();
-      document.getElementById('scanner-list')?.scrollIntoView({ block: 'start' });
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not add the order');
-    }
   }
 
   async function score() {
@@ -111,9 +71,17 @@ export default function OrdersPage() {
       title="Score pending orders"
       sub="Low scores can ship straight away. Medium and High go to the confirmation queue."
       actions={
-        <Button type="button" onClick={score} disabled={scoring}>
-          {phase === 'fast' ? 'Fast pass…' : phase === 'upgrade' ? 'Upgrading the full model…' : 'Score pending orders'}
-        </Button>
+        <>
+          <Link href="/app/orders/new" className="btn-ghost !px-5 !py-3 !text-[11px]">
+            <Plus size={14} /> Add order
+          </Link>
+          <Link href="/app/orders/import" className="btn-ghost !px-5 !py-3 !text-[11px]">
+            <Upload size={14} /> Upload CSV
+          </Link>
+          <Button type="button" onClick={score} disabled={scoring}>
+            {phase === 'fast' ? 'Fast pass…' : phase === 'upgrade' ? 'Upgrading the full model…' : 'Score pending orders'}
+          </Button>
+        </>
       }
     >
       {scoring ? (
@@ -157,71 +125,25 @@ export default function OrdersPage() {
             </article>
           ))}
           {list.isFetched && !orders.length ? (
-            <p className="px-5 py-10 text-center font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft sm:px-6">
-              No pending orders yet.<br />Add one below or connect Shopify.
-            </p>
+            <div className="px-5 py-10 text-center sm:px-6">
+              <p className="font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft">
+                No pending orders yet.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+                <Link href="/app/orders/new" className="btn-ghost !px-5 !py-3 !text-[11px]">
+                  <Plus size={14} /> Add order
+                </Link>
+                <Link href="/app/orders/import" className="btn-ghost !px-5 !py-3 !text-[11px]">
+                  <Upload size={14} /> Upload CSV
+                </Link>
+              </div>
+            </div>
           ) : null}
         </div>
         <div className="border-t-2 border-ink px-5 py-3 sm:px-6">
           <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
         </div>
       </Section>
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <Section eyebrow="Manual entry" title="Add an order">
-          <form onSubmit={createOrder} className="grid gap-4 sm:grid-cols-2">
-            <Field label="Buyer name">
-              <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
-            </Field>
-            <Field label="Phone">
-              <input className={inputClass} value={form.phone} onChange={(event) => set('phone', event.target.value)} required />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Address">
-                <input className={inputClass} value={form.address} onChange={(event) => set('address', event.target.value)} required />
-              </Field>
-            </div>
-            <Field label="City">
-              <input className={inputClass} value={form.city} onChange={(event) => set('city', event.target.value)} />
-            </Field>
-            <Field label="State">
-              <input className={inputClass} value={form.state} onChange={(event) => set('state', event.target.value)} />
-            </Field>
-            <Field label="Pincode">
-              <input className={inputClass} value={form.pincode} onChange={(event) => set('pincode', event.target.value)} required pattern="[1-9][0-9]{5}" />
-            </Field>
-            <Field label="Order value (₹)">
-              <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
-            </Field>
-            <Field label="Payment">
-              <Dropdown
-                label="Payment"
-                value={form.paymentType}
-                onChange={(v) => set('paymentType', v)}
-                options={[
-                  { value: 'cod', label: 'Cash on delivery' },
-                  { value: 'prepaid', label: 'Prepaid' },
-                ]}
-              />
-            </Field>
-            <Field label="Prior orders">
-              <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />
-            </Field>
-            <Field label="Prior RTOs">
-              <input className={inputClass} type="number" min={0} value={form.priorRtos} onChange={(event) => set('priorRtos', event.target.value)} />
-            </Field>
-            <div className="sm:col-span-2">
-              <Button type="submit">Add pending order</Button>
-            </div>
-          </form>
-        </Section>
-        <Section eyebrow="Bulk import" title="Upload a CSV">
-          <p className="-mt-2 mb-4 text-sm leading-6 text-ink/70">
-            A Shopify export, a Meesho-style file, or the generic template. Columns are matched automatically.
-          </p>
-          <CsvImporter mode="pending" onImported={refresh} />
-        </Section>
-      </div>
     </Page>
   );
 }
