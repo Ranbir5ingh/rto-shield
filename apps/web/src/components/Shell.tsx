@@ -49,7 +49,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center bg-ink/40 px-4 pt-[18vh]"
+      className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-6"
       onClick={onClose}
       role="dialog"
       aria-label="Command palette"
@@ -70,7 +70,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
           />
           <kbd className="border border-ink/30 px-1.5 py-0.5 font-mono text-[10px]">ESC</kbd>
         </div>
-        <ul className="max-h-72 overflow-y-auto p-2">
+        <ul className="max-h-[min(18rem,calc(100dvh-8rem))] overflow-y-auto p-2">
           {items.map(([href, label, , hint, Icon]) => (
             <li key={href}>
               <button
@@ -178,11 +178,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
     },
   ];
 
+  const fill = pathname === '/app/queue';
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper text-ink">
-      <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain bg-paper pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-        <div className="mx-auto max-w-page px-5 sm:px-8">
-          <div className="flex items-center justify-between gap-3 py-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-paper">
+        <div className="mx-auto flex min-h-0 w-full max-w-page flex-1 flex-col px-5 sm:px-8">
+          <div className="flex shrink-0 items-center justify-between gap-3 py-4">
             <div className="flex min-w-0 items-center gap-3">
               <Link href="/app" className="shrink-0" aria-label="RTO Shield home" onMouseEnter={() => prefetchRoute(client, '/app')}>
                 <LogoMark size={30} ink="#1B1712" pulse="#FF3B30" />
@@ -247,11 +249,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           </div>
-          <StatusStrip status={status} sellerGemini={Boolean(user?.sellerGemini)} />
+          <div className="shrink-0">
+            <StatusStrip status={status} sellerGemini={Boolean(user?.sellerGemini)} />
+          </div>
+          <div className={`min-h-0 flex-1 pt-1 ${fill ? 'overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))]' : 'overflow-x-clip overflow-y-auto overscroll-contain pb-[calc(5.5rem+env(safe-area-inset-bottom))]'}`}>
           {user ? (
-            <div className="pb-8 pt-1">{children}</div>
+            children
           ) : (
-            <div className="space-y-4 pb-8 pt-1" aria-busy="true" aria-label="Opening your shop">
+            <div className="space-y-4" aria-busy="true" aria-label="Opening your shop">
               <Skeleton className="h-10 w-64" />
               <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4">
                 {Array.from({ length: 4 }, (_, i) => (
@@ -261,6 +266,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Skeleton className="h-56" />
             </div>
           )}
+          </div>
         </div>
       </main>
       {palette && <CommandPalette onClose={() => setPalette(false)} />}

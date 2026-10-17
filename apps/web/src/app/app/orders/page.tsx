@@ -64,6 +64,7 @@ export default function OrdersPage() {
       setForm(empty);
       toast.success('Order added. Score when the batch is ready.');
       refresh();
+      document.getElementById('scanner-list')?.scrollIntoView({ block: 'start' });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not add the order');
     }
@@ -106,7 +107,7 @@ export default function OrdersPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display font-medium text-display-2">Score pending orders</h1>
+          <h1 className="font-display text-[clamp(1.7rem,4vw,2.6rem)] font-black uppercase leading-none">Score pending orders</h1>
           <p className="mt-2 text-sm text-ink/70">Low scores can ship. Medium and High go to the confirmation queue.</p>
         </div>
         <Button type="button" onClick={score} disabled={phase === 'fast' || phase === 'upgrade'}>
@@ -118,52 +119,8 @@ export default function OrdersPage() {
           <div className={`h-full bg-hl ${phase === 'fast' ? 'w-1/3' : 'w-2/3'}`} />
         </div>
       ) : null}
-      <form onSubmit={createOrder} className="panel grid gap-3 p-5 shadow-card md:grid-cols-2">
-        <Field label="Buyer name">
-          <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
-        </Field>
-        <Field label="Phone">
-          <input className={inputClass} value={form.phone} onChange={(event) => set('phone', event.target.value)} required />
-        </Field>
-        <Field label="Address">
-          <input className={inputClass} value={form.address} onChange={(event) => set('address', event.target.value)} required />
-        </Field>
-        <Field label="City">
-          <input className={inputClass} value={form.city} onChange={(event) => set('city', event.target.value)} />
-        </Field>
-        <Field label="State">
-          <input className={inputClass} value={form.state} onChange={(event) => set('state', event.target.value)} />
-        </Field>
-        <Field label="Pincode">
-          <input className={inputClass} value={form.pincode} onChange={(event) => set('pincode', event.target.value)} required pattern="[1-9][0-9]{5}" />
-        </Field>
-        <Field label="Order value (₹)">
-          <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
-        </Field>
-        <Field label="Payment">
-          <Dropdown
-            label="Payment"
-            value={form.paymentType}
-            onChange={(v) => set('paymentType', v)}
-            options={[
-              { value: 'cod', label: 'Cash on delivery' },
-              { value: 'prepaid', label: 'Prepaid' },
-            ]}
-          />
-        </Field>
-        <Field label="Prior orders">
-          <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />
-        </Field>
-        <Field label="Prior RTOs">
-          <input className={inputClass} type="number" min={0} value={form.priorRtos} onChange={(event) => set('priorRtos', event.target.value)} />
-        </Field>
-        <div className="md:col-span-2">
-          <Button type="submit">Add pending order</Button>
-        </div>
-      </form>
-      <CsvImporter mode="pending" onImported={refresh} />
       {list.isLoading ? <Skeleton className="h-48" /> : null}
-      <div className={`grid gap-3 ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
+      <div id="scanner-list" className={`grid gap-3 ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
         {orders.map((order) => (
           <article key={order.id} className="grid gap-3 border-2 border-ink bg-white p-3 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center">
             <div className="flex items-center gap-2 sm:block">
@@ -194,6 +151,55 @@ export default function OrdersPage() {
         ) : null}
       </div>
       <Pager page={page} pageSize={PAGE} total={total} onPage={setPage} />
+      <details className="border-2 border-ink bg-white">
+        <summary className="cursor-pointer px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Add an order</summary>
+        <form onSubmit={createOrder} className="grid gap-3 border-t-2 border-ink p-4 md:grid-cols-2">
+          <Field label="Buyer name">
+            <input className={inputClass} value={form.buyerName} onChange={(event) => set('buyerName', event.target.value)} required />
+          </Field>
+          <Field label="Phone">
+            <input className={inputClass} value={form.phone} onChange={(event) => set('phone', event.target.value)} required />
+          </Field>
+          <Field label="Address">
+            <input className={inputClass} value={form.address} onChange={(event) => set('address', event.target.value)} required />
+          </Field>
+          <Field label="City">
+            <input className={inputClass} value={form.city} onChange={(event) => set('city', event.target.value)} />
+          </Field>
+          <Field label="State">
+            <input className={inputClass} value={form.state} onChange={(event) => set('state', event.target.value)} />
+          </Field>
+          <Field label="Pincode">
+            <input className={inputClass} value={form.pincode} onChange={(event) => set('pincode', event.target.value)} required pattern="[1-9][0-9]{5}" />
+          </Field>
+          <Field label="Order value (₹)">
+            <input className={inputClass} type="number" min={1} value={form.orderValue} onChange={(event) => set('orderValue', event.target.value)} required />
+          </Field>
+          <Field label="Payment">
+            <Dropdown
+              label="Payment"
+              value={form.paymentType}
+              onChange={(v) => set('paymentType', v)}
+              options={[
+                { value: 'cod', label: 'Cash on delivery' },
+                { value: 'prepaid', label: 'Prepaid' },
+              ]}
+            />
+          </Field>
+          <Field label="Prior orders">
+            <input className={inputClass} type="number" min={0} value={form.priorOrders} onChange={(event) => set('priorOrders', event.target.value)} />
+          </Field>
+          <Field label="Prior RTOs">
+            <input className={inputClass} type="number" min={0} value={form.priorRtos} onChange={(event) => set('priorRtos', event.target.value)} />
+          </Field>
+          <div className="md:col-span-2">
+            <Button type="submit">Add pending order</Button>
+          </div>
+        </form>
+        <div className="border-t-2 border-ink p-4">
+          <CsvImporter mode="pending" onImported={refresh} />
+        </div>
+      </details>
     </div>
   );
 }

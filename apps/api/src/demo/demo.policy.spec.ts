@@ -38,7 +38,9 @@ describe('demo policy', () => {
     expect(demoAllows('POST', '/api/whatsapp')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp/test-connection')).toBe(false);
     expect(demoAllows('POST', '/api/shopify/install')).toBe(false);
+    expect(demoAllows('POST', '/api/shopify/settings')).toBe(false);
     expect(demoAllows('POST', '/api/shopify/resync')).toBe(false);
+    expect(demoAllows('DELETE', '/api/elevenlabs')).toBe(false);
     expect(demoAllows('PATCH', '/api/account/settings')).toBe(false);
     expect(demoAllows('DELETE', '/api/account/data')).toBe(false);
     expect(demoAllows('DELETE', '/api/account')).toBe(false);

@@ -40,7 +40,7 @@ export default function WhatsAppGuidePage() {
       <article className="mx-auto max-w-3xl px-5 pb-28 pt-16 sm:px-8 md:pb-16 md:pt-32">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Guide</p>
-        <h1 className="mt-3 font-display text-display-2">Connect WhatsApp without a developer on the call</h1>
+        <h1 className="mt-3 font-display text-[clamp(1.8rem,6vw,3rem)] font-black uppercase leading-[0.95]">Connect WhatsApp without a developer on the call</h1>
         <p className="mt-4 text-base leading-7 text-ink/80">
           RTO Shield sends order confirmations through your own WhatsApp Cloud API number. Work through these steps once.
           After you log in, Settings ticks each one off as you save it.

@@ -23,7 +23,7 @@ export function AuthFrame({
         </Link>
         <div className="relative max-w-md">
           <Eyebrow>/Before the tape gun/</Eyebrow>
-          <p className="statement mt-6 text-5xl">
+          <p className="statement mt-6 text-[clamp(1.8rem,3vw,2.6rem)]">
             Score the order.<br />Confirm the <span className="text-risk">risky</span> ones.<br />Ship the rest.
           </p>
           <div className="mt-10 border-t border-ink/20">
@@ -51,7 +51,7 @@ export function AuthFrame({
         </Link>
         <div className="mx-auto w-full max-w-md">
           <Eyebrow>/Enter/</Eyebrow>
-          <h1 className="statement mt-4 text-5xl">{title}</h1>
+          <h1 className="statement mt-4 text-[clamp(2.1rem,8vw,3rem)]">{title}</h1>
           <p className="mt-4 leading-7 text-inksoft">{lede}</p>
           <div className="mt-8">{children}</div>
         </div>

@@ -171,6 +171,15 @@ export const deleteAccountSchema = z.object({
   password: z.string().min(1).max(72),
 });
 
+export const purgeUserSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email()
+    .max(120)
+    .transform((value) => value.toLowerCase()),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ColumnMapping = z.infer<typeof columnMappingSchema>;

@@ -1,23 +1,56 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { actionCopy, OrderActions } from '@/components/OrderActions';
 import { useToast } from '@/components/Toaster';
-import { Button, CopyButton, Pager, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
+import { Button, CopyButton, RiskBadge, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
 import { invalidateShop, qk, useMe, useQueue, useWhatsapp } from '@/lib/queries';
 import type { OrderDetail, PublicUser } from '@/lib/types';
 
-const PAGE = 6;
+function useWide() {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setWide(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
+  return wide;
+}
 
 export default function QueuePage() {
+  return (
+    <Suspense fallback={<QueueSkeleton />}>
+      <QueueScreen />
+    </Suspense>
+  );
+}
+
+function QueueSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading the queue" data-tour-ready="false">
+      <Skeleton className="h-12 w-64" />
+      <Skeleton className="h-24" />
+      <Skeleton className="h-24" />
+    </div>
+  );
+}
+
+function QueueScreen() {
   const toast = useToast();
   const client = useQueryClient();
+  const router = useRouter();
+  const params = useSearchParams();
+  const wide = useWide();
+  const orderParam = params?.get('order') || '';
   const queue = useQueue();
   const me = useMe();
   const whatsapp = useWhatsapp();
@@ -27,10 +60,11 @@ export default function QueuePage() {
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [band, setBand] = useState<'all' | 'High' | 'Medium'>('all');
-  const [page, setPage] = useState(0);
-  const [selectedId, setSelectedId] = useState('');
   const [callFor, setCallFor] = useState('');
   const [working, setWorking] = useState('');
+  const backRef = useRef<HTMLButtonElement>(null);
+  const sheetWasOpen = useRef(false);
+  const lastRow = useRef('');
 
   useEffect(() => {
     if (me.data?.messageLanguage) setLanguage(me.data.messageLanguage);
@@ -44,11 +78,38 @@ export default function QueuePage() {
     () => orders.filter((order) => band === 'all' || order.riskBand === band),
     [orders, band],
   );
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = filtered.slice(safePage * PAGE, safePage * PAGE + PAGE);
-  const selected = filtered.find((order) => order.id === selectedId) || visible[0] || null;
+  const selected = orders.find((order) => order.id === orderParam) || null;
   const canSend = Boolean(whatsapp.data?.configured || whatsapp.data?.demo || me.data?.role === 'demo' || me.data?.isDemo);
+
+  const replace = useCallback((id: string) => {
+    const next = new URLSearchParams(params?.toString() || '');
+    if (id) next.set('order', id);
+    else next.delete('order');
+    const query = next.toString();
+    router.replace(query ? `/app/queue?${query}` : '/app/queue', { scroll: false });
+  }, [params, router]);
+
+  useEffect(() => {
+    if (!wide || orderParam || !filtered[0]) return;
+    replace(filtered[0].id);
+  }, [wide, orderParam, filtered, replace]);
+
+  useEffect(() => {
+    if (orderParam && queue.isSuccess && !orders.some((order) => order.id === orderParam)) replace('');
+  }, [orderParam, orders, queue.isSuccess, replace]);
+
+  useEffect(() => {
+    if (!wide && orderParam) {
+      sheetWasOpen.current = true;
+      lastRow.current = orderParam;
+      backRef.current?.focus();
+      return;
+    }
+    if (sheetWasOpen.current && !orderParam) {
+      sheetWasOpen.current = false;
+      document.getElementById(`queue-row-${lastRow.current}`)?.focus();
+    }
+  }, [orderParam, wide]);
 
   function textFor(order: OrderDetail) {
     if (!order.messages) return '';
@@ -107,7 +168,7 @@ export default function QueuePage() {
     );
     try {
       await api(`/orders/${id}/outcome`, { method: 'PATCH', body: JSON.stringify({ outcome: value }) });
-      if (selectedId === id) setSelectedId('');
+      if (orderParam === id) replace('');
     } catch (err) {
       if (previous) client.setQueryData(qk.queue, previous);
       toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
@@ -172,22 +233,46 @@ export default function QueuePage() {
     }));
   }
 
-  if (queue.isLoading) {
-    return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading the queue" data-tour-ready="false">
-        <Skeleton className="h-12 w-64" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-      </div>
-    );
+  function move(delta: number) {
+    if (!filtered.length) return;
+    const index = Math.max(0, filtered.findIndex((order) => order.id === (selected?.id || filtered[0].id)));
+    const next = filtered[Math.min(filtered.length - 1, Math.max(0, index + delta))];
+    replace(next.id);
+    document.getElementById(`queue-row-${next.id}`)?.focus();
   }
 
+  if (queue.isLoading) return <QueueSkeleton />;
+
+  const detail = selected ? (
+    <QueueDetail
+      order={selected}
+      text={textFor(selected)}
+      note={pincodeNote[selected.id] || ''}
+      busy={sending || working === selected.id}
+      canSend={canSend}
+      calling={callFor === selected.id}
+      picked={Boolean(picked[selected.id])}
+      onPick={(on) => setPicked((current) => ({ ...current, [selected.id]: on }))}
+      onPrimary={() => runPrimary(selected)}
+      onOutcome={(value) => outcome(selected.id, value)}
+      onPrepaid={() => prepaid(selected.id)}
+      onCall={() => setCallFor(selected.id)}
+      onVoice={() => voice(selected)}
+      onPin={() => pin(selected)}
+      onCloseCall={() => setCallFor('')}
+    />
+  ) : (
+    <p className="border-2 border-dashed border-ink px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
+      Select an order to read the message and take the next action.
+    </p>
+  );
+
   return (
-    <div className="space-y-4" data-tour-ready="true">
-      <div className="flex flex-wrap items-end justify-between gap-3" data-tour="risk-queue">
+    <div className="flex min-h-0 flex-1 flex-col gap-3" data-tour-ready="true">
+      <div className="flex shrink-0 flex-wrap items-end justify-between gap-3" data-tour="risk-queue">
         <div>
           <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-inksoft">Needs a decision</p>
-          <h1 className="font-display text-display-2">Confirmation queue</h1>
+          <h1 className="font-display text-[clamp(1.7rem,4vw,2.6rem)] font-black uppercase leading-none">Confirmation queue</h1>
         </div>
         <label className="text-sm">
           Message
@@ -204,7 +289,7 @@ export default function QueuePage() {
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Risk band">
+      <div className="flex shrink-0 flex-wrap gap-2" role="tablist" aria-label="Risk band">
         {(['all', 'High', 'Medium'] as const).map((value) => (
           <button
             key={value}
@@ -212,10 +297,7 @@ export default function QueuePage() {
             role="tab"
             aria-selected={band === value}
             className={`border-2 border-ink px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] ${band === value ? 'bg-lime' : 'bg-white'}`}
-            onClick={() => {
-              setBand(value);
-              setPage(0);
-            }}
+            onClick={() => setBand(value)}
           >
             {value === 'all' ? `All ${orders.length}` : `${value} ${orders.filter((order) => order.riskBand === value).length}`}
           </button>
@@ -223,7 +305,7 @@ export default function QueuePage() {
       </div>
 
       {Object.values(picked).some(Boolean) ? (
-        <div className="flex flex-wrap items-center gap-2 border-2 border-ink bg-lime px-3 py-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-2 border-ink bg-lime px-3 py-2">
           <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
             {Object.values(picked).filter(Boolean).length} selected
           </span>
@@ -234,27 +316,42 @@ export default function QueuePage() {
         </div>
       ) : null}
 
-      {!filtered.length ? (
-        <p className="border-2 border-ink bg-white px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
-          No medium or high risk orders. Score a batch, or ship the low-risk ones.
-        </p>
-      ) : (
-        <div className="border-2 border-ink bg-white">
-          {visible.map((order) => {
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(280px,22rem)_minmax(0,1fr)]">
+        <div
+          className="min-h-0 overflow-y-auto border-2 border-ink bg-white"
+          role="listbox"
+          aria-label="Orders waiting for a decision"
+          aria-activedescendant={selected ? `queue-row-${selected.id}` : undefined}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            const tag = (event.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'A' || tag === 'TEXTAREA') return;
+            event.preventDefault();
+            move(event.key === 'ArrowDown' ? 1 : -1);
+          }}
+        >
+          {!filtered.length ? (
+            <p className="px-4 py-8 font-mono text-xs font-bold uppercase tracking-[0.16em] text-inksoft">
+              No medium or high risk orders. Score a batch, or ship the low-risk ones.
+            </p>
+          ) : filtered.map((order, index) => {
             const active = selected?.id === order.id;
             return (
               <div
                 key={order.id}
-                role="button"
+                id={`queue-row-${order.id}`}
+                role="option"
+                aria-selected={active}
                 tabIndex={0}
-                onClick={() => setSelectedId(order.id)}
+                onClick={() => replace(order.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    setSelectedId(order.id);
+                    replace(order.id);
                   }
                 }}
-                className={`grid w-full grid-cols-[auto_4.25rem_1fr] items-center gap-3 border-b-2 border-ink px-3 py-3 text-left last:border-b-0 sm:grid-cols-[auto_4.25rem_5.5rem_1fr_auto] ${active ? 'bg-hl/50' : 'bg-white'}`}
+                className={`grid w-full grid-cols-[auto_3.25rem_1fr] items-center gap-3 border-b-2 border-ink px-3 py-3 text-left last:border-b-0 ${active ? 'bg-hl/50' : 'bg-white'}`}
               >
                 <input
                   type="checkbox"
@@ -264,96 +361,161 @@ export default function QueuePage() {
                   onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
                 />
                 <span className="font-display text-3xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
-                <RiskBadge band={order.riskBand} />
-                <span className="min-w-0">
-                  <span className="block truncate font-display text-lg font-extrabold uppercase">{order.buyerName}</span>
-                  <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
-                    {order.externalOrderId} · {order.city} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'}
+                <div className="min-w-0">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate font-display text-lg font-extrabold uppercase">{order.buyerName}</span>
+                    <RiskBadge band={order.riskBand} />
                   </span>
-                </span>
-                <span className="hidden text-right sm:block">
-                  <span className="block font-mono text-sm font-bold tabular-nums">{inr(order.orderValue)}</span>
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-inksoft">
-                    {actionCopy(order).label}
+                  <span className="mt-1 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                    {order.externalOrderId} · {order.city} · {inr(order.orderValue)}
                   </span>
-                </span>
+                  <span className="mt-1 block font-mono text-[10px] font-bold uppercase tracking-[0.14em]" data-tour={index === 0 ? 'risk-reasons' : undefined}>
+                    {(order.reasons[0] || actionCopy(order).label)}
+                  </span>
+                  {index === 0 ? (
+                    <div className="mt-1" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                      <OrderActions
+                        order={order}
+                        busy={sending || working === order.id}
+                        canSend={canSend}
+                        tour
+                        onPrimary={() => {
+                          replace(order.id);
+                          runPrimary(order);
+                        }}
+                        onOutcome={(value) => outcome(order.id, value)}
+                        onPrepaid={() => {
+                          replace(order.id);
+                          prepaid(order.id);
+                        }}
+                        onCall={() => {
+                          replace(order.id);
+                          setCallFor(order.id);
+                        }}
+                        onVoice={() => voice(order)}
+                        onPin={() => pin(order)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             );
           })}
         </div>
-      )}
 
-      <Pager page={safePage} pageSize={PAGE} total={filtered.length} onPage={setPage} />
+        <div className="hidden min-h-0 overflow-y-auto lg:block">
+          {detail}
+        </div>
+      </div>
 
-      {selected ? (
-        <article className="border-2 border-ink bg-paper p-4 shadow-sticker">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-display text-2xl">
-                <Link href={`/app/orders/${selected.id}`} className="underline decoration-lime decoration-2 underline-offset-4">
-                  {selected.buyerName}
-                </Link>
-              </h2>
-              <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-                {inr(selected.orderValue)} · {selected.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {selected.phoneMasked} · {selected.city} {selected.pincode}
-              </p>
-            </div>
-            {canSend ? (
-              <label className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
-                <input
-                  type="checkbox"
-                  checked={Boolean(picked[selected.id])}
-                  onChange={(event) => setPicked((current) => ({ ...current, [selected.id]: event.target.checked }))}
-                />
-                Select
-              </label>
-            ) : null}
+      {selected && !wide ? (
+        <div className="fixed inset-x-0 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] top-0 z-[60] flex flex-col bg-paper" role="dialog" aria-label={selected.buyerName}>
+          <div className="flex shrink-0 items-center gap-3 border-b-2 border-ink px-4 py-3">
+            <button ref={backRef} type="button" className="btn-ghost" onClick={() => replace('')}>Back</button>
+            <h2 className="truncate font-display text-xl font-extrabold uppercase">{selected.buyerName}</h2>
           </div>
-          <ul className="mt-3 flex flex-wrap gap-2" data-tour={orders[0]?.id === selected.id ? 'risk-reasons' : undefined}>
-            {selected.reasons.map((reason) => (
-              <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">
-                {reason}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-sm leading-6">{selected.address}</p>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div className="border-2 border-ink bg-white p-3">
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-hindi text-sm leading-6">{textFor(selected)}</p>
-                {textFor(selected) ? <CopyButton text={textFor(selected)} /> : null}
-              </div>
-              {selected.messages ? (
-                <p className="mt-3 border-t-2 border-dashed border-ink/30 pt-3 text-sm text-ink/75">
-                  Prepaid nudge: {selected.messages.prepaid_nudge}
-                </p>
-              ) : null}
-            </div>
-            <MessageThread status={selected.whatsappStatus} conversation={selected.conversation} />
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {detail}
           </div>
-          {pincodeNote[selected.id] ? <p className="mt-3 text-xs leading-5 text-ink/70">{pincodeNote[selected.id]}</p> : null}
-          <OrderActions
-            order={selected}
-            busy={sending || working === selected.id}
-            canSend={canSend}
-            tour
-            onPrimary={() => runPrimary(selected)}
-            onOutcome={(value) => outcome(selected.id, value)}
-            onPrepaid={() => prepaid(selected.id)}
-            onCall={() => setCallFor(selected.id)}
-            onVoice={() => voice(selected)}
-            onPin={() => pin(selected)}
-          />
-          {callFor === selected.id ? <div className="mt-3"><CallBuyer orderId={selected.id} open onClose={() => setCallFor('')} /></div> : null}
-          {selected.prepaid?.invoiceUrl ? (
-            <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
-              Prepaid {selected.prepaid.status} · <a className="underline" href={selected.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function QueueDetail({
+  order,
+  text,
+  note,
+  busy,
+  canSend,
+  calling,
+  picked,
+  onPick,
+  onPrimary,
+  onOutcome,
+  onPrepaid,
+  onCall,
+  onVoice,
+  onPin,
+  onCloseCall,
+}: {
+  order: OrderDetail;
+  text: string;
+  note: string;
+  busy: boolean;
+  canSend: boolean;
+  calling: boolean;
+  picked: boolean;
+  onPick: (on: boolean) => void;
+  onPrimary: () => void;
+  onOutcome: (value: 'confirmed' | 'cancelled' | 'no_response') => void;
+  onPrepaid: () => void;
+  onCall: () => void;
+  onVoice: () => void;
+  onPin: () => void;
+  onCloseCall: () => void;
+}) {
+  return (
+    <article className="border-2 border-ink bg-paper p-4 shadow-sticker">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-2xl">
+            <Link href={`/app/orders/${order.id}`} className="underline decoration-lime decoration-2 underline-offset-4">
+              {order.buyerName}
+            </Link>
+          </h2>
+          <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
+            {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked} · {order.city} {order.pincode}
+          </p>
+        </div>
+        {canSend ? (
+          <label className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+            <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} />
+            Select
+          </label>
+        ) : null}
+      </div>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {order.reasons.map((reason) => (
+          <li key={reason} className="border-2 border-ink bg-hl px-2 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">
+            {reason}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-sm leading-6">{order.address}</p>
+      <OrderActions
+        order={order}
+        busy={busy}
+        canSend={canSend}
+        onPrimary={onPrimary}
+        onOutcome={onOutcome}
+        onPrepaid={onPrepaid}
+        onCall={onCall}
+        onVoice={onVoice}
+        onPin={onPin}
+      />
+      {calling ? <div className="mt-3"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
+      {order.prepaid?.invoiceUrl ? (
+        <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+          Prepaid {order.prepaid.status} · <a className="underline" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+        </p>
+      ) : null}
+      <div className="mt-4 grid gap-4">
+        <div className="border-2 border-ink bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-hindi text-sm leading-6">{text}</p>
+            {text ? <CopyButton text={text} /> : null}
+          </div>
+          {order.messages ? (
+            <p className="mt-3 border-t-2 border-dashed border-ink/30 pt-3 text-sm text-ink/75">
+              Prepaid nudge: {order.messages.prepaid_nudge}
             </p>
           ) : null}
-        </article>
-      ) : (
-        <div data-tour="approve-send" className="sr-only">Approve and send</div>
-      )}
-    </div>
+        </div>
+        <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
+      </div>
+      {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
+    </article>
   );
 }

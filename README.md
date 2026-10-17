@@ -249,7 +249,7 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `SHOPIFY_APP_URL` | API | Public app origin, `https://www.rtoshield.tech`. OAuth redirect is `{SHOPIFY_APP_URL}/api/shopify/callback`. |
 | `SHOPIFY_SCOPES` | API | Default `read_orders,write_orders,read_fulfillments,read_customers,write_draft_orders`. Reinstall the app after adding `write_draft_orders`. |
 | `SHOPIFY_API_VERSION` | API | Default `2026-10`. GraphQL Admin only. |
-| `INBOX_DRAIN_SECRET` | API, Vercel | Shared secret for `POST /api/inbox/drain` and `POST /api/elevenlabs/agent`. |
+| `INBOX_DRAIN_SECRET` | API, Vercel | Shared secret for `POST /api/inbox/drain`, `POST /api/elevenlabs/agent`, and `POST /api/admin/users/purge`. |
 | `WHATSAPP_VERIFY_TOKEN` | API, Vercel | Value you paste into the Meta webhook verify token field. |
 | `META_GRAPH_VERSION` | API | Default `v23.0`. |
 | `NEXT_PUBLIC_SHOPIFY_API_KEY` | Vercel | Public client id for the embedded App Bridge page. Same as `SHOPIFY_API_KEY`. |
@@ -297,6 +297,17 @@ curl -sS -X POST https://api.rtoshield.tech/api/elevenlabs/agent \
 ```
 
 Both print `agentId`. `webhookSecret` appears only when ElevenLabs issues a new one. Put that value in `ELEVENLABS_WEBHOOK_SECRET` on Render, and put `agentId` in `ELEVENLABS_AGENT_ID`. For real outbound calls, import a Twilio number in ElevenLabs and set `ELEVENLABS_PHONE_NUMBER_ID`. Without that id, Call the buyer stays in the browser. Reinstall the Shopify app so `write_draft_orders` is granted, then resync webhooks so `orders/paid` is subscribed. The post-call URL is `https://api.rtoshield.tech/api/elevenlabs/webhook`.
+
+## Purge a shop
+
+`POST /api/admin/users/purge` hard-deletes one account and the data hanging off it: the Shopify token, orders (decisions, messages, and calls), WhatsApp, Gemini, and ElevenLabs secrets, demo sessions, demo snapshots, inbox rows, and earlier audit events. It writes one new `admin.purge` audit row with counts and no email. A demo session cannot call it. The header is the same inbox secret, compared in constant time:
+
+```bash
+curl -sS -X POST https://api.rtoshield.tech/api/admin/users/purge \
+  -H "content-type: application/json" \
+  -H "x-inbox-secret: $INBOX_DRAIN_SECRET" \
+  -d '{"email":"person@example.com"}'
+```
 
 ## Security notes
 

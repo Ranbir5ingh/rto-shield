@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { AccountModule } from './account/account.module';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CryptoModule } from './common/crypto.module';
 import { CsrfGuard, JwtAuthGuard } from './common/guards';
@@ -53,6 +54,7 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
     OrdersModule,
     DashboardModule,
     AccountModule,
+    AdminModule,
     IntegrationsModule,
     ShopifyModule,
     WhatsAppModule,

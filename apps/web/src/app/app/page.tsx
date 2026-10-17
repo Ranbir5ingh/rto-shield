@@ -72,7 +72,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <section aria-label="Key metrics" data-tour="impact" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Key metrics" className="grid gap-6 py-8 sm:grid-cols-2 lg:grid-cols-4">
         <div data-reveal="pop">
           <Stat
             label="Needs action"
@@ -101,6 +101,8 @@ export default function DashboardPage() {
             hint={`${data.rto} returned · ${data.delivered} delivered`}
           />
         </div>
+      </section>
+      <section aria-label="Impact" data-tour="impact" className="grid gap-6 pb-8 sm:grid-cols-2 lg:grid-cols-4">
         <div data-reveal="pop">
           <Stat label="RTO prevented" value={inr(data.impact?.preventedInr || 0)} hint="Converted and cancelled risky orders, plus shipping" />
         </div>

@@ -148,6 +148,30 @@ export default function OrderDetailPage() {
           <span className="font-display text-5xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
         </div>
       </div>
+      <OrderActions
+        order={order}
+        busy={Boolean(saving)}
+        canSend
+        onPrimary={() => {
+          if (order.intervention === 'offer_prepaid') void prepaid();
+          else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
+          else void mark('confirmed');
+        }}
+        onOutcome={(value) => mark(value)}
+        onPrepaid={() => prepaid()}
+        onCall={() => setCalling(true)}
+        onVoice={() => voice()}
+        onPin={() => pin()}
+      />
+      {calling ? <CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /> : null}
+      {order.prepaid?.invoiceUrl ? (
+        <article className="border-2 border-ink bg-lime/40 p-4">
+          <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Prepaid {order.prepaid.status}</h2>
+          <p className="mt-2 text-sm">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
+          <a className="btn-go mt-3 inline-flex" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+        </article>
+      ) : null}
+      {closed ? <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
       <article className="border-2 border-ink bg-white p-4">
         <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Why this score</h2>
         <ul className="mt-3 flex flex-wrap gap-2">
@@ -174,13 +198,6 @@ export default function OrderDetailPage() {
           )) : <li className="text-sm text-inksoft">No steps yet.</li>}
         </ol>
       </article>
-      {order.prepaid?.invoiceUrl ? (
-        <article className="border-2 border-ink bg-lime/40 p-4">
-          <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Prepaid {order.prepaid.status}</h2>
-          <p className="mt-2 text-sm">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
-          <a className="btn-go mt-3 inline-flex" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
-        </article>
-      ) : null}
       <form onSubmit={saveAddress} className="border-2 border-ink bg-white p-4">
         <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Update address</h2>
         <label className="mt-3 block text-sm">
@@ -220,23 +237,6 @@ export default function OrderDetailPage() {
           {note ? <p className="mt-3 text-xs leading-5 text-ink/70">{note}</p> : null}
         </article>
       ) : null}
-      <OrderActions
-        order={order}
-        busy={Boolean(saving)}
-        canSend
-        onPrimary={() => {
-          if (order.intervention === 'offer_prepaid') void prepaid();
-          else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
-          else void mark('confirmed');
-        }}
-        onOutcome={(value) => mark(value)}
-        onPrepaid={() => prepaid()}
-        onCall={() => setCalling(true)}
-        onVoice={() => voice()}
-        onPin={() => pin()}
-      />
-      {calling ? <CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /> : null}
-      {closed ? <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">Closed as {order.outcome}</p> : null}
     </div>
   );
 }

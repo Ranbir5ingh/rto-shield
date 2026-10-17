@@ -175,9 +175,9 @@ function ElevenLabsKey({ demo, configured, last4, onSaved }: { demo: boolean; co
             ['SerpApi pincode search', status?.serpapi ? 'set' : 'missing — embedded localities only'],
             ['Sentry', status?.sentry ? 'set' : 'missing'],
           ].map(([label, value]) => (
-            <div key={label} className="flex items-center justify-between gap-4 py-2.5">
-              <dt className="text-inksoft">{label}</dt>
-              <dd className="text-right font-mono text-xs">{value}</dd>
+            <div key={label} className="flex items-start justify-between gap-4 py-2.5">
+              <dt className="shrink-0 text-inksoft">{label}</dt>
+              <dd className="min-w-0 break-words text-right font-mono text-xs">{value}</dd>
             </div>
           ))}
         </dl>

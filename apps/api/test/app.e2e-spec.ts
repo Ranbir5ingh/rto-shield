@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { VaultService } from '../src/common/vault.service';
 import { configureApp } from '../src/configure-app';
 import { AuditEvent } from '../src/database/audit.schema';
+import { Order } from '../src/database/order.schema';
 import { User } from '../src/database/user.schema';
 import { MlService } from '../src/ml/ml.service';
 
@@ -582,6 +583,10 @@ describe('RTO Shield API', () => {
         .send({ name: 'Nope', shopName: 'Nope', rtoCostInr: 10, messageLanguage: 'english' })
         .expect(403);
       await visitor.post('/api/shopify/install').set('x-csrf-token', demoCsrf).send({ shop: 'nope.myshopify.com' }).expect(403);
+      await visitor.post('/api/shopify/settings').set('x-csrf-token', demoCsrf).send({ rtoTag: 'nope' }).expect(403);
+      await visitor.post('/api/shopify/resync').set('x-csrf-token', demoCsrf).expect(403);
+      await visitor.post('/api/elevenlabs').set('x-csrf-token', demoCsrf).send({ apiKey: 'sk_this_should_not_save_123456' }).expect(403);
+      await visitor.delete('/api/elevenlabs').set('x-csrf-token', demoCsrf).expect(403);
       await visitor.post('/api/gemini').set('x-csrf-token', demoCsrf).send({ apiKey: 'AIzaSyShouldNotBeSaved000000' }).expect(403);
       await visitor.delete('/api/account/data').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE' }).expect(403);
       await visitor.delete('/api/account').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE', password }).expect(403);
@@ -638,4 +643,49 @@ describe('RTO Shield API', () => {
       else process.env.DEMO_WHATSAPP_DAILY_CAP = previousCap;
     }
   }, 30_000);
+
+  it('purges one account and its shop data with the inbox secret', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const email = `purge-${Date.now()}@shop.test`;
+    const created = await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', token)
+      .send({ email, password: 'supersecret', name: 'Purge', shopName: 'Purge Studio' })
+      .expect(201);
+    await agent.post('/api/orders/sample').set('x-csrf-token', created.body.csrfToken).expect(201);
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const orders = app.get<Model<Order>>(getModelToken(Order.name));
+    const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
+    const before = await users.findOne({ email });
+    expect(before).toBeTruthy();
+    await orders.updateOne({ sellerId: before?._id }, { $set: { outcome: 'confirmed', callState: 'called', conversation: [{ at: new Date().toISOString(), direction: 'out', kind: 'template', text: 'Hi' }] } });
+
+    await request(app.getHttpServer()).post('/api/admin/users/purge').send({ email }).expect(401);
+    await request(app.getHttpServer()).post('/api/admin/users/purge').set('x-inbox-secret', 'wrong-secret').send({ email }).expect(401);
+    await request(app.getHttpServer())
+      .post('/api/admin/users/purge')
+      .set('x-inbox-secret', 'inbox-test-secret')
+      .send({ email: 'missing@shop.test' })
+      .expect(404);
+
+    const purged = await request(app.getHttpServer())
+      .post('/api/admin/users/purge')
+      .set('x-inbox-secret', 'inbox-test-secret')
+      .send({ email: email.toUpperCase() })
+      .expect(200);
+    expect(purged.body.users).toBe(1);
+    expect(purged.body.orders).toBeGreaterThan(0);
+    expect(purged.body.decisions).toBeGreaterThan(0);
+    expect(purged.body.messages).toBeGreaterThan(0);
+    expect(purged.body.calls).toBeGreaterThan(0);
+    expect(JSON.stringify(purged.body)).not.toContain(email);
+    expect(JSON.stringify(purged.body)).not.toContain('supersecret');
+    expect(await users.findOne({ email })).toBeNull();
+    expect(await orders.countDocuments({ sellerId: before?._id })).toBe(0);
+    const log = await audits.findOne({ action: 'admin.purge', sellerId: before?._id }).lean();
+    expect(log?.meta.users).toBe(1);
+    expect(JSON.stringify(log?.meta)).not.toContain(email);
+    await agent.get('/api/auth/me').expect(401);
+  });
 });

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
+import { autoUpdate, computePosition, flip, hide, offset, shift, size } from '@floating-ui/dom';
 import type { TourStep } from '@/lib/tours';
+import { cardWidthFor, resolveTourFrame, type Rect, type TourFrame } from '@/components/tour-place';
 
 interface Box {
   top: number;
@@ -13,19 +14,9 @@ interface Box {
   radius: string;
 }
 
-interface CardPos {
-  top: number;
-  left: number;
-  transform: string;
-}
-
 const PAD = 8;
 const SEEK_MS = 4500;
 const DATA_MS = 12000;
-
-function reducedMotion() {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 function tourTarget(id: string) {
   if (!/^[a-z0-9-]+$/i.test(id)) return null;
@@ -51,8 +42,17 @@ function measure(node: HTMLElement): Box | null {
   };
 }
 
-function cardWidth() {
-  return Math.min(352, window.innerWidth - 24);
+function targetRect(node: HTMLElement): Rect {
+  const rect = node.getBoundingClientRect();
+  return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+}
+
+function chromeInset() {
+  const dock = document.querySelector('[data-dock]');
+  if (!dock) return { top: 12, bottom: 12 };
+  const rect = dock.getBoundingClientRect();
+  if (rect.top < window.innerHeight / 2) return { top: Math.max(12, rect.bottom + 8), bottom: 12 };
+  return { top: 12, bottom: Math.max(12, window.innerHeight - rect.top + 8) };
 }
 
 export function Tour({
@@ -69,7 +69,7 @@ export function Tour({
   const cardRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
-  const [card, setCard] = useState<CardPos | null>(null);
+  const [frame, setFrame] = useState<TourFrame | null>(null);
   const [shown, setShown] = useState(0);
   const [pin, setPin] = useState(0);
   const skipped = useRef(new Set<number>());
@@ -89,7 +89,7 @@ export function Tour({
     if (!step) return;
     if (step.route !== pathname) {
       setBox(null);
-      setCard(null);
+      setFrame(null);
       router.push(step.route);
       return;
     }
@@ -123,10 +123,11 @@ export function Tour({
       }
       if (!scrolled) {
         scrolled = true;
+        const tall = next.height > window.innerHeight * 0.7;
         node?.scrollIntoView?.({
-          block: 'center',
+          block: tall ? 'start' : 'nearest',
           inline: 'nearest',
-          behavior: reducedMotion() ? 'auto' : 'smooth',
+          behavior: 'auto',
         });
         requestAnimationFrame(() => requestAnimationFrame(() => {
           if (cancelled || locked) return;
@@ -177,37 +178,54 @@ export function Tour({
     const place = () => {
       const next = measure(node);
       if (!next) return;
-      const rect = node.getBoundingClientRect();
-      const huge = rect.width * rect.height > window.innerWidth * window.innerHeight * 0.55;
-      const width = cardWidth();
-      const apply = (pos: CardPos) => {
-        const key = `${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(next.width)}:${Math.round(next.height)}:${Math.round(pos.top)}:${Math.round(pos.left)}:${pos.transform}`;
+      const width = cardWidthFor(window.innerWidth);
+      const inset = chromeInset();
+      const boundary = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+      const apply = (nextFrame: TourFrame) => {
+        const key = `${nextFrame.mode}:${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(nextFrame.top)}:${Math.round(nextFrame.left)}:${Math.round(nextFrame.maxHeight)}`;
         if (key === last) return;
         last = key;
         setBox(next);
-        setCard(pos);
+        setFrame(nextFrame);
       };
-      if (huge) {
-        apply({ top: window.innerHeight / 2, left: window.innerWidth / 2, transform: 'translate(-50%, -50%)' });
-        return;
-      }
+      const finish = (placed: { x: number; y: number } | null, referenceHidden: boolean) => {
+        const rect = cardEl.getBoundingClientRect();
+        apply(resolveTourFrame({
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          inset,
+          target: targetRect(node),
+          card: { width, height: Math.max(rect.height, cardEl.scrollHeight, 220) },
+          placed,
+          referenceHidden,
+          mobile: window.innerWidth < 768,
+        }));
+      };
       void computePosition(node, cardEl, {
         strategy: 'fixed',
-        placement: 'bottom',
-        middleware: [offset(16), flip({ padding: 12 }), shift({ padding: 12 })],
+        placement: window.innerWidth < 768 ? 'top' : 'bottom',
+        middleware: [
+          offset(12),
+          flip({ padding: 12, boundary, rootBoundary: 'viewport', fallbackPlacements: ['top', 'bottom', 'right', 'left'] }),
+          shift({ padding: 12, boundary, rootBoundary: 'viewport', crossAxis: true }),
+          size({
+            padding: 12,
+            boundary,
+            rootBoundary: 'viewport',
+            apply({ availableWidth, availableHeight, elements }) {
+              const room = Math.max(0, window.innerHeight - inset.top - inset.bottom);
+              const cap = Math.min(room, Math.max(0, availableHeight));
+              Object.assign(elements.floating.style, {
+                maxWidth: `${Math.min(width, Math.max(0, availableWidth))}px`,
+                maxHeight: `${cap}px`,
+              });
+            },
+          }),
+          hide({ strategy: 'referenceHidden', boundary, rootBoundary: 'viewport' }),
+        ],
       }).then((pos) => {
-        const cardRect = cardEl.getBoundingClientRect();
-        const overlaps = !(
-          pos.x + width <= rect.left - 8
-          || pos.x >= rect.right + 8
-          || pos.y + cardRect.height <= rect.top - 8
-          || pos.y >= rect.bottom + 8
-        );
-        apply(overlaps
-          ? { top: window.innerHeight / 2, left: window.innerWidth / 2, transform: 'translate(-50%, -50%)' }
-          : { top: pos.y, left: pos.x, transform: 'none' });
+        finish({ x: pos.x, y: pos.y }, Boolean(pos.middlewareData.hide?.referenceHidden));
       }).catch(() => {
-        apply({ top: window.innerHeight / 2, left: window.innerWidth / 2, transform: 'translate(-50%, -50%)' });
+        finish(null, false);
       });
     };
 
@@ -215,7 +233,7 @@ export function Tour({
   }, [index, pathname, pin, shown, step]);
 
   useEffect(() => {
-    if (!card || shown !== index) return;
+    if (!frame || shown !== index) return;
     const cardEl = document.getElementById('tour-card');
     if (!cardEl) return;
     const focusable = () => [...cardEl.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];
@@ -241,28 +259,28 @@ export function Tour({
       const nodes = focusable();
       if (!nodes.length) return;
       const first = nodes[0];
-      const last = nodes[nodes.length - 1];
+      const lastNode = nodes[nodes.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+        lastNode.focus();
+      } else if (!event.shiftKey && document.activeElement === lastNode) {
         event.preventDefault();
         first.focus();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [card, index, onFinish, shown, steps.length]);
+  }, [frame, index, onFinish, shown, steps.length]);
 
   if (!step) return null;
   const onPage = step.route === pathname;
-  const ready = Boolean(box && card && onPage && shown === index);
+  const ready = Boolean(box && frame && onPage && shown === index);
   const copy = steps[shown] || step;
   const last = index === steps.length - 1;
-  const width = typeof window === 'undefined' ? 352 : cardWidth();
+  const width = frame?.width ?? (typeof window === 'undefined' ? 352 : cardWidthFor(window.innerWidth));
 
   return (
-    <div className="fixed inset-0 z-[218]" data-tour-overlay="true">
+    <div className="pointer-events-none fixed inset-0 z-[218]" data-tour-overlay="true">
       {box && onPage ? (
         <div
           aria-hidden="true"
@@ -288,31 +306,35 @@ export function Tour({
         inert={ready ? undefined : true}
         aria-labelledby={titleId}
         aria-describedby={bodyId}
-        className={`sticker absolute p-5 motion-safe:transition-[top,left,opacity] motion-safe:duration-300 motion-reduce:transition-none ${
+        data-tour-mode={frame?.mode || 'pending'}
+        className={`sticker pointer-events-auto fixed flex flex-col overflow-hidden p-0 motion-safe:transition-opacity motion-safe:duration-150 motion-reduce:transition-none ${
           ready ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         style={{
-          top: card?.top ?? -9999,
-          left: card?.left ?? 16,
+          top: frame?.top ?? 16,
+          left: frame?.left ?? 16,
           width,
-          transform: card?.transform ?? 'none',
+          maxHeight: frame?.maxHeight ?? 320,
+          visibility: ready ? 'visible' : 'hidden',
         }}
       >
-        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-inksoft">
-          Step {index + 1} of {steps.length}
-        </p>
-        <h2 id={titleId} className="mt-2 font-display text-2xl">
-          {copy.title}
-        </h2>
-        <p id={bodyId} className="mt-2 text-sm leading-6 text-ink/80">
-          {copy.body}
-        </p>
-        <div className="mt-4 flex gap-1.5" aria-hidden="true">
-          {steps.map((item, dot) => (
-            <span key={`${item.id}-${dot}`} className={`h-2 w-2 border border-ink ${dot === index ? 'bg-ink' : 'bg-paper'}`} />
-          ))}
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-2">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-inksoft">
+            Step {index + 1} of {steps.length}
+          </p>
+          <h2 id={titleId} className="mt-2 font-display text-2xl">
+            {copy.title}
+          </h2>
+          <p id={bodyId} className="mt-2 text-sm leading-6 text-ink/80">
+            {copy.body}
+          </p>
+          <div className="mt-4 flex gap-1.5" aria-hidden="true">
+            {steps.map((item, dot) => (
+              <span key={`${item.id}-${dot}`} className={`h-2 w-2 border border-ink ${dot === index ? 'bg-ink' : 'bg-paper'}`} />
+            ))}
+          </div>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t-2 border-ink px-5 py-3">
           <button type="button" className="btn-ghost" onClick={() => onFinish('skip')}>
             Skip
           </button>
