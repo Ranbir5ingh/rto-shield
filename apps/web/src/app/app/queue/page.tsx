@@ -61,6 +61,8 @@ function QueueScreen() {
   const [band, setBand] = useState<'all' | 'High' | 'Medium'>('all');
   const [callFor, setCallFor] = useState('');
   const [working, setWorking] = useState('');
+  // Snapshot the queue size when the filter changes so the progress bar can show "cleared".
+  const [baseline, setBaseline] = useState({ band: 'all', total: 0 });
 
   useEffect(() => {
     if (me.data?.messageLanguage) setLanguage(me.data.messageLanguage);
@@ -74,7 +76,19 @@ function QueueScreen() {
     () => orders.filter((order) => band === 'all' || order.riskBand === band),
     [orders, band],
   );
+
+  useEffect(() => {
+    setBaseline((current) => {
+      if (current.band !== band) return { band, total: filtered.length };
+      if (current.total === 0 && filtered.length > 0) return { band, total: filtered.length };
+      return current;
+    });
+  }, [band, filtered.length]);
+
   const selected = orders.find((order) => order.id === orderParam) || null;
+  const selectedIndex = selected ? filtered.findIndex((order) => order.id === selected.id) : -1;
+  const cleared = Math.max(0, baseline.total - filtered.length);
+  const progress = baseline.total > 0 ? Math.round((cleared / baseline.total) * 100) : 0;
   const canSend = Boolean(whatsapp.data?.configured || whatsapp.data?.demo || me.data?.role === 'demo' || me.data?.isDemo);
 
   const replace = useCallback((id: string) => {
@@ -114,8 +128,8 @@ function QueueScreen() {
     return `${number}?text=${encodeURIComponent(text)}`;
   }
 
-  async function send(ids: string[]) {
-    if (!ids.length) return;
+  async function send(ids: string[]): Promise<boolean> {
+    if (!ids.length) return false;
     setSending(true);
     await client.cancelQueries({ queryKey: qk.queue });
     const previous = client.getQueryData<{ orders: OrderDetail[] }>(qk.queue);
@@ -141,16 +155,29 @@ function QueueScreen() {
       setPicked({});
       if (body.notice) toast.info(body.notice);
       else toast.success('WhatsApp sent.');
+      return true;
     } catch (err) {
       if (previous) client.setQueryData(qk.queue, previous);
       toast.error(err instanceof ApiError ? err.message : 'WhatsApp did not send');
+      return false;
     } finally {
       setSending(false);
       invalidateShop(client);
     }
   }
 
+  // After acting on an order, land on the next one in the list instead of an empty pane.
+  function advanceFrom(id: string) {
+    const index = filtered.findIndex((order) => order.id === id);
+    const remaining = filtered.filter((order) => order.id !== id);
+    const next = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
+    replace(next ? next.id : '');
+  }
+
   async function outcome(id: string, value: 'confirmed' | 'cancelled' | 'no_response') {
+    const doomed = filtered.findIndex((order) => order.id === id);
+    const survivors = filtered.filter((order) => order.id !== id);
+    const nextId = survivors[Math.min(Math.max(doomed, 0), survivors.length - 1)]?.id ?? '';
     await client.cancelQueries({ queryKey: qk.queue });
     const previous = client.getQueryData<{ orders: OrderDetail[] }>(qk.queue);
     client.setQueryData<{ orders: OrderDetail[] }>(qk.queue, (current) =>
@@ -158,7 +185,7 @@ function QueueScreen() {
     );
     try {
       await api(`/orders/${id}/outcome`, { method: 'PATCH', body: JSON.stringify({ outcome: value }) });
-      if (orderParam === id) replace('');
+      if (orderParam === id) replace(nextId);
     } catch (err) {
       if (previous) client.setQueryData(qk.queue, previous);
       toast.error(err instanceof ApiError ? err.message : 'Could not save the outcome');
@@ -204,7 +231,9 @@ function QueueScreen() {
       return;
     }
     if (action.id === 'address' || action.id === 'send') {
-      if (canSend) void send([order.id]);
+      if (canSend) void send([order.id]).then((ok) => {
+        if (ok) advanceFrom(order.id);
+      });
       else {
         const link = waLink(order, textFor(order));
         if (link) window.open(link, '_blank', 'noopener');
@@ -242,6 +271,11 @@ function QueueScreen() {
       canSend={canSend}
       calling={callFor === selected.id}
       picked={Boolean(picked[selected.id])}
+      pos={selectedIndex >= 0 ? selectedIndex + 1 : 1}
+      total={filtered.length}
+      progress={progress}
+      onPrev={() => move(-1)}
+      onNext={() => move(1)}
       onPick={(on) => setPicked((current) => ({ ...current, [selected.id]: on }))}
       onPrimary={() => runPrimary(selected)}
       onOutcome={(value) => outcome(selected.id, value)}
@@ -253,9 +287,11 @@ function QueueScreen() {
     />
   ) : (
     <div className="sticker-sm p-8 text-center">
-      <p className="eyebrow text-inksoft">No order selected</p>
+      <p className="eyebrow text-inksoft">{orders.length === 0 && baseline.total > 0 ? 'Queue cleared' : 'No order selected'}</p>
       <p className="mt-3 text-sm leading-6 text-ink/70">
-        Pick an order from the list to read the message and take the next action.
+        {orders.length === 0 && baseline.total > 0
+          ? `All ${baseline.total} orders handled. Nice work — the low-risk ones can ship.`
+          : 'Pick an order from the list to read the message and take the next action.'}
       </p>
     </div>
   );
@@ -327,18 +363,22 @@ function QueueScreen() {
           aria-activedescendant={selected ? `queue-row-${selected.id}` : undefined}
           tabIndex={0}
           onKeyDown={(event) => {
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
             const tag = (event.target as HTMLElement).tagName;
             if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'A' || tag === 'TEXTAREA') return;
-            event.preventDefault();
-            move(event.key === 'ArrowDown' ? 1 : -1);
+            if (event.key === 'ArrowDown' || event.key === 'j') {
+              event.preventDefault();
+              move(1);
+            } else if (event.key === 'ArrowUp' || event.key === 'k') {
+              event.preventDefault();
+              move(-1);
+            }
           }}
         >
           {!filtered.length ? (
             <p className="px-5 py-10 text-center font-mono text-xs font-bold uppercase leading-6 tracking-[0.16em] text-inksoft">
               No medium or high risk orders.<br />Score a batch, or ship the low-risk ones.
             </p>
-          ) : filtered.map((order, index) => {
+          ) : filtered.map((order) => {
             const active = wide && selected?.id === order.id;
             return (
               <div
@@ -375,8 +415,8 @@ function QueueScreen() {
                   <span className="mt-0.5 block truncate font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-inksoft">
                     {order.externalOrderId} · {order.city} · {inr(order.orderValue)}
                   </span>
-                  <span className="mt-0.5 block truncate font-mono text-[10px] tracking-[0.06em] text-ink/45" data-tour={index === 0 ? 'risk-reasons' : undefined}>
-                    {(order.reasons[0] || actionCopy(order).label)}
+                  <span className="mt-0.5 block truncate font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink/60">
+                    → {actionCopy(order).label}
                   </span>
                 </div>
               </div>
@@ -400,6 +440,11 @@ function QueueDetail({
   canSend,
   calling,
   picked,
+  pos,
+  total,
+  progress,
+  onPrev,
+  onNext,
   onPick,
   onPrimary,
   onOutcome,
@@ -416,6 +461,11 @@ function QueueDetail({
   canSend: boolean;
   calling: boolean;
   picked: boolean;
+  pos: number;
+  total: number;
+  progress: number;
+  onPrev: () => void;
+  onNext: () => void;
   onPick: (on: boolean) => void;
   onPrimary: () => void;
   onOutcome: (value: 'confirmed' | 'cancelled' | 'no_response') => void;
@@ -426,81 +476,120 @@ function QueueDetail({
   onCloseCall: () => void;
 }) {
   return (
-    <article className="sticker p-6 sm:p-7">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="eyebrow text-inksoft">Order detail</p>
-          <h2 className="mt-1.5 font-display text-2xl font-black uppercase tracking-tight">
-            {order.buyerName}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-ink/70">
-            {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
-            <br />
-            {order.city} {order.pincode}
-          </p>
+    <article className="sticker">
+      {/* sticky action deck: the action never scrolls away */}
+      <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
+          <div className="min-w-0 flex-1 basis-56">
+            <p className="eyebrow flex flex-wrap items-center gap-x-2.5 gap-y-1 text-inksoft">
+              <span>
+                Now reviewing · {pos} of {total}
+              </span>
+              <span className="inline-flex items-center gap-1" role="group" aria-label="Walk the queue">
+                <button
+                  type="button"
+                  onClick={onPrev}
+                  disabled={pos <= 1}
+                  aria-label="Previous order"
+                  className="grid h-6 w-6 place-items-center border-2 border-ink bg-white font-display text-sm font-black transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={onNext}
+                  disabled={pos >= total}
+                  aria-label="Next order"
+                  className="grid h-6 w-6 place-items-center border-2 border-ink bg-white font-display text-sm font-black transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+                >
+                  ›
+                </button>
+              </span>
+            </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-display text-[1.65rem] font-black uppercase leading-none tracking-tight">
+                {order.buyerName}
+              </span>
+              <RiskBadge band={order.riskBand} />
+              <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">
+                {order.riskScore ?? '—'}
+              </span>
+            </p>
+          </div>
+          <OrderActions
+            order={order}
+            busy={busy}
+            canSend={canSend}
+            onPrimary={onPrimary}
+            onOutcome={onOutcome}
+            onPrepaid={onPrepaid}
+            onCall={onCall}
+            onVoice={onVoice}
+            onPin={onPin}
+          />
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <RiskBadge band={order.riskBand} />
-          <span className="font-display text-4xl font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+        <div
+          className="h-2 border-t-2 border-ink bg-paper"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Queue cleared"
+        >
+          <div className="h-full bg-lime transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
-        <p className="eyebrow text-inksoft">Why flagged</p>
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Risk reasons">
-          {order.reasons.map((reason) => (
-            <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
-              {reason}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-sm leading-6 text-ink/70">{order.address}</p>
-      </div>
-
-      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
-        <p className="eyebrow text-inksoft">Next step</p>
-        <OrderActions
-          order={order}
-          busy={busy}
-          canSend={canSend}
-          onPrimary={onPrimary}
-          onOutcome={onOutcome}
-          onPrepaid={onPrepaid}
-          onCall={onCall}
-          onVoice={onVoice}
-          onPin={onPin}
-        />
-      </div>
-      {calling ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
-      {order.prepaid?.invoiceUrl ? (
-        <p className="mt-4 border-2 border-ink bg-lime/40 p-4 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
-          Prepaid {order.prepaid.status} · <a className="underline" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
+      <div className="p-6 sm:p-8">
+        <p className="text-sm leading-6 text-ink/70">
+          {order.externalOrderId} · {inr(order.orderValue)} · {order.paymentType === 'cod' ? 'COD' : 'Prepaid'} · {order.phoneMasked}
+          <br />
+          {order.city} {order.pincode}
         </p>
-      ) : null}
 
-      <div className="mt-6 border-t-2 border-dashed border-ink/20 pt-5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow text-inksoft">Message draft</p>
-          {text ? <CopyButton text={text} /> : null}
+        <div className="mt-7 border-t-2 border-dashed border-ink/20 pt-6">
+          <p className="eyebrow text-inksoft">Why flagged</p>
+          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Risk reasons" data-tour="risk-reasons">
+            {order.reasons.map((reason) => (
+              <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
+                {reason}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 max-w-xl text-[15px] leading-7 text-ink/75">{order.address}</p>
         </div>
-        <p className="mt-3 font-hindi text-[15px] leading-7">{text}</p>
-        {order.messages ? (
-          <p className="mt-2 text-[13px] leading-6 text-ink/60">
-            Prepaid nudge: {order.messages.prepaid_nudge}
+
+        {calling ? <div className="mt-6"><CallBuyer orderId={order.id} open onClose={onCloseCall} /></div> : null}
+        {order.prepaid?.invoiceUrl ? (
+          <p className="mt-6 border-2 border-ink bg-lime/40 p-4 font-mono text-[11px] font-bold uppercase tracking-[0.12em]">
+            Prepaid {order.prepaid.status} · <a className="underline" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
           </p>
         ) : null}
-      </div>
-      <div className="mt-4">
-        <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
-      </div>
-      {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
 
-      {canSend ? (
-        <label className="mt-5 flex items-center gap-2.5 border-t-2 border-dashed border-ink/20 pt-4 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-          <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} className="h-4 w-4 accent-[#1B1712]" />
-          Select for bulk send
-        </label>
-      ) : null}
+        <div className="mt-7 border-t-2 border-dashed border-ink/20 pt-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="eyebrow text-inksoft">Message draft</p>
+            {text ? <CopyButton text={text} /> : null}
+          </div>
+          <p className="mt-3 max-w-xl font-hindi text-[15px] leading-7">{text}</p>
+          {order.messages ? (
+            <p className="mt-2 max-w-xl text-[13px] leading-6 text-ink/60">
+              Prepaid nudge: {order.messages.prepaid_nudge}
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-5 max-w-xl">
+          <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
+        </div>
+        {note ? <p className="mt-4 max-w-xl text-sm leading-6 text-ink/70">{note}</p> : null}
+
+        {canSend ? (
+          <label className="mt-6 flex items-center gap-2.5 border-t-2 border-dashed border-ink/20 pt-5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
+            <input type="checkbox" checked={picked} onChange={(event) => onPick(event.target.checked)} className="h-4 w-4 accent-[#1B1712]" />
+            Select for bulk send
+          </label>
+        ) : null}
+      </div>
     </article>
   );
 }
