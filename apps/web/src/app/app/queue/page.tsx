@@ -479,23 +479,18 @@ function QueueDetail({
     <article className="sticker">
       {/* sticky action deck: the action never scrolls away */}
       <div className="sticky top-0 z-10 border-b-2 border-ink bg-white">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
-          <div className="min-w-0 flex-1 basis-64">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-6 py-4">
+          <div className="min-w-0 flex-1 basis-48">
             <p className="eyebrow text-inksoft">Now reviewing</p>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-display text-3xl font-black uppercase leading-none tracking-tight">
-                {order.buyerName}
-              </span>
-              <RiskBadge band={order.riskBand} />
-              <span className="font-display text-3xl font-black tabular-nums leading-none">
-                {order.riskScore ?? '—'}
-              </span>
+            <p className="mt-1 truncate font-display text-xl font-black uppercase tracking-tight">
+              {order.buyerName} <span className="mx-1 font-bold text-ink/30">·</span> {order.riskScore ?? '—'}
             </p>
           </div>
           <OrderActions
             order={order}
             busy={busy}
             canSend={canSend}
+            showCallButton
             onPrimary={onPrimary}
             onOutcome={onOutcome}
             onPrepaid={onPrepaid}
@@ -503,13 +498,13 @@ function QueueDetail({
             onVoice={onVoice}
             onPin={onPin}
           />
-          <div className="flex items-center gap-2.5" role="group" aria-label="Walk the queue">
+          <div className="flex items-center gap-2" role="group" aria-label="Walk the queue">
             <button
               type="button"
               onClick={onPrev}
               disabled={pos <= 1}
               aria-label="Previous order"
-              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white font-display text-lg font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+              className="grid h-9 w-9 place-items-center border-2 border-ink bg-white font-display text-base font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
             >
               ‹
             </button>
@@ -519,7 +514,7 @@ function QueueDetail({
               onClick={onNext}
               disabled={pos >= total}
               aria-label="Next order"
-              className="grid h-10 w-10 place-items-center border-2 border-ink bg-white font-display text-lg font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
+              className="grid h-9 w-9 place-items-center border-2 border-ink bg-white font-display text-base font-black shadow-sticker-sm transition hover:bg-hl disabled:opacity-30 disabled:hover:bg-white"
             >
               ›
             </button>

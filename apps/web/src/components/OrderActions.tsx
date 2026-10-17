@@ -24,6 +24,7 @@ export function OrderActions({
   busy,
   canSend,
   tour,
+  showCallButton,
   onPrimary,
   onOutcome,
   onPrepaid,
@@ -35,6 +36,7 @@ export function OrderActions({
   busy?: boolean;
   canSend?: boolean;
   tour?: boolean;
+  showCallButton?: boolean;
   onPrimary: () => void;
   onOutcome: (value: 'confirmed' | 'cancelled' | 'no_response') => void;
   onPrepaid: () => void;
@@ -46,12 +48,17 @@ export function OrderActions({
   const primary = actionCopy(order);
   const closed = order.stage === 'closed';
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2" data-tour={tour ? 'next-action' : undefined} data-send={canSend ? '1' : '0'}>
+    <div className="flex flex-wrap items-center gap-2" data-tour={tour ? 'next-action' : undefined} data-send={canSend ? '1' : '0'}>
       <span data-tour={tour ? 'approve-send' : undefined}>
         <Button type="button" disabled={busy || closed || primary.id === 'hold' || primary.id === 'confirmed'} onClick={onPrimary}>
           {busy ? 'Working…' : primary.label}
         </Button>
       </span>
+      {showCallButton && !closed ? (
+        <Button type="button" tone="ghost" onClick={onCall}>
+          Call buyer
+        </Button>
+      ) : null}
       <div className="relative">
         <Button type="button" tone="ghost" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)}>
           More
@@ -62,7 +69,7 @@ export function OrderActions({
             <MenuItem label="Cancelled" onClick={() => { setOpen(false); onOutcome('cancelled'); }} />
             <MenuItem label="Skip" onClick={() => { setOpen(false); onOutcome('no_response'); }} />
             <MenuItem label="Offer prepaid" onClick={() => { setOpen(false); onPrepaid(); }} />
-            <MenuItem label="Call the buyer" onClick={() => { setOpen(false); onCall(); }} />
+            {showCallButton ? null : <MenuItem label="Call the buyer" onClick={() => { setOpen(false); onCall(); }} />}
             <MenuItem label="Play Hindi" onClick={() => { setOpen(false); onVoice(); }} />
             <MenuItem label="Pincode" onClick={() => { setOpen(false); onPin(); }} />
           </div>
