@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui';
 import {
   WAKE_GRACE_MS,
@@ -9,16 +9,21 @@ import {
   formatElapsed,
   hostShouldGate,
   initialWake,
+  loadWakeSession,
+  nextWakeSession,
   probeWake,
   resetWakeHolds,
   routeNeedsApi,
+  saveWakeSession,
   stepWake,
   wakeMessage,
   wakeProgress,
+  type WakeSession,
   type WakeSnapshot,
 } from '@/lib/wake';
 
 const EMPTY: WakeSnapshot = { api: false, ml: false };
+const EXIT_FALLBACK_MS = 700;
 
 function prefersReducedMotion() {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -113,27 +118,42 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
   const needsApi = routeNeedsApi(pathname);
   const [attempt, setAttempt] = useState(0);
-  const [phase, setPhase] = useState<'checking' | 'ready' | 'failed'>('checking');
+  const [session, setSession] = useState<WakeSession>(() => {
+    const current = loadWakeSession();
+    return current === 'exiting' ? saveWakeSession('done') : current;
+  });
   const [snap, setSnap] = useState<WakeSnapshot>(EMPTY);
   const [elapsed, setElapsed] = useState(0);
-  const [armed, setArmed] = useState(false);
-  const [shown, setShown] = useState(false);
-  const [leaving, setLeaving] = useState(false);
   const [gateHost, setGateHost] = useState(false);
+  const armed = useRef(false);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
+  const commit = useCallback((next: WakeSession) => {
+    setSession(saveWakeSession(next));
+  }, []);
 
   useEffect(() => {
+    setGateHost(hostShouldGate(window.location.hostname));
+  }, []);
+
+  useEffect(() => {
+    if (loadWakeSession() === 'done') {
+      commit('done');
+      return;
+    }
     let cancelled = false;
     const started = Date.now();
-    setPhase('checking');
-    setSnap(EMPTY);
-    setElapsed(0);
-    setArmed(false);
-    const grace = setTimeout(() => {
-      if (!cancelled) setArmed(true);
-    }, WAKE_GRACE_MS);
     const clock = setInterval(() => {
       if (!cancelled) setElapsed(Date.now() - started);
     }, 1000);
+    const grace = window.setTimeout(() => {
+      if (cancelled || loadWakeSession() === 'done' || loadWakeSession() === 'exiting') return;
+      armed.current = true;
+      const gate = routeNeedsApi(pathnameRef.current) || hostShouldGate(window.location.hostname);
+      if (!gate) return;
+      commit(nextWakeSession(loadWakeSession(), { type: 'show' }));
+    }, WAKE_GRACE_MS);
 
     async function run() {
       let machine = initialWake();
@@ -144,14 +164,21 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
         machine = stepped.machine;
         setSnap(machine.snap);
         setElapsed(machine.elapsedMs);
-        setPhase(machine.phase);
-        if (machine.phase !== 'checking') {
+        if (machine.phase === 'ready') {
           clearInterval(clock);
+          const current = loadWakeSession();
+          commit(
+            nextWakeSession(current, {
+              type: 'ready',
+              overlayVisible: current === 'waking' || current === 'failed',
+              reducedMotion: prefersReducedMotion(),
+            }),
+          );
           return;
         }
-        if (Date.now() - started > WAKE_TIMEOUT_MS) {
+        if (machine.phase === 'failed' || Date.now() - started > WAKE_TIMEOUT_MS) {
           clearInterval(clock);
-          setPhase('failed');
+          commit(nextWakeSession(loadWakeSession(), { type: 'fail' }));
           return;
         }
         await sleep(stepped.waitMs);
@@ -165,59 +192,60 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
       clearInterval(clock);
       resetWakeHolds();
     };
-  }, [attempt]);
+  }, [attempt, commit]);
 
   useEffect(() => {
-    setGateHost(hostShouldGate(window.location.hostname));
-  }, []);
-
-  const block = (needsApi || gateHost) && phase !== 'ready' && (phase === 'failed' || armed);
+    if (!(needsApi || gateHost) || !armed.current) return;
+    if (loadWakeSession() !== 'idle') return;
+    commit(nextWakeSession('idle', { type: 'show' }));
+  }, [needsApi, gateHost, commit]);
 
   useEffect(() => {
-    if (block) {
-      setShown(true);
-      setLeaving(false);
-      return;
-    }
-    if (!shown) return;
+    if (session !== 'exiting') return;
     if (prefersReducedMotion()) {
-      setShown(false);
-      setLeaving(false);
+      commit('done');
       return;
     }
-    setLeaving(true);
     const timer = window.setTimeout(() => {
-      setShown(false);
-      setLeaving(false);
-    }, 520);
+      if (loadWakeSession() === 'exiting') commit('done');
+    }, EXIT_FALLBACK_MS);
     return () => window.clearTimeout(timer);
-  }, [block, shown]);
+  }, [session, commit]);
 
   function finishExit() {
-    setShown(false);
-    setLeaving(false);
+    if (loadWakeSession() !== 'exiting') return;
+    commit(nextWakeSession('exiting', { type: 'exit-end' }));
   }
 
-  const screen = (
-    <WakeScreen
-      message={wakeMessage(elapsed, snap.api)}
-      elapsedLabel={formatElapsed(elapsed)}
-      progress={wakeProgress(elapsed, snap)}
-      failed={phase === 'failed'}
-      apiUp={snap.api}
-      mlUp={snap.ml}
-      leaving={leaving}
-      onRetry={() => setAttempt((value) => value + 1)}
-      onExitEnd={finishExit}
-    />
-  );
+  function retry() {
+    const next = nextWakeSession(loadWakeSession(), { type: 'retry' });
+    if (next !== 'waking') return;
+    setSnap(EMPTY);
+    setElapsed(0);
+    commit(next);
+    setAttempt((value) => value + 1);
+  }
 
-  if (!shown) return children;
-  if (block && !leaving) return screen;
+  const showOverlay = session === 'waking' || session === 'exiting' || session === 'failed';
+  const showPage = session === 'idle' || session === 'exiting' || session === 'done';
+
   return (
     <>
-      {children}
-      {screen}
+      <div style={{ display: showPage ? 'contents' : 'none' }}>{showPage ? children : null}</div>
+      {showOverlay ? (
+        <WakeScreen
+          key="wake"
+          message={wakeMessage(elapsed, snap.api)}
+          elapsedLabel={formatElapsed(elapsed)}
+          progress={wakeProgress(elapsed, snap)}
+          failed={session === 'failed'}
+          apiUp={snap.api}
+          mlUp={snap.ml}
+          leaving={session === 'exiting'}
+          onRetry={retry}
+          onExitEnd={finishExit}
+        />
+      ) : null}
     </>
   );
 }

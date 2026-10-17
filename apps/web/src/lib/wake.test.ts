@@ -13,8 +13,13 @@ import {
   initialWake,
   landingWakeScript,
   probeWake,
+  loadWakeSession,
+  nextWakeSession,
   resetWakeHolds,
+  resetWakeSession,
   responseIsUp,
+  saveWakeSession,
+  WAKE_SESSION_KEY,
   routeNeedsApi,
   shouldWakeDirect,
   stepWake,
@@ -36,6 +41,7 @@ describe('wake helpers', () => {
 
   afterEach(() => {
     resetWakeHolds();
+    resetWakeSession();
     if (previousMl === undefined) delete process.env.NEXT_PUBLIC_ML_HEALTH_URL;
     else process.env.NEXT_PUBLIC_ML_HEALTH_URL = previousMl;
     if (previousApi === undefined) delete process.env.NEXT_PUBLIC_API_HEALTH_URL;
@@ -234,6 +240,43 @@ describe('wake helpers', () => {
       resetWakeHolds();
       await sleeper.close();
     }
+  });
+});
+
+describe('wake session', () => {
+  afterEach(() => {
+    resetWakeSession();
+  });
+
+  it('moves from waking to exiting to done and never back', () => {
+    expect(nextWakeSession('idle', { type: 'show' })).toBe('waking');
+    expect(nextWakeSession('waking', { type: 'ready', overlayVisible: true, reducedMotion: false })).toBe('exiting');
+    expect(nextWakeSession('exiting', { type: 'show' })).toBe('exiting');
+    expect(nextWakeSession('exiting', { type: 'fail' })).toBe('exiting');
+    expect(nextWakeSession('exiting', { type: 'ready', overlayVisible: true, reducedMotion: false })).toBe('exiting');
+    expect(nextWakeSession('exiting', { type: 'exit-end' })).toBe('done');
+    expect(nextWakeSession('done', { type: 'show' })).toBe('done');
+    expect(nextWakeSession('done', { type: 'fail' })).toBe('done');
+    expect(nextWakeSession('done', { type: 'retry' })).toBe('done');
+  });
+
+  it('skips the exit when the overlay never appeared, and still allows retry after a failure', () => {
+    expect(nextWakeSession('idle', { type: 'ready', overlayVisible: false, reducedMotion: false })).toBe('done');
+    expect(nextWakeSession('waking', { type: 'ready', overlayVisible: true, reducedMotion: true })).toBe('done');
+    expect(nextWakeSession('waking', { type: 'fail' })).toBe('failed');
+    expect(nextWakeSession('failed', { type: 'show' })).toBe('failed');
+    expect(nextWakeSession('failed', { type: 'retry' })).toBe('waking');
+  });
+
+  it('remembers a finished wake for the rest of the tab', () => {
+    expect(loadWakeSession()).toBe('idle');
+    saveWakeSession('exiting');
+    expect(sessionStorage.getItem(WAKE_SESSION_KEY)).toBe('done');
+    expect(loadWakeSession()).toBe('exiting');
+    saveWakeSession('done');
+    resetWakeSession();
+    sessionStorage.setItem(WAKE_SESSION_KEY, 'done');
+    expect(loadWakeSession()).toBe('done');
   });
 });
 

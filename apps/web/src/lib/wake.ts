@@ -36,6 +36,74 @@ export function initialWake(): WakeMachine {
   return { phase: 'checking', snap: { api: false, ml: false }, attempt: 0, elapsedMs: 0 };
 }
 
+/** Overlay lifetime for one tab. It only moves forward, except an explicit retry from the failed screen. */
+export type WakeSession = 'idle' | 'waking' | 'exiting' | 'failed' | 'done';
+
+export type WakeSessionEvent =
+  | { type: 'show' }
+  | { type: 'ready'; overlayVisible: boolean; reducedMotion: boolean }
+  | { type: 'fail' }
+  | { type: 'exit-end' }
+  | { type: 'retry' };
+
+export const WAKE_SESSION_KEY = 'rto-wake';
+
+let wakeMemory: WakeSession = 'idle';
+
+export function nextWakeSession(session: WakeSession, event: WakeSessionEvent): WakeSession {
+  if (session === 'done') return 'done';
+  if (session === 'exiting') return event.type === 'exit-end' ? 'done' : 'exiting';
+  switch (event.type) {
+    case 'show':
+      return session === 'failed' ? 'failed' : 'waking';
+    case 'ready':
+      if (session === 'failed') return 'failed';
+      if (!event.overlayVisible || event.reducedMotion) return 'done';
+      return 'exiting';
+    case 'fail':
+      return 'failed';
+    case 'retry':
+      return session === 'failed' ? 'waking' : session;
+    case 'exit-end':
+      return session;
+    default:
+      return session;
+  }
+}
+
+export function loadWakeSession(): WakeSession {
+  if (wakeMemory !== 'idle') return wakeMemory;
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(WAKE_SESSION_KEY) === 'done') {
+      wakeMemory = 'done';
+    }
+  } catch {
+    // Private browsing can throw on storage access.
+  }
+  return wakeMemory;
+}
+
+export function saveWakeSession(next: WakeSession): WakeSession {
+  wakeMemory = next;
+  try {
+    if (typeof sessionStorage === 'undefined') return next;
+    if (next === 'done' || next === 'exiting') sessionStorage.setItem(WAKE_SESSION_KEY, 'done');
+    else sessionStorage.removeItem(WAKE_SESSION_KEY);
+  } catch {
+    // Ignore storage failures; the module flag still covers this document.
+  }
+  return next;
+}
+
+export function resetWakeSession(): void {
+  wakeMemory = 'idle';
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(WAKE_SESSION_KEY);
+  } catch {
+    // Ignore storage failures in tests and private mode.
+  }
+}
+
 /**
  * One step of the loader. Ready only when both backends are up.
  * A late success still counts. Otherwise the timeout ends the wait.
