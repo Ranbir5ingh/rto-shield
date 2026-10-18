@@ -199,6 +199,13 @@ test('owner walks every tour step, including menus the tour opens', async ({ pag
   }
 });
 
+test('try the demo starts on the connected store', async ({ page }) => {
+  await openDemo(page);
+  await startTour(page, 'Shopify, connected');
+  await expect(page.locator('[data-tour="shopify-connected"]').first()).toBeVisible();
+  await expect(page.locator('[data-tour="shopify-connect"]')).toHaveCount(0);
+});
+
 test('demo walks every tour step', async ({ page }) => {
   test.setTimeout(180_000);
   const steps = toursFor('demo', surfaceOf(page));

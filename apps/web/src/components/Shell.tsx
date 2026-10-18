@@ -11,8 +11,8 @@ import { Tour } from '@/components/Tour';
 import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { gemmaNotice } from '@/lib/ml-status';
-import { prefetchRoute, qk, useIntegrations, useMe, useQueue } from '@/lib/queries';
-import { toursFor, type TourKind, type TourSurface } from '@/lib/tours';
+import { prefetchRoute, qk, useIntegrations, useMe, useQueue, useShopify } from '@/lib/queries';
+import { isDemoSession, toursFor, type TourKind, type TourSurface } from '@/lib/tours';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
@@ -100,7 +100,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const me = useMe();
   const status = useIntegrations();
   const queue = useQueue();
+  const shopify = useShopify();
   const user = me.data ?? null;
+  const shopifyConnected = Boolean(shopify.data?.connected);
   const queueCount = queue.data?.orders.length ?? 0;
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
@@ -114,8 +116,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
   const tourStarted = useRef(false);
   const tourSteps = useMemo(
-    () => (tour && surface ? toursFor(tour, surface) : null),
-    [tour, surface],
+    () => (tour && surface ? toursFor(tour, surface, 'english', { shopifyConnected }) : null),
+    [tour, surface, shopifyConnected],
   );
 
   useEffect(() => {
@@ -136,14 +138,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || tourStarted.current || tour) return;
-    if (user.role === 'demo' && !user.tour?.demoSeen) {
+    // The step list depends on whether Shopify is already linked. Wait so the
+    // first card never looks for a connect control that is not on the page.
+    if (!shopify.isFetched) return;
+    const demoSession = isDemoSession(user);
+    if (demoSession && !user.tour?.demoSeen) {
       tourStarted.current = true;
       setTour('demo');
-    } else if (user.role !== 'demo' && !user.isDemo && !user.tour?.sellerSeen) {
+    } else if (!demoSession && !user.tour?.sellerSeen) {
       tourStarted.current = true;
       setTour('seller');
     }
-  }, [user, tour]);
+  }, [user, tour, shopify.isFetched]);
 
   const finishTour = useCallback(async () => {
     const kind = tour;
@@ -276,7 +282,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="mb-2 px-1.5">
               <p className="truncate font-display text-sm font-extrabold uppercase">{user.shopName}</p>
               <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-inksoft">
-                {user.role === 'demo' ? 'Demo account' : 'Seller'}
+                {isDemoSession(user) ? 'Demo account' : 'Seller'}
               </p>
             </div>
           ) : null}
@@ -325,7 +331,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="truncate font-display text-sm font-extrabold uppercase tracking-[0.06em]">{user.shopName}</p>
-                  {user.role === 'demo' ? (
+                  {isDemoSession(user) ? (
                     <span className="shrink-0 border-2 border-ink bg-hl px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em]">
                       Demo
                     </span>
@@ -361,7 +367,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     className="w-full px-3 py-2 text-left font-mono text-[11px] font-bold uppercase tracking-[0.14em] hover:bg-hl"
                     onClick={() => {
                       setHelp(false);
-                      setTour(user?.role === 'demo' ? 'demo' : 'seller');
+                      setTour(isDemoSession(user) ? 'demo' : 'seller');
                       setTourNonce((nonce) => nonce + 1);
                     }}
                   >

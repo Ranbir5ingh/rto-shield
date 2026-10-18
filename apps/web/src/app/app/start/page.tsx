@@ -74,39 +74,37 @@ function StartForm() {
           title="Shopify"
           action={<Flag tone={link?.connected ? 'go' : 'ghost'}>{link?.connected ? 'Connected' : 'Not connected'}</Flag>}
         >
-          <div data-tour="shopify-connect">
-          <div data-tour="shopify-connected">
-            {link?.connected ? (
-              <div>
-                <p className="font-display text-xl font-extrabold uppercase tracking-tight">{link.demo ? 'Demo store' : link.shop}</p>
-                <p className="mt-2 text-sm leading-6 text-ink/70">
-                  {link.backfill.status === 'running'
-                    ? `Reading orders… ${link.backfill.processed}`
-                    : link.backfill.status === 'done'
-                      ? `${link.backfill.processed} orders ready to score.`
-                      : link.backfill.status === 'error'
-                        ? 'Shopify stopped the import.'
-                        : 'Waiting to read orders.'}
-                </p>
-                {link.backfill.status === 'error' ? (
-                  <div className="mt-3">
-                    <Notice>{link.backfill.error || 'Shopify could not finish the import.'}</Notice>
-                  </div>
-                ) : null}
-                <div className="mt-4 h-3 border-2 border-ink bg-paper" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-                  <div className="h-full bg-lime transition-all" style={{ width: `${progress}%` }} />
+          {link?.connected ? (
+            <div data-tour="shopify-connected">
+              <p className="font-display text-xl font-extrabold uppercase tracking-tight">{link.demo ? 'Demo store' : link.shop}</p>
+              <p className="mt-2 text-sm leading-6 text-ink/70">
+                {link.backfill.status === 'running'
+                  ? `Reading orders… ${link.backfill.processed}`
+                  : link.backfill.status === 'done'
+                    ? `${link.backfill.processed} orders ready to score.`
+                    : link.backfill.status === 'error'
+                      ? 'Shopify stopped the import.'
+                      : 'Waiting to read orders.'}
+              </p>
+              {link.backfill.status === 'error' ? (
+                <div className="mt-3">
+                  <Notice>{link.backfill.error || 'Shopify could not finish the import.'}</Notice>
                 </div>
-                <div className="mt-2 flex justify-between font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
-                  <span>Backfill</span>
-                  <span>{progress}%</span>
-                </div>
-                {link.backfill.status === 'done' ? (
-                  <Link href="/app" className="btn-go mt-5 inline-flex">
-                    See the first scores
-                  </Link>
-                ) : null}
+              ) : null}
+              <div className="mt-4 h-3 border-2 border-ink bg-paper" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full bg-lime transition-all" style={{ width: `${progress}%` }} />
               </div>
-            ) : (
+              <div className="mt-2 flex justify-between font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
+                <span>Backfill</span>
+                <span>{progress}%</span>
+              </div>
+              {link.backfill.status === 'done' ? (
+                <Link href="/app" className="btn-go mt-5 inline-flex">
+                  See the first scores
+                </Link>
+              ) : null}
+            </div>
+          ) : (
               <form onSubmit={connect} data-tour="shopify-connect" className="space-y-4">
                 <Field label="Shop domain">
                   <input
@@ -123,8 +121,6 @@ function StartForm() {
                 </Button>
               </form>
             )}
-          </div>
-          </div>
         </Section>
 
         <Section

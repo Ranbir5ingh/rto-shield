@@ -19,9 +19,9 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hinglish: '[curious] CSV ya sample shop bhi chalega, jab tak Shopify ready nahi.',
   },
   'shopify-connected': {
-    english: '[warm] This demo store is already connected.',
-    hindi: '[warm] यह डेमो स्टोर पहले से जुड़ा है।',
-    hinglish: '[warm] Yeh demo store connected hai. Asli shop ek click mein judti hai.',
+    english: '[warm] This store is already connected. Shopify sends the orders.',
+    hindi: '[warm] यह स्टोर पहले से जुड़ा है। Shopify ऑर्डर भेजता है।',
+    hinglish: '[warm] Yeh store pehle se connected hai. Shopify orders bhejta hai.',
   },
   'queue-list': {
     english: '[curious] Each row is one order. The number is the risk score. Red means look twice.',

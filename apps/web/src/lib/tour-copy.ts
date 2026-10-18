@@ -42,15 +42,15 @@ const COPY: Record<string, Record<TourLang, Line>> = {
   'shopify-connected': {
     english: {
       title: 'Shopify, connected',
-      body: 'Sellers connect a store in one click. This demo store is already connected.',
+      body: 'This store is already connected. Shopify sends the orders. There is nothing to connect on this screen.',
     },
     hindi: {
       title: 'Shopify जुड़ा है',
-      body: 'असली शॉप एक क्लिक में जुड़ती है। यह डेमो स्टोर पहले से जुड़ा है।',
+      body: 'यह स्टोर पहले से जुड़ा है। Shopify ऑर्डर भेजता है। यहाँ जोड़ने को कुछ नहीं है।',
     },
     hinglish: {
       title: 'Shopify, connected',
-      body: 'Asli shop ek click mein judti hai. Yeh demo store pehle se connected hai.',
+      body: 'Yeh store pehle se connected hai. Shopify orders bhejta hai. Yahan connect karne ko kuch nahi.',
     },
   },
   'queue-list': {

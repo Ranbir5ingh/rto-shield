@@ -4,6 +4,15 @@ export type TourReveal = 'order' | 'more' | 'language' | 'call' | 'all-open';
 export type TourKind = 'seller' | 'demo';
 export type TourSurface = 'desktop' | 'mobile';
 
+/**
+ * Try the demo signs into the demo owner, whose stored role is owner.
+ * A locked demo session, a disposable demo shop, or that official account
+ * all use the demo tour.
+ */
+export function isDemoSession(user: { role?: string; isDemo?: boolean; officialDemo?: boolean } | null | undefined) {
+  return Boolean(user && (user.role === 'demo' || user.isDemo || user.officialDemo));
+}
+
 export interface TourStep {
   /** DOM anchor. The first visible match is spotlighted. */
   id: string;
@@ -109,9 +118,10 @@ const callBuyer = (mobile: boolean): TourStep => bare({
 const history = bare({ id: 'history-list', route: '/app/history' });
 const impact = bare({ id: 'impact', route: '/app' });
 
+const importAlternatives = bare({ id: 'import-alternatives', route: '/app/start' });
 const sellerStart: TourStep[] = [
   bare({ id: 'shopify-connect', route: '/app/start' }),
-  bare({ id: 'import-alternatives', route: '/app/start' }),
+  importAlternatives,
 ];
 
 const sellerWhatsapp = bare({ id: 'whatsapp-setup', route: '/app/start' });
@@ -144,11 +154,17 @@ function queueSteps(mobile: boolean): TourStep[] {
   ];
 }
 
-export function toursFor(kind: TourKind, surface: TourSurface, lang: TourLang = 'english'): TourStep[] {
+export function toursFor(
+  kind: TourKind,
+  surface: TourSurface,
+  lang: TourLang = 'english',
+  options?: { shopifyConnected?: boolean },
+): TourStep[] {
   const mobile = surface === 'mobile';
+  const sellerOpen = options?.shopifyConnected ? [demoStart, importAlternatives] : sellerStart;
   const steps = kind === 'demo'
     ? [demoStart, ...queueSteps(mobile), demoWhatsapp, history, impact]
-    : [...sellerStart, ...queueSteps(mobile), sellerWhatsapp, history, impact];
+    : [...sellerOpen, ...queueSteps(mobile), sellerWhatsapp, history, impact];
   return steps.map((step) => {
     const text = tourText(step.id, lang, mobile);
     return text ? { ...step, title: text.title, body: text.body } : step;
