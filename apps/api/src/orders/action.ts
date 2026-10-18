@@ -96,6 +96,34 @@ export function pushTimeline(existing: TimelineEvent[] | null | undefined, step:
   return [...(existing || []), { at: at.toISOString(), step, detail: detail.slice(0, 240) }];
 }
 
+export interface OutreachOrder {
+  intervention?: string | null;
+  callState?: string | null;
+  addressFixedAt?: Date | string | null;
+  whatsappStatus?: string | null;
+  whatsappMessageId?: string | null;
+  exception?: string | null;
+  conversation?: Array<{ direction?: string }> | null;
+  timeline?: Array<{ step?: string }> | null;
+}
+
+/** A buyer was already contacted, or a send was already claimed for this order. */
+export function outreachStarted(order: OutreachOrder): boolean {
+  if (order.whatsappMessageId) return true;
+  if (order.whatsappStatus) return true;
+  if (order.exception === 'template_pending' || order.exception === 'send') return true;
+  if ((order.conversation || []).some((row) => row.direction === 'out')) return true;
+  return (order.timeline || []).some((step) => step.step === 'whatsapp');
+}
+
+/** A seller decision, an address fix, or an earlier outreach. A later score must leave the action alone. */
+export function actionLocked(order: OutreachOrder): boolean {
+  if (order.intervention === 'hold_review' || order.callState === 'held') return true;
+  if (order.addressFixedAt) return true;
+  if (outreachStarted(order)) return true;
+  return (order.timeline || []).some((step) => step.step === 'hold' || step.step === 'action' || step.step === 'auto_confirm');
+}
+
 export function buyerReplied(order: { conversation?: Array<{ at: string; direction: 'in' | 'out' }> }): boolean {
   const outbound = (order.conversation || []).filter((item) => item.direction === 'out');
   const last = outbound[outbound.length - 1];

@@ -1,4 +1,4 @@
-import { chooseIntervention, DEFAULT_REDUCTION, reductionSettings } from './action';
+import { actionLocked, chooseIntervention, DEFAULT_REDUCTION, outreachStarted, reductionSettings } from './action';
 
 const base = {
   paymentType: 'cod' as const,
@@ -34,6 +34,19 @@ describe('chooseIntervention', () => {
 
   it('falls back to a WhatsApp confirm', () => {
     expect(chooseIntervention({ ...base, paymentType: 'prepaid', riskBand: 'Medium', riskScore: 48 }).action).toBe('confirm');
+  });
+
+  it('keeps a held, reviewed, or already-contacted order from being sent again', () => {
+    expect(actionLocked({ intervention: 'hold_review' })).toBe(true);
+    expect(actionLocked({ callState: 'held' })).toBe(true);
+    expect(actionLocked({ addressFixedAt: new Date() })).toBe(true);
+    expect(actionLocked({ timeline: [{ step: 'action' }] })).toBe(true);
+    expect(actionLocked({ timeline: [{ step: 'hold' }] })).toBe(true);
+    expect(outreachStarted({ whatsappStatus: 'sent' })).toBe(true);
+    expect(outreachStarted({ whatsappMessageId: 'wamid.1' })).toBe(true);
+    expect(outreachStarted({ conversation: [{ direction: 'out' }] })).toBe(true);
+    expect(outreachStarted({})).toBe(false);
+    expect(actionLocked({})).toBe(false);
   });
 
   it('reads seller reduction settings with defaults', () => {

@@ -36,7 +36,7 @@ import { ShopifyService } from '../shopify/shopify.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { sessionOpen } from '../whatsapp/whatsapp-templates';
-import { buyerReplied, chooseIntervention, pushTimeline, reductionSettings } from './action';
+import { actionLocked, buyerReplied, chooseIntervention, outreachStarted, pushTimeline, reductionSettings } from './action';
 import { DEMO_DEV_ADDRESS, isRtoTestGid } from './demo-address';
 import {
   askGeminiForAddress,
@@ -56,6 +56,13 @@ import {
   type PreparedSampleOrder,
 } from './rules-score';
 import { buyerSignal, phoneLedger, pinLedger, pinSignal } from './shop-signals';
+
+export interface WebhookScore {
+  gids: string[];
+  externalIds: string[];
+  rtoTest?: boolean;
+  addressWriteBack?: boolean;
+}
 
 @Injectable()
 export class OrdersService implements OnModuleInit, OnModuleDestroy {
@@ -570,18 +577,23 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
    * Fast scores return to the shop. Demo landing trains scikit-learn only.
    * An explicit Score also starts TabPFN afterwards.
    */
-  startUpgrade(user: UserDocument, options?: { full?: boolean }) {
+  startUpgrade(user: UserDocument, options?: { full?: boolean; webhook?: WebhookScore }) {
     const id = String(user._id);
     if (this.upgrading.has(id)) return;
     this.upgrading.add(id);
     const full = options?.full === true;
+    const webhook = options?.webhook;
     setImmediate(() => {
-      void this.runUpgrade(user, full).finally(() => this.upgrading.delete(id));
+      void this.runUpgrade(user, full, webhook).finally(() => this.upgrading.delete(id));
     });
   }
 
-  private async runUpgrade(user: UserDocument, full: boolean) {
+  private async runUpgrade(user: UserDocument, full: boolean, webhook?: WebhookScore) {
     try {
+      if (webhook) {
+        await this.score(user, { fast: true, timeoutMs: 20_000, historyLimit: 120, address: 'heuristic', webhook });
+        return;
+      }
       if (full) {
         const latest = await this.latestModel(user);
         if (!latest || latest.model === 'rules-prior') {
@@ -699,8 +711,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     timeoutMs?: number;
     historyLimit?: number;
     address?: 'heuristic' | 'auto' | 'gemma';
+    webhook?: WebhookScore;
   }) {
-    const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
+    const pending = await this.pendingForScore(user, options?.webhook);
     if (effectiveRole(user) === 'demo') await this.demo.capture(user, pending);
     if (!pending.length) {
       const latest = await this.latestModel(user);
@@ -824,52 +837,65 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         draft.voice_script_hi = assertSafeVoiceScript(draft.voice_script_hi, user.shopName, order.orderValue);
         order.messages = draft;
       }
-      const choice = chooseIntervention({
-        paymentType: order.paymentType,
-        riskScore: prediction.score,
-        riskBand: prediction.band,
-        reasons: prediction.reasons,
-        priorRtos: order.priorRtos,
-        addressQuality: prediction.address_quality,
-        settings: reductionSettings(user),
-      });
-      order.intervention = choice.action;
-      order.interventionWhy = choice.why;
-      const timeline = [...(order.timeline || [])];
-      const already = timeline.some((step) => step.step === 'action' || step.step === 'auto_confirm');
-      if (choice.action === 'auto_confirm' && order.stage === 'pending' && !order.outcome) {
-        order.outcome = 'confirmed';
-        order.stage = 'closed';
-        timeline.push({ at: now.toISOString(), step: 'auto_confirm', detail: choice.why });
-      } else if (!already) {
-        timeline.push({ at: now.toISOString(), step: 'action', detail: choice.why });
+      const locked = actionLocked(order);
+      if (!locked) {
+        const choice = chooseIntervention({
+          paymentType: order.paymentType,
+          riskScore: prediction.score,
+          riskBand: prediction.band,
+          reasons: prediction.reasons,
+          priorRtos: order.priorRtos,
+          addressQuality: prediction.address_quality,
+          settings: reductionSettings(user),
+        });
+        order.intervention = choice.action;
+        order.interventionWhy = choice.why;
+        const timeline = [...(order.timeline || [])];
+        const already = timeline.some((step) => step.step === 'action' || step.step === 'auto_confirm');
+        if (choice.action === 'auto_confirm' && order.stage === 'pending' && !order.outcome) {
+          order.outcome = 'confirmed';
+          order.stage = 'closed';
+          timeline.push({ at: now.toISOString(), step: 'auto_confirm', detail: choice.why });
+        } else if (!already) {
+          timeline.push({ at: now.toISOString(), step: 'action', detail: choice.why });
+        }
+        order.timeline = timeline;
       }
-      order.timeline = timeline;
+      const scoredFields: Record<string, unknown> = {
+        riskScore: order.riskScore,
+        riskBand: order.riskBand,
+        reasons: order.reasons,
+        addressQuality: order.addressQuality,
+        predictor: order.predictor,
+        updatedAt: now,
+      };
+      if (!locked) {
+        scoredFields.messages = order.messages;
+        scoredFields.intervention = order.intervention;
+        scoredFields.interventionWhy = order.interventionWhy;
+        scoredFields.timeline = order.timeline;
+        scoredFields.stage = order.stage;
+        scoredFields.outcome = order.outcome;
+      }
       writes.push({
         updateOne: {
           filter: { _id: order._id, sellerId: user._id, stage: 'pending' },
-          update: {
-            $set: {
-              riskScore: order.riskScore,
-              riskBand: order.riskBand,
-              reasons: order.reasons,
-              addressQuality: order.addressQuality,
-              messages: order.messages,
-              predictor: order.predictor,
-              intervention: order.intervention,
-              interventionWhy: order.interventionWhy,
-              timeline: order.timeline,
-              stage: order.stage,
-              outcome: order.outcome,
-              updatedAt: now,
-            },
-          },
+          update: { $set: scoredFields },
         },
       });
     }
     if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
     this.writeShopify(user, pending);
-    if (reductionSettings(user).autopilot) {
+    const webhook = options?.webhook;
+    const suppressSend = Boolean(
+      webhook &&
+        (webhook.rtoTest ||
+          webhook.addressWriteBack ||
+          user.isDemo ||
+          user.shopify?.demo ||
+          isOfficialDemoAccount(user.email)),
+    );
+    if (reductionSettings(user).autopilot && !suppressSend) {
       await this.runAutopilot(user, pending);
     }
 
@@ -1498,6 +1524,37 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     return this.toDetail(user, order);
   }
 
+  private async pendingForScore(user: UserDocument, webhook?: WebhookScore) {
+    if (!webhook) return this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(500);
+    const match: Array<Record<string, unknown>> = [];
+    if (webhook.gids.length) match.push({ shopifyGid: { $in: webhook.gids } });
+    if (webhook.externalIds.length) match.push({ externalOrderId: { $in: webhook.externalIds } });
+    if (!match.length) return [];
+    return this.orders.find({ sellerId: user._id, stage: 'pending', $or: match }).limit(5);
+  }
+
+  private async claimOutreach(user: UserDocument, order: OrderDocument) {
+    if (order.intervention === 'hold_review' || order.callState === 'held' || order.addressFixedAt || outreachStarted(order)) {
+      return false;
+    }
+    const claimed = await this.orders.updateOne(
+      {
+        _id: order._id,
+        sellerId: user._id,
+        stage: 'pending',
+        addressFixedAt: null,
+        intervention: { $ne: 'hold_review' },
+        callState: { $ne: 'held' },
+        whatsappStatus: null,
+        $or: [{ whatsappMessageId: null }, { whatsappMessageId: '' }],
+      },
+      { $set: { whatsappStatus: 'queued' } },
+    );
+    if (!claimed.modifiedCount) return false;
+    order.whatsappStatus = 'queued';
+    return true;
+  }
+
   private async runAutopilot(user: UserDocument, pending: OrderDocument[]) {
     try {
       await this.whatsapp.rememberFlows(user);
@@ -1511,8 +1568,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         if (order.stage !== 'pending') continue;
-        const waiting = order.whatsappStatus === 'sent' || order.whatsappStatus === 'delivered' || order.whatsappStatus === 'read';
-        if (waiting && order.exception !== 'template_pending') continue;
+        if (order.intervention === 'hold_review' || order.callState === 'held' || order.addressFixedAt || outreachStarted(order)) continue;
+        if (!(await this.claimOutreach(user, order))) continue;
         if (order.intervention === 'request_address') {
           const result = await this.whatsapp.dispatchFlow(user, order, 'address_update_request');
           await this.noteDispatch(order, result, 'Asked the buyer to confirm the address.');

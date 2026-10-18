@@ -47,6 +47,23 @@ type OrderConnection = {
   };
 };
 
+function webhookScoreTarget(body: Record<string, unknown>) {
+  const id = body.id === undefined || body.id === null ? '' : String(body.id);
+  const name = String(body.name || '');
+  const gid = String(body.admin_graphql_api_id || (id ? `gid://shopify/Order/${id}` : ''));
+  const tags = String(body.tags || '')
+    .split(',')
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean);
+  const externalIds = [name, id, id ? `#${id}` : ''].filter(Boolean);
+  return {
+    gids: gid ? [gid] : [],
+    externalIds,
+    rtoTest: tags.includes('rto-test'),
+    addressWriteBack: tags.includes('rto-address-fixed'),
+  };
+}
+
 function defaultLink(shop: string, demo: boolean): ShopifyLink {
   return {
     shopDomain: shop,
@@ -467,22 +484,25 @@ export class ShopifyService {
     }
     if (topic === 'orders/create' || topic === 'orders/updated' || topic === 'orders/cancelled' || topic === 'orders/paid') {
       await this.applyRestOrder(user, body);
-      this.scheduleScore(user);
+      this.scheduleScore(user, webhookScoreTarget(body));
       return;
     }
     if (topic === 'fulfillments/create' || topic === 'fulfillments/update') {
       await this.applyFulfillment(user, body);
-      this.scheduleScore(user);
+      this.scheduleScore(user, webhookScoreTarget({ id: body.order_id }));
       return;
     }
     if (topic === 'refunds/create') {
       await this.applyRefund(user, body);
-      this.scheduleScore(user);
+      this.scheduleScore(user, webhookScoreTarget({ id: body.order_id }));
     }
   }
 
-  private scheduleScore(user: UserDocument) {
-    this.orderBook.startUpgrade(user, { full: true });
+  private scheduleScore(
+    user: UserDocument,
+    webhook?: { gids: string[]; externalIds: string[]; rtoTest?: boolean; addressWriteBack?: boolean },
+  ) {
+    this.orderBook.startUpgrade(user, webhook ? { webhook } : { full: true });
   }
 
   private async applyFulfillment(user: UserDocument, body: Record<string, unknown>) {
