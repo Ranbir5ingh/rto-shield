@@ -136,10 +136,10 @@ function StartForm() {
         >
           <div data-tour="whatsapp-card">
             <p className="text-[15px] leading-7 text-ink/70">
-              Optional. Messages go out from RTO Shield&apos;s number. The setup guide is only for a shop that wants its own.
+              Optional. Messages go out from RTO Shield&apos;s number. A shop number is only for buyers who should see it.
             </p>
             <div className="mt-4 flex items-center gap-3">
-              <Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Your number' : 'Platform number'}</Flag>
+              <Flag tone={whatsapp?.messaging === 'own' ? 'go' : 'ghost'}>{whatsapp?.messaging === 'own' ? 'Your own number' : 'RTO Shield (default)'}</Flag>
               {whatsapp?.templateStatus ? (
                 <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
                   Template {whatsapp.templateStatus}

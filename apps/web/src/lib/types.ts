@@ -76,7 +76,7 @@ export interface OrderSummary {
   shopifyGid?: string;
   intervention?: Intervention | null;
   interventionWhy?: string;
-  callState?: 'idle' | 'due' | 'called' | 'held';
+  callState?: 'idle' | 'due' | 'called' | 'simulated' | 'held';
   callDueAt?: string | null;
   addressFixedAt?: string | null;
   exception?: 'address' | 'template_pending' | 'send' | 'call' | 'shopify' | null;

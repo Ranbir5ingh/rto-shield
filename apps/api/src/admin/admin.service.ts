@@ -66,7 +66,7 @@ export class AdminService {
               $cond: [
                 {
                   $or: [
-                    { $in: ['$callState', ['due', 'called', 'held']] },
+                    { $in: ['$callState', ['due', 'called', 'simulated', 'held']] },
                     { $gt: [{ $strLenCP: { $ifNull: ['$callConversationId', ''] } }, 0] },
                   ],
                 },

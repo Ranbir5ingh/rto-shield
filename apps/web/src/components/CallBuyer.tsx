@@ -5,7 +5,7 @@ import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 interface CallPlan {
-  mode: 'phone' | 'browser';
+  mode: 'phone' | 'browser' | 'simulated';
   signedUrl: string | null;
   variables: Record<string, string>;
   notice: string | null;
@@ -37,9 +37,9 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
     setNotice('');
     try {
       const plan = await api<CallPlan>(`/orders/${orderId}/call`, { method: 'POST', body: JSON.stringify({ browser: true }) });
-      if (plan.mode === 'phone') {
+      if (plan.mode === 'phone' || plan.mode === 'simulated') {
         setPhase('done');
-        setNotice(plan.notice || 'Calling the buyer.');
+        setNotice(plan.notice || (plan.mode === 'simulated' ? 'Simulated call. The buyer was not dialed.' : 'Calling the buyer.'));
         return;
       }
       if (!plan.signedUrl) {
@@ -85,7 +85,7 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
   return (
     <section className="border-2 border-ink bg-paper p-4 shadow-sticker" aria-label="Call the buyer" data-tour="call-panel">
       <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Call the buyer</p>
-      <p className="mt-2 text-sm leading-6">The call stays in this browser unless an outbound number is configured. The API key never leaves the server.</p>
+      <p className="mt-2 text-sm leading-6">Calls: by RTO Shield. A browser call stays on this page. A simulated call does not dial the buyer.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {phase === 'live' ? (
           <Button type="button" tone="danger" onClick={hangup}>End call</Button>
@@ -97,7 +97,11 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
         <Button type="button" tone="ghost" data-tour-close="call" onClick={onClose}>Close</Button>
       </div>
       {phase === 'live' ? <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink">On the call</p> : null}
-      {notice ? <p className="mt-3 text-sm leading-6">{notice}</p> : null}
+      {notice ? (
+        <p className="mt-3 text-sm leading-6" data-call-state={/simulated/i.test(notice) ? 'simulated' : 'notice'}>
+          {notice}
+        </p>
+      ) : null}
     </section>
   );
 }

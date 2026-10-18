@@ -52,7 +52,7 @@ function Card({
   );
 }
 
-export function Connections({ locked = false }: { locked?: boolean }) {
+export function Connections({ locked = false, owner = true }: { locked?: boolean; owner?: boolean }) {
   const client = useQueryClient();
   const shopifyQuery = useShopify();
   const whatsappQuery = useWhatsapp();
@@ -125,7 +125,8 @@ export function Connections({ locked = false }: { locked?: boolean }) {
       <div className="space-y-4">
         {[
           ['Shopify', shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'],
-          ['WhatsApp', whatsapp?.configured ? 'Your number · ••••••••' : 'Platform number'],
+          ['Messaging', whatsapp?.messaging === 'own' ? 'Your own number' : 'RTO Shield (default)'],
+          ['Calls', 'by RTO Shield'],
           ['Gemini', gemini?.configured ? 'Saved · ••••••••' : 'Not configured'],
         ].map(([title, state]) => (
           <div key={title} className="flex items-center justify-between gap-4 border-2 border-ink bg-white px-5 py-4 shadow-sticker-sm">
@@ -224,8 +225,8 @@ export function Connections({ locked = false }: { locked?: boolean }) {
 
       <Card
         title="WhatsApp"
-        desc="Optional. RTO Shield's number is the default. Connect yours if buyers should see the shop."
-        flag={<Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Your number' : 'Platform number'}</Flag>}
+        desc="Messages go out from RTO Shield. Your own number is optional."
+        flag={<Flag tone={whatsapp?.messaging === 'own' ? 'go' : 'ghost'}>{whatsapp?.messaging === 'own' ? 'Your own number' : 'RTO Shield (default)'}</Flag>}
         guide={
           <WhatsAppSetupGuide
             callbackUrl={whatsapp?.callbackUrl || ''}
@@ -241,6 +242,35 @@ export function Connections({ locked = false }: { locked?: boolean }) {
           />
         }
       >
+        <p data-testid="messaging-status" className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+          Messaging: {whatsapp?.messaging === 'own' ? 'Your own number' : 'RTO Shield (default)'}
+        </p>
+        <p data-testid="calls-status" className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+          Calls: by RTO Shield
+        </p>
+        {owner ? (
+        <>
+        <label className="flex items-center gap-3 border-2 border-ink bg-paper px-4 py-3.5">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[#1B1712]"
+            checked={whatsapp?.messaging === 'own'}
+            onChange={(event) => {
+              if (event.target.checked) {
+                setWhatsapp((current) => (current ? { ...current, messaging: 'own' } : current));
+                return;
+              }
+              void run(async () => {
+                const body = await api<WhatsAppStatus>('/whatsapp', { method: 'POST', body: JSON.stringify({ useOwnNumber: false }) });
+                rememberWhatsapp(body);
+                toast.success('Messages use RTO Shield’s number.');
+              });
+            }}
+          />
+          <span className="text-[15px]">Use my own WhatsApp Business number</span>
+        </label>
+        {whatsapp?.messaging === 'own' ? (
+        <>
         <form
           className="grid max-w-2xl gap-4 sm:grid-cols-2"
           onSubmit={(event) => {
@@ -377,6 +407,10 @@ export function Connections({ locked = false }: { locked?: boolean }) {
               </ul>
             ) : null}
           </div>
+        ) : null}
+        </>
+        ) : null}
+        </>
         ) : null}
       </Card>
 

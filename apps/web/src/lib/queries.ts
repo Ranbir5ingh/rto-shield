@@ -36,6 +36,8 @@ export interface ShopifyLink {
 }
 
 export interface WhatsAppLink {
+  messaging?: 'platform' | 'own';
+  useOwnNumber?: boolean;
   configured: boolean;
   demo: boolean;
   phoneNumberId: string;

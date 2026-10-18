@@ -16,6 +16,7 @@ import { pushTimeline, reductionSettings } from '../orders/action';
 import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
 import { latestOpenAddressRequest } from './address-match';
+import { platformWhatsApp, usesOwnNumber } from './platform-whatsapp';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
   CONFIRMATION_LANGUAGES,
@@ -42,6 +43,7 @@ import {
 } from './whatsapp-templates';
 
 const GRAPH = process.env.META_GRAPH_VERSION || 'v23.0';
+const PLATFORM_FLOW_KEY = 'whatsapp.platform.flowStatus';
 
 @Injectable()
 export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
@@ -49,6 +51,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private refreshTimer: NodeJS.Timeout | null = null;
   private bootRefresh: NodeJS.Timeout | null = null;
   private readonly refreshedAt = new Map<string, number>();
+  private platformFlow: Record<string, string> = {};
 
   constructor(
     private readonly config: ConfigService,
@@ -92,16 +95,23 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async status(user: UserDocument) {
     const link = user.whatsapp;
     const visitor = effectiveRole(user) === 'demo';
+    const own = usesOwnNumber(link);
+    const platform = Boolean(platformWhatsApp());
+    const badge = own
+      ? null
+      : confirmationBadge(user.messageLanguage, (identity) => this.platformFlow[templateKey(identity)] || link?.flowStatus?.[templateKey(identity)] || '');
     return {
-      configured: Boolean(link?.tokenEnvelope && link.phoneNumberId && link.wabaId),
+      messaging: own ? 'own' : 'platform',
+      useOwnNumber: own,
+      configured: own || platform,
       demo: Boolean(user.isDemo) || visitor,
-      phoneNumberId: visitor ? '' : link?.phoneNumberId || '',
-      wabaId: visitor ? '' : link?.wabaId || '',
-      tokenLast4: visitor ? '' : link?.tokenLast4 || '',
-      appSecretLast4: visitor ? '' : link?.appSecretLast4 || '',
-      templateName: link?.templateName || 'order_confirmation',
-      templateStatus: link?.templateStatus || 'missing',
-      templateLanguage: link?.templateLanguage || user.messageLanguage,
+      phoneNumberId: visitor || !own ? '' : link?.phoneNumberId || '',
+      wabaId: visitor || !own ? '' : link?.wabaId || '',
+      tokenLast4: visitor || !own ? '' : link?.tokenLast4 || '',
+      appSecretLast4: visitor || !own ? '' : link?.appSecretLast4 || '',
+      templateName: badge?.status ? badge.identity.name : link?.templateName || 'order_confirmation',
+      templateStatus: badge?.status || (own ? link?.templateStatus || 'missing' : platform ? 'platform' : 'missing'),
+      templateLanguage: badge?.status ? badge.identity.language : link?.templateLanguage || user.messageLanguage,
       callbackUrl: this.callbackUrl(),
       verifyTokenName: 'WHATSAPP_VERIFY_TOKEN',
       verifyToken: visitor || user.role === 'staff' ? '' : this.verifyToken(),
@@ -186,11 +196,19 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async save(
     user: UserDocument,
-    input: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string },
+    input: { useOwnNumber?: boolean; accessToken?: string; phoneNumberId?: string; wabaId?: string; appSecret?: string },
   ) {
-    if (user.role === 'staff') throw new BadRequestException('Only the shop owner can change connections');
-    const phoneNumberId = input.phoneNumberId.trim();
-    const wabaId = input.wabaId.trim();
+    if (user.role === 'staff' || effectiveRole(user) === 'demo') {
+      throw new ForbiddenException('Only the shop owner can change connections');
+    }
+    if (input.useOwnNumber === false) {
+      if (user.whatsapp) user.whatsapp = { ...user.whatsapp, useOwnNumber: false };
+      await user.save();
+      await this.audit.create({ sellerId: user._id, action: 'whatsapp.platform', meta: {} });
+      return this.status(user);
+    }
+    const phoneNumberId = (input.phoneNumberId || '').trim();
+    const wabaId = (input.wabaId || '').trim();
     if (!/^\d{6,30}$/.test(phoneNumberId) || !/^\d{6,30}$/.test(wabaId)) {
       throw new BadRequestException('Phone Number ID and WABA ID should be numeric');
     }
@@ -205,9 +223,11 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       wabaId,
       appSecretEnvelope: appSecret ? this.vault.seal(appSecret) : existing?.appSecretEnvelope || null,
       appSecretLast4: appSecret ? this.vault.mask(appSecret) : existing?.appSecretLast4 || '',
-      templateName: 'order_confirmation',
-      templateStatus: user.whatsapp?.templateStatus || 'missing',
-      templateLanguage: user.messageLanguage,
+      templateName: existing?.templateName || 'order_confirmation',
+      templateStatus: existing?.templateStatus || 'missing',
+      templateLanguage: existing?.templateLanguage || user.messageLanguage,
+      flowStatus: existing?.flowStatus,
+      useOwnNumber: true,
     };
     user.whatsapp = link;
     await user.save();
@@ -229,6 +249,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   async submitTemplate(user: UserDocument) {
+    if (!usesOwnNumber(user.whatsapp)) {
+      throw new BadRequestException('Templates are managed on RTO Shield’s number');
+    }
     const link = this.requireLink(user);
     const secret = this.vault.open(link.tokenEnvelope);
     const templates = [
@@ -256,6 +279,10 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   async refreshTemplate(user: UserDocument, force = false) {
+    if (!usesOwnNumber(user.whatsapp)) {
+      await this.refreshPlatformFlow(force);
+      return this.status(user);
+    }
     const link = this.requireLink(user);
     const id = String(user._id);
     const last = this.refreshedAt.get(id) || 0;
@@ -332,7 +359,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     const visitor = effectiveRole(user) === 'demo';
     const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
     if (!visitor && !synthetic) {
-      this.requireLink(user);
+      if (usesOwnNumber(user.whatsapp)) this.requireLink(user);
+      else if (!platformWhatsApp()) throw new BadRequestException('WhatsApp is not ready on this server');
+      else await this.refreshPlatformFlow(true);
       if (!this.approvedConfirmation(user)) {
         throw new BadRequestException('The order_confirmation template is not approved yet');
       }
@@ -422,7 +451,12 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   async applyInbound(phoneNumberId: string, payload: Record<string, unknown>) {
-    const user = await this.users.findOne({ 'whatsapp.phoneNumberId': phoneNumberId });
+    const platform = platformWhatsApp();
+    if (platform && phoneNumberId === platform.phoneNumberId) {
+      await this.applyPlatformInbound(payload);
+      return;
+    }
+    const user = await this.findByPhone(phoneNumberId);
     if (!user) return;
     const entries = Array.isArray(payload.entry) ? (payload.entry as Array<Record<string, unknown>>) : [];
     for (const entry of entries) {
@@ -443,7 +477,18 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   findByPhone(phoneNumberId: string) {
-    return this.users.findOne({ 'whatsapp.phoneNumberId': phoneNumberId });
+    if (!phoneNumberId) return null;
+    return this.users.findOne({
+      'whatsapp.phoneNumberId': phoneNumberId,
+      'whatsapp.useOwnNumber': { $ne: false },
+    });
+  }
+
+  async signingSecret(phoneNumberId: string) {
+    const platform = platformWhatsApp();
+    if (platform && phoneNumberId === platform.phoneNumberId) return platform.appSecret;
+    const user = await this.findByPhone(phoneNumberId);
+    return user ? this.secretForPhone(user) : '';
   }
 
   secretForPhone(user: UserDocument): string {
@@ -653,6 +698,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   private templateStatusOf(user: UserDocument, identity: TemplateIdentity) {
+    if (!usesOwnNumber(user.whatsapp)) return this.platformFlow[templateKey(identity)] || '';
     const stored = user.whatsapp?.flowStatus?.[templateKey(identity)] || '';
     if (stored) return stored;
     const link = user.whatsapp;
@@ -861,12 +907,97 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private sendingAccount(user: UserDocument) {
+    if (usesOwnNumber(user.whatsapp)) {
+      const link = user.whatsapp!;
+      return { token: this.vault.open(link.tokenEnvelope), phoneNumberId: link.phoneNumberId, wabaId: link.wabaId };
+    }
+    const platform = platformWhatsApp();
+    if (!platform) throw new BadRequestException('WhatsApp is not ready on this server');
+    return platform;
+  }
+
+  private async refreshPlatformFlow(force = false) {
+    const platform = platformWhatsApp();
+    if (!platform) return;
+    const last = this.refreshedAt.get('platform') || 0;
+    if (!force && Date.now() - last < 45_000 && Object.keys(this.platformFlow).length) return;
+    const rows = await this.listTemplates({ wabaId: platform.wabaId } as WhatsAppLink, platform.token);
+    this.refreshedAt.set('platform', Date.now());
+    if (!rows) return;
+    const flowStatus: Record<string, string> = { ...this.platformFlow };
+    for (const language of CONFIRMATION_LANGUAGES) {
+      for (const flow of TEMPLATE_FLOWS) {
+        for (const identity of templateIdentities(language, flow)) {
+          const listed = pickTemplateStatus(rows, identity);
+          if (listed) flowStatus[templateKey(identity)] = listed;
+        }
+      }
+    }
+    this.platformFlow = flowStatus;
+    try {
+      await this.platform.updateOne({ key: PLATFORM_FLOW_KEY }, { $set: { value: JSON.stringify(flowStatus) } }, { upsert: true });
+    } catch (error) {
+      this.logger.warn(`Platform template status missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+  }
+
+  private async applyPlatformInbound(payload: Record<string, unknown>) {
+    const entries = Array.isArray(payload.entry) ? (payload.entry as Array<Record<string, unknown>>) : [];
+    for (const entry of entries) {
+      const changes = Array.isArray(entry.changes) ? (entry.changes as Array<Record<string, unknown>>) : [];
+      for (const change of changes) {
+        const value = (change.value || {}) as Record<string, unknown>;
+        const statuses = Array.isArray(value.statuses) ? (value.statuses as Array<Record<string, unknown>>) : [];
+        for (const status of statuses) {
+          const id = String(status.id || '');
+          const order = id ? await this.orders.findOne({ whatsappMessageId: id }) : null;
+          const user = order ? await this.users.findById(order.sellerId) : null;
+          if (user) await this.applyStatus(user, id, String(status.status || ''));
+        }
+        const messages = Array.isArray(value.messages) ? (value.messages as Array<Record<string, unknown>>) : [];
+        for (const message of messages) {
+          await this.applyPlatformMessage(message);
+        }
+      }
+    }
+  }
+
+  private async applyPlatformMessage(message: Record<string, unknown>) {
+    const context = (message.context || {}) as { id?: string };
+    if (context.id) {
+      const order = await this.orders.findOne({ whatsappMessageId: context.id });
+      const user = order ? await this.users.findById(order.sellerId) : null;
+      if (!user) return;
+      await this.applyButton(user, message);
+      await this.applyText(user, message);
+      return;
+    }
+    const text = String((message.text as { body?: string } | undefined)?.body || '').trim();
+    if (text.length < 8 || /^(confirm|cancel|haan|nahi|ok|yes|no)$/i.test(text)) return;
+    const phone = whatsappNumber(String(message.from || '')) || '';
+    if (!phone) return;
+    const open = await this.orders.find({ stage: 'pending', intervention: 'request_address' }).sort({ updatedAt: -1 }).limit(80);
+    const match = latestOpenAddressRequest(
+      open.map((order) => ({
+        order,
+        phone: this.phoneOf(order) || '',
+        conversation: order.conversation,
+        timeline: order.timeline,
+      })),
+      phone,
+    );
+    if (!match) return;
+    const user = await this.users.findById(match.order.sellerId);
+    if (!user) return;
+    await this.orderDesk.ingestAddressReply(user, match.order, text);
+  }
+
   private async graphSend(user: UserDocument, body: Record<string, unknown>) {
-    const link = this.requireLink(user);
-    const token = this.vault.open(link.tokenEnvelope);
-    const response = await fetch(`https://graph.facebook.com/${GRAPH}/${link.phoneNumberId}/messages`, {
+    const account = this.sendingAccount(user);
+    const response = await fetch(`https://graph.facebook.com/${GRAPH}/${account.phoneNumberId}/messages`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${account.token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(20_000),
     });

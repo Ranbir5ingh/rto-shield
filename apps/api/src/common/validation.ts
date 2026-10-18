@@ -91,12 +91,16 @@ export const shopifySettingsSchema = z.object({
 const optionalSecret = (min: number, max: number) =>
   z.union([z.literal(''), z.string().trim().min(min).max(max)]).optional();
 
-export const whatsappSaveSchema = z.object({
-  accessToken: optionalSecret(20, 4_000),
-  phoneNumberId: z.string().trim().regex(/^\d{6,30}$/),
-  wabaId: z.string().trim().regex(/^\d{6,30}$/),
-  appSecret: optionalSecret(8, 200),
-});
+export const whatsappSaveSchema = z.union([
+  z.object({ useOwnNumber: z.literal(false) }),
+  z.object({
+    useOwnNumber: z.literal(true).optional(),
+    accessToken: optionalSecret(20, 4_000),
+    phoneNumberId: z.string().trim().regex(/^\d{6,30}$/),
+    wabaId: z.string().trim().regex(/^\d{6,30}$/),
+    appSecret: optionalSecret(8, 200),
+  }),
+]);
 
 export const whatsappTestSchema = z.object({
   to: z.string().trim().min(8).max(20),

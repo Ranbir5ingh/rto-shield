@@ -139,7 +139,7 @@ export class Order {
   callDueAt!: Date | null;
 
   @Prop({ type: String, default: 'idle' })
-  callState!: 'idle' | 'due' | 'called' | 'held';
+  callState!: 'idle' | 'due' | 'called' | 'simulated' | 'held';
 
   @Prop({ default: '' })
   callConversationId!: string;

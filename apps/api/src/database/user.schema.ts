@@ -28,6 +28,8 @@ export interface WhatsAppLink {
   templateStatus: string;
   templateLanguage: string;
   flowStatus?: Record<string, string>;
+  /** False keeps the saved creds and sends from RTO Shield's number. */
+  useOwnNumber?: boolean;
 }
 
 export interface GeminiLink {

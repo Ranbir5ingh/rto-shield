@@ -105,5 +105,17 @@ services:
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false
+      - key: WHATSAPP_PLATFORM_TOKEN
+        sync: false
+      - key: WHATSAPP_PLATFORM_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_PLATFORM_WABA_ID
+        sync: false
+      - key: WHATSAPP_PLATFORM_APP_SECRET
+        sync: false
+      - key: CALLS_MODE
+        value: browser
+      - key: ELEVENLABS_PHONE_NUMBER_ID
+        sync: false
       - key: META_GRAPH_VERSION
         value: v23.0

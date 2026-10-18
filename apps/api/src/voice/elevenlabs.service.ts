@@ -7,6 +7,7 @@ import { PlatformFlag } from '../database/platform.schema';
 import type { UserDocument } from '../database/user.schema';
 import { effectiveRole } from '../demo/demo.policy';
 import { syncElevenAgent, webhookTarget, type SyncResult } from './agent-sync';
+import { callsMode, planCall } from './calls-mode';
 import { parseCallOutcome, verifyElevenSignature, type ParsedCall } from './elevenlabs';
 
 export const ELEVEN_AGENT_PLATFORM_KEY = 'elevenlabs.agentId';
@@ -27,7 +28,7 @@ export interface CallVariables {
 }
 
 export interface CallPlan {
-  mode: 'phone' | 'browser';
+  mode: 'phone' | 'browser' | 'simulated';
   signedUrl: string | null;
   variables: CallVariables;
   notice: string | null;
@@ -117,39 +118,31 @@ export class ElevenLabsService implements OnModuleInit {
    * Phone calls leave the building only when a Twilio number is configured.
    * prefer "phone" is the sweep: it does not mint a signed URL.
    */
-  async place(user: UserDocument, variables: CallVariables, phone: string | null, allowPhone: boolean, prefer: 'phone' | 'browser'): Promise<CallPlan> {
-    const key = this.keyFor(user);
+  async place(_user: UserDocument, variables: CallVariables, phone: string | null, allowPhone: boolean, prefer: 'phone' | 'browser'): Promise<CallPlan> {
+    const key = process.env.ELEVENLABS_API_KEY || '';
     const phoneId = process.env.ELEVENLABS_PHONE_NUMBER_ID || '';
-    if (!key) {
+    const decision = planCall({
+      mode: callsMode(),
+      prefer,
+      allowPhone: Boolean(allowPhone && phone),
+      hasKey: Boolean(key),
+      hasPhoneId: Boolean(phoneId),
+    });
+    if (decision.kind === 'simulated') {
       return {
-        mode: 'browser',
+        mode: 'simulated',
         signedUrl: null,
         variables,
-        notice: 'Calls are unavailable right now.',
-        conversationId: '',
+        notice: decision.notice,
+        conversationId: `sim-${variables.rto_order}`.slice(0, 80),
       };
     }
-    if (prefer === 'phone' && allowPhone && phoneId && phone) {
+    if (decision.kind === 'phone' && phone) {
       const conversationId = await this.outbound(key, variables, phone, phoneId);
       return { mode: 'phone', signedUrl: null, variables, notice: null, conversationId };
     }
-    if (prefer === 'phone') {
-      return {
-        mode: 'browser',
-        signedUrl: null,
-        variables,
-        notice: allowPhone ? 'No outbound number is configured. Use Call the buyer in the browser.' : 'Demo calls stay in the browser unless the number is on the allowlist.',
-        conversationId: '',
-      };
-    }
     const signedUrl = await this.signedUrl(key);
-    return {
-      mode: 'browser',
-      signedUrl,
-      variables,
-      notice: allowPhone ? null : 'Demo calls stay in the browser unless the number is on the allowlist.',
-      conversationId: '',
-    };
+    return { mode: 'browser', signedUrl, variables, notice: decision.notice, conversationId: '' };
   }
 
   acceptWebhook(raw: Buffer, header: string): ParsedCall {

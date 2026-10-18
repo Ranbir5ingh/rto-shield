@@ -1347,10 +1347,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const order = await this.findOwned(user, id);
     await this.holdDemo(user, ['demo.call', 'demo.call.browser'], 'The demo has started enough buyer calls for today.');
     const plan = await this.dial(user, order, browser ? 'browser' : 'auto');
-    if (plan.mode === 'phone') {
-      order.callState = 'called';
+    if (plan.mode === 'phone' || plan.mode === 'simulated') {
+      order.callState = plan.mode === 'simulated' ? 'simulated' : 'called';
       order.callConversationId = plan.conversationId;
-      order.timeline = pushTimeline(order.timeline, 'call', 'Outbound call placed');
+      order.timeline = pushTimeline(
+        order.timeline,
+        'call',
+        plan.mode === 'simulated' ? 'Simulated call. The buyer was not dialed.' : 'Outbound call placed',
+      );
       await order.save();
     }
     if (effectiveRole(user) === 'demo') {
@@ -1363,7 +1367,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const order = await this.findOwned(user, id);
     if (order.stage !== 'pending') return this.toDetail(user, order);
     if (buyerReplied(order)) return this.toDetail(user, order);
-    if (order.callState === 'called') return this.holdUnconfirmed(user, order);
+    if (order.callState === 'called' || order.callState === 'simulated') return this.holdUnconfirmed(user, order);
     order.callDueAt = new Date();
     return this.runEscalation(user, order);
   }
@@ -1439,7 +1443,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       if (user) await this.runEscalation(user, order);
     }
     const holdAfter = new Date(now.getTime() - 15 * 60 * 1000);
-    const called = await this.orders.find({ stage: 'pending', callState: 'called', callDueAt: { $lte: holdAfter } }).limit(5);
+    const called = await this.orders.find({ stage: 'pending', callState: { $in: ['called', 'simulated'] }, callDueAt: { $lte: holdAfter } }).limit(5);
     for (const order of called) {
       if (buyerReplied(order)) continue;
       const user = await this.users.findById(order.sellerId);
@@ -1453,6 +1457,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       order.callState = 'called';
       order.callConversationId = plan.conversationId;
       order.timeline = pushTimeline(order.timeline, 'call', 'Outbound call placed');
+    } else if (plan.mode === 'simulated') {
+      order.callState = 'simulated';
+      order.callConversationId = plan.conversationId;
+      order.timeline = pushTimeline(order.timeline, 'call', plan.notice || 'Simulated call. The buyer was not dialed.');
     } else {
       order.callState = 'due';
       order.timeline = pushTimeline(order.timeline, 'call_due', plan.notice || 'Call the buyer from the order');

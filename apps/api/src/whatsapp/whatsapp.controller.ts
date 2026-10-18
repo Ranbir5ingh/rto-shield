@@ -60,7 +60,7 @@ export class WhatsAppController {
   save(
     @CurrentUser() user: UserDocument,
     @Body(new ZodValidationPipe(whatsappSaveSchema))
-    body: { accessToken?: string; phoneNumberId: string; wabaId: string; appSecret?: string },
+    body: { useOwnNumber?: boolean; accessToken?: string; phoneNumberId?: string; wabaId?: string; appSecret?: string },
   ) {
     return this.whatsapp.save(user, body);
   }
@@ -91,7 +91,6 @@ export class WhatsAppController {
 
   @Get('whatsapp/template')
   templateStatus(@CurrentUser() user: UserDocument) {
-    if (!user.whatsapp?.tokenEnvelope || !user.whatsapp.wabaId) return this.whatsapp.status(user);
     return this.whatsapp.refreshTemplate(user);
   }
 
@@ -145,8 +144,7 @@ export class WhatsAppController {
       throw new BadRequestException('WhatsApp payload was not JSON');
     }
     const phoneId = phoneNumberId(body);
-    const user = phoneId ? await this.whatsapp.findByPhone(phoneId) : null;
-    const secret = user ? this.whatsapp.secretForPhone(user) : '';
+    const secret = await this.whatsapp.signingSecret(phoneId);
     if (!secret || !verifyMetaSignature(raw, signature, secret)) {
       throw new UnauthorizedException('WhatsApp signature check failed');
     }
