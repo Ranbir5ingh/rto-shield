@@ -53,11 +53,11 @@ describe('tour reveal', () => {
     expect(document.getElementById('prepaid')).toBeTruthy();
   });
 
-  it('presses the visible Call the buyer button and does not open More', () => {
+  it('presses the visible demo call and does not open More', () => {
     const clicks: string[] = [];
     document.body.innerHTML = `
       <button id="more" data-tour-open="more" aria-expanded="false">More</button>
-      <button id="call" data-tour="call-buyer">Call the buyer</button>
+      <button id="call" data-tour="demo-call">Demo: in the real product, RTO Shield calls the buyer automatically.</button>
     `;
     document.getElementById('call')!.addEventListener('click', () => {
       clicks.push('call');
@@ -68,11 +68,23 @@ describe('tour reveal', () => {
     });
     document.getElementById('more')!.addEventListener('click', () => clicks.push('more'));
     const memory = freshRevealMemory();
-    const current = step({ id: 'call-buyer', reveal: ['call'] });
+    const current = step({ id: 'demo-call', reveal: ['call'] });
     revealStep(current, false, memory);
     revealStep(current, false, memory);
     expect(clicks).toEqual(['call']);
     expect(document.getElementById('panel')).toBeTruthy();
+  });
+
+  it('does not press Try one more call', () => {
+    const clicks: string[] = [];
+    document.body.innerHTML = `
+      <button id="more" data-tour-open="more" aria-expanded="false">More</button>
+      <button id="extra" data-tour="try-one-more-call">Try one more call</button>
+    `;
+    document.getElementById('extra')!.addEventListener('click', () => clicks.push('extra'));
+    document.getElementById('more')!.addEventListener('click', () => clicks.push('more'));
+    revealStep(step({ id: 'try-one-more-call', reveal: [] }), false, freshRevealMemory());
+    expect(clicks).toEqual([]);
   });
 
   it('opens the call panel from More and does not reopen the menu', () => {

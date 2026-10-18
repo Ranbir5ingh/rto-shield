@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CallBuyer } from '@/components/CallBuyer';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MessageThread } from '@/components/MessageThread';
 import { PincodeCheck, type PincodeStatus, type PincodeView } from '@/components/PincodeCheck';
@@ -25,7 +24,6 @@ export default function OrderDetailPage() {
   const [pinState, setPinState] = useState<{ status: PincodeStatus; view?: PincodeView } | null>(null);
   const [saving, setSaving] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [callOpen, setCallOpen] = useState(false);
 
   async function mark(value: 'confirmed' | 'cancelled') {
     if (!order || order.stage === 'closed' || saving) return;
@@ -133,10 +131,8 @@ export default function OrderDetailPage() {
             <Button type="button" disabled={Boolean(saving)} onClick={() => { void mark('confirmed'); }}>Confirm</Button>
             <Button type="button" tone="danger" disabled={Boolean(saving)} onClick={() => setConfirmCancel(true)}>Cancel</Button>
             <Button type="button" tone="ghost" onClick={() => { void pin(); }}>Check pincode</Button>
-            <Button type="button" tone="ghost" data-tour="call-buyer" onClick={() => setCallOpen(true)}>Call the buyer</Button>
           </div>
         )}
-        {callOpen && !closed ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={() => setCallOpen(false)} /></div> : null}
         <ConfirmDialog
           open={confirmCancel}
           title="Cancel this order"

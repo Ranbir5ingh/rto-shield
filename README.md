@@ -296,7 +296,7 @@ curl -sS -X POST https://api.rtoshield.tech/api/elevenlabs/agent \
   -H "x-inbox-secret: $INBOX_DRAIN_SECRET"
 ```
 
-Both print `agentId`. `webhookSecret` appears only when ElevenLabs issues a new one. Put that value in `ELEVENLABS_WEBHOOK_SECRET` on Render, and put `agentId` in `ELEVENLABS_AGENT_ID`. For real outbound calls, import a Twilio number in ElevenLabs and set `ELEVENLABS_PHONE_NUMBER_ID`. Without that id, Call the buyer stays in the browser. Reinstall the Shopify app so `write_draft_orders` is granted, then resync webhooks so `orders/paid` is subscribed. The post-call URL is `https://api.rtoshield.tech/api/elevenlabs/webhook`.
+Both print `agentId`. `webhookSecret` appears only when ElevenLabs issues a new one. Put that value in `ELEVENLABS_WEBHOOK_SECRET` on Render, and put `agentId` in `ELEVENLABS_AGENT_ID`. For real outbound calls, import a Twilio number in ElevenLabs and set `ELEVENLABS_PHONE_NUMBER_ID`. Without that id, outbound calls stay simulated and do not dial the buyer. Try one more call on Exceptions is the seller's one extra call. The demo session can open a browser call so a judge can talk to the agent. Reinstall the Shopify app so `write_draft_orders` is granted, then resync webhooks so `orders/paid` is subscribed. The post-call URL is `https://api.rtoshield.tech/api/elevenlabs/webhook`.
 
 ## Purge a shop
 

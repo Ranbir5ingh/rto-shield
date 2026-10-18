@@ -79,7 +79,7 @@ async function assertReveal(page: Page, step: TourStep, mobile: boolean) {
     await expect(page).toHaveURL(/\/app\/orders\//);
   }
   if (step.reveal?.includes('call')) {
-    await expect(page.getByRole('region', { name: 'Call the buyer' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Demo: in the real product, RTO Shield calls the buyer automatically.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start browser call' })).toBeVisible();
     await expect(page.getByRole('menu')).toHaveCount(0);
   }
@@ -128,7 +128,7 @@ async function assertTourClosed(page: Page) {
   await expect(page.locator('[data-tour-overlay]')).toHaveCount(0);
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: 'Message language' })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Call the buyer' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Demo: in the real product, RTO Shield calls the buyer automatically.' })).toHaveCount(0);
 }
 
 async function startTour(page: Page, title: string) {

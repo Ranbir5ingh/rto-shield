@@ -363,7 +363,7 @@ export function Tour({
       }
       revealStep(step, mobileNow, memory);
       const node = tourTarget(step.id);
-      if (!node && mobileNow && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'call-buyer')) {
+      if (!node && mobileNow && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'try-one-more-call' || step.id === 'demo-call')) {
         const link = document.querySelector<HTMLAnchorElement>('[data-tour="exceptions"] a');
         if (link && window.location.pathname === '/app/queue') {
           if (!pushed) {
@@ -596,7 +596,7 @@ export function Tour({
             <div className="flex min-h-0 flex-1 items-start gap-2 overflow-y-auto p-2 pb-1">
               <Robot />
               <div className="min-w-0 flex-1 border-2 border-ink bg-paper px-2 py-1.5 shadow-[2px_2px_0_0_#1B1712]">
-                <h2 id={titleId} className="font-display text-sm font-black uppercase leading-tight">{heading}</h2>
+                <h2 id={titleId} className="break-words font-display text-sm font-black uppercase leading-tight">{heading}</h2>
                 <p id={bodyId} className="mt-1 text-xs leading-5 text-ink/80">{step.body}</p>
               </div>
             </div>

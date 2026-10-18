@@ -6,7 +6,7 @@ const spine = [
   'exceptions',
   'exception-order',
   'exception-action',
-  'call-buyer',
+  'demo-call',
   'activity',
 ] as const;
 
@@ -27,10 +27,11 @@ describe('demo session tour', () => {
       'whatsapp-card',
       'results-home',
     ]);
-    const call = steps.find((step) => step.id === 'call-buyer');
+    const call = steps.find((step) => step.id === 'demo-call');
     expect(call?.titleFromAnchor).toBe(true);
-    expect(call?.title).toBe('Call the buyer');
-    expect(call?.narrationId).toBe('call-buyer');
+    expect(call?.reveal).toEqual(['call']);
+    expect(call?.title).toBe('Demo: in the real product, RTO Shield calls the buyer automatically.');
+    expect(call?.narrationId).toBe('demo-call');
     expect(steps.some((step) => step.id === 'shopify-connect')).toBe(false);
     expect(steps.find((step) => step.id === 'shopify-connected')?.title).toBe('Shopify, connected');
     expect(steps[8]?.title).toBe('WhatsApp');
@@ -40,6 +41,10 @@ describe('demo session tour', () => {
   it('keeps Connect Shopify for a seller who has not connected', () => {
     const steps = toursFor('seller', 'desktop');
     expect(steps[0]?.id).toBe('impact');
+    expect(steps[5]?.id).toBe('try-one-more-call');
+    expect(steps[5]?.title).toBe('Try one more call');
+    expect(steps[5]?.narrationId).toBe('try-one-more-call');
+    expect(steps[5]?.reveal).toBeUndefined();
     expect(steps[7]?.id).toBe('shopify-connect');
     expect(steps.some((step) => step.id === 'shopify-connected')).toBe(false);
     expect(steps[8]?.id).toBe('whatsapp-setup');

@@ -40,13 +40,13 @@ function tap(memory: RevealMemory, key: string, node: HTMLElement) {
 
 /**
  * Open what this step explains, and close what an earlier step opened.
- * A call step presses the visible Call the buyer button. Older menus still
- * open only long enough to press that same label, then the panel stays up.
+ * The demo call step presses the in-browser call. Try one more call is not pressed.
+ * Older menus still open only long enough to press a call item, then the panel stays up.
  */
 export function revealStep(step: TourStep, mobile: boolean, memory: RevealMemory) {
   const needs = new Set<TourReveal>(step.reveal || []);
   const callPanel = firstVisible('[data-tour="call-panel"]');
-  const directCall = firstVisible('[data-tour="call-buyer"]');
+  const directCall = firstVisible('[data-tour="demo-call"], [data-tour="call-buyer"]');
   const more = firstVisible('[data-tour-open="more"]');
   const language = firstVisible('[data-tour-open="language"]');
   const keepMore = needs.has('more') || (needs.has('call') && !callPanel && !directCall);
@@ -115,7 +115,7 @@ export function restoreTourUi(memory: RevealMemory) {
 
 export function stepOnPage(step: TourStep, pathname: string, mobile: boolean) {
   if (mobile && step.reveal?.includes('order')) return pathname.startsWith('/app/orders/');
-  if (mobile && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'call-buyer')) {
+  if (mobile && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'try-one-more-call' || step.id === 'demo-call')) {
     return pathname === step.route || /^\/app\/queue\/[^/]+$/.test(pathname);
   }
   return pathname === step.route;

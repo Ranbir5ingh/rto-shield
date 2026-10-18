@@ -132,6 +132,11 @@ export class OrdersController {
     return this.orders.placeCall(user, id, Boolean(body.browser));
   }
 
+  @Post('orders/:id/extra-call')
+  extraCall(@CurrentUser() user: UserDocument, @Param('id') id: string) {
+    return this.orders.tryOneMoreCall(user, id);
+  }
+
   @Post('orders/:id/escalate')
   escalate(@CurrentUser() user: UserDocument, @Param('id') id: string) {
     return this.orders.escalate(user, id);

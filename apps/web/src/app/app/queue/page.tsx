@@ -6,7 +6,7 @@ import { ExceptionPanel, ExceptionRow } from '@/components/ExceptionPanel';
 import { useToast } from '@/components/Toaster';
 import { Page, Skeleton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { useQueue } from '@/lib/queries';
+import { useOrder, useQueue } from '@/lib/queries';
 
 export default function QueuePage() {
   return (
@@ -32,8 +32,11 @@ function QueueScreen() {
   const params = useSearchParams();
   const queue = useQueue('action');
   const orders = queue.data?.orders ?? [];
-  const selectedId = params?.get('order') || orders[0]?.id || '';
-  const selected = orders.find((order) => order.id === selectedId) || null;
+  const paramId = params?.get('order') || '';
+  const selectedId = paramId || orders[0]?.id || '';
+  const listed = orders.find((order) => order.id === selectedId) || null;
+  const dropped = useOrder(paramId && (queue.isSuccess || queue.isError) && !listed ? paramId : '');
+  const selected = listed || dropped.data || null;
   const ready = queue.isSuccess || queue.isError;
 
   useEffect(() => {

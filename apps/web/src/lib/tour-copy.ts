@@ -241,15 +241,15 @@ const COPY: Record<string, Record<TourLang, Line>> = {
   'more-menu': {
     english: {
       title: 'More',
-      body: 'More is open. Each item under it gets its own step. Nothing here is pressed until Call the buyer.',
+      body: 'More is open. Each item under it gets its own step. Nothing here is pressed.',
     },
     hindi: {
       title: 'More',
-      body: 'More खुला है। हर आइटम का अपना स्टेप है। Call the buyer तक कुछ दबाया नहीं जाता।',
+      body: 'More खुला है। हर आइटम का अपना स्टेप है। यहाँ कुछ दबाया नहीं जाता।',
     },
     hinglish: {
       title: 'More',
-      body: 'More khula hai. Har item ka apna step hai. Call the buyer tak kuch press nahi hota.',
+      body: 'More khula hai. Har item ka apna step hai. Yahan kuch press nahi hota.',
     },
   },
   'menu-confirmed': {
@@ -336,32 +336,46 @@ const COPY: Record<string, Record<TourLang, Line>> = {
       body: 'Check pincode is address ka area dikhata hai. Pincode ban nahi hai, aur yeh step lookup nahi karta.',
     },
   },
-  'call-buyer': {
+  'try-one-more-call': {
     english: {
-      title: 'Call the buyer',
-      body: 'Call the buyer stays in this browser. Allow the microphone. The number stays on the server.',
+      title: 'Try one more call',
+      body: 'Try one more call places one extra call. The result shows here: confirmed, address changed, cancelled, or no answer.',
     },
     hindi: {
-      title: 'Call the buyer',
-      body: 'Call the buyer इस ब्राउज़र में रहता है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
+      title: 'Try one more call',
+      body: 'Try one more call एक अतिरिक्त कॉल करता है। नतीजा यहीं दिखता है: confirmed, address changed, cancelled, या no answer।',
     },
     hinglish: {
-      title: 'Call the buyer',
-      body: 'Call the buyer is browser mein rehta hai. Mic allow karo. Number server par rehta hai.',
+      title: 'Try one more call',
+      body: 'Try one more call ek extra call karta hai. Result yahin dikhta hai: confirmed, address changed, cancelled, ya no answer.',
+    },
+  },
+  'demo-call': {
+    english: {
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'Demo: in the real product, RTO Shield calls the buyer automatically. This browser call lets you talk to the agent. The result shows in this panel.',
+    },
+    hindi: {
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'Demo: in the real product, RTO Shield calls the buyer automatically। यह ब्राउज़र कॉल एजेंट से बात करने देती है। नतीजा इसी पैनल में दिखता है।',
+    },
+    hinglish: {
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'Demo: in the real product, RTO Shield calls the buyer automatically. Yeh browser call agent se baat karne deti hai. Result isi panel mein dikhta hai.',
     },
   },
   'call-panel': {
     english: {
-      title: 'Call the buyer',
-      body: 'Calls are included. This panel stays in the browser. Allow the microphone. The number stays on the server.',
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'This browser call is only in the demo. Allow the microphone. The number stays on the server.',
     },
     hindi: {
-      title: 'Call the buyer',
-      body: 'कॉल शामिल हैं। यह पैनल ब्राउज़र में रहता है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'यह ब्राउज़र कॉल सिर्फ डेमो में है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
     },
     hinglish: {
-      title: 'Call the buyer',
-      body: 'Calls included hain. Yeh panel browser mein rehta hai. Mic allow karo. Number server par rehta hai.',
+      title: 'Demo: in the real product, RTO Shield calls the buyer automatically.',
+      body: 'Yeh browser call sirf demo mein hai. Mic allow karo. Number server par rehta hai.',
     },
   },
   'whatsapp-setup': {

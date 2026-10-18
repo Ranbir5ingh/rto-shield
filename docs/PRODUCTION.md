@@ -6,7 +6,7 @@ Free test mode works with the current WhatsApp test number and without a paid ca
 
 Leave these as they are:
 
-- `CALLS_MODE=browser` (or unset). Call the buyer uses a free ElevenLabs signed URL in the browser when `ELEVENLABS_API_KEY` is set. Outbound escalation is a simulated call and does not dial the buyer.
+- `CALLS_MODE=browser` (or unset). Autopilot and Try one more call record a Simulated call and do not dial the buyer. A demo session can still open an in-browser call so a judge can talk to the agent. Sellers do not start a call from an order.
 - WhatsApp sends from RTO Shield's test number:
 
 ```
@@ -34,7 +34,7 @@ A shop that wants buyers to see its own number turns on **Use my own WhatsApp Bu
 2. Set `ELEVENLABS_PHONE_NUMBER_ID` to that number's id.
 3. Set `CALLS_MODE=live`.
 
-`CALLS_MODE=simulated` keeps every call on screen and dials nobody. `browser` is the free default. `live` places an outbound call only when the phone number id is set. There is no seller ElevenLabs key.
+`CALLS_MODE=simulated` keeps every call on screen and dials nobody. `browser` is the free default: outbound calls, including Try one more call, are labeled Simulated call and do not dial. `live` places a real outbound call when the phone number id is set. Sellers get that one extra call from Exceptions, and only once per order. There is no seller ElevenLabs key. The in-browser call is demo-only.
 
 ## Platform Gemini
 
@@ -52,7 +52,7 @@ Set these on the API service. Do not commit the values.
 | `WHATSAPP_PLATFORM_APP_SECRET` | Meta app secret | Same app, or the live app secret |
 | `WHATSAPP_VERIFY_TOKEN` | Webhook verify token | Same |
 | `CALLS_MODE` | `browser` | `live` |
-| `ELEVENLABS_API_KEY` | Platform key, for browser calls and tour audio | Same |
+| `ELEVENLABS_API_KEY` | Platform key, for the demo browser call and tour audio | Same |
 | `ELEVENLABS_PHONE_NUMBER_ID` | Empty | Twilio number id in ElevenLabs |
 | `ELEVENLABS_AGENT_ID` | Optional. Created on boot when empty | Same |
 | `ELEVENLABS_WEBHOOK_SECRET` | Set when call outcomes should close orders | Same |

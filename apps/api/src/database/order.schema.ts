@@ -144,6 +144,15 @@ export class Order {
   @Prop({ default: '' })
   callConversationId!: string;
 
+  /** One seller-requested call after autopilot. Absent until Try one more call. */
+  @Prop({ type: Object, default: null })
+  extraCall!: {
+    at: string;
+    mode: 'phone' | 'simulated';
+    outcome: 'calling' | 'confirmed' | 'address' | 'cancelled' | 'no_answer' | 'simulated' | 'prepaid';
+    conversationId: string;
+  } | null;
+
   @Prop({ type: Date, default: null })
   addressFixedAt!: Date | null;
 }

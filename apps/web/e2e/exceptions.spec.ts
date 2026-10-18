@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 const OWNER = { email: 'e2e-owner@shop.test', password: 'e2e-owner-pass' };
@@ -68,6 +69,26 @@ test('exceptions use the results frame, and a phone opens a detail page', async 
   await expect(page.locator('[data-tour="exception-action"]').getByRole('button', { name: 'Confirm' })).toBeVisible();
   await expect(page.locator('[data-tour="exception-action"]').getByRole('button', { name: 'Cancel' })).toBeVisible();
   await expect(page.locator('[data-tour="exception-action"]').getByRole('link', { name: 'Open' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try one more call' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Call the buyer' })).toHaveCount(0);
+  await expect(page.locator('[data-autopilot-calls]')).toContainText(/Autopilot called|Autopilot has not called/);
+  const extra = page.getByRole('button', { name: 'Try one more call' });
+  if (await extra.isEnabled()) await extra.click();
+  const result = page.locator('[data-call-result="simulated"]');
+  await expect(result).toBeVisible();
+  await expect(result).toContainText('Simulated call');
+  await expect(result).toContainText('No answer');
+  await expect(page.locator('[data-tour="exception-action"]').getByRole('button', { name: 'Confirm' })).toBeVisible();
+  await expect(page.locator('[data-tour="exception-action"]').getByRole('button', { name: 'Cancel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try one more call' })).toBeDisabled();
+  await expect(page.getByText('One extra call already used.')).toBeVisible();
+  mkdirSync('/opt/cursor/artifacts/final-polish', { recursive: true });
+  await page.screenshot({ path: '/opt/cursor/artifacts/final-polish/extra-call-desktop.png' });
+  await page.locator('[data-tour="exception-action"]').getByRole('link', { name: 'Open' }).click();
+  await expect(page).toHaveURL(/\/app\/orders\//);
+  await expect(page.getByRole('button', { name: 'Try one more call' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Call the buyer' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Check pincode' })).toBeVisible();
   expect(firstName).toBeTruthy();
 
   await page.setViewportSize({ width: 390, height: 844 });

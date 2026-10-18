@@ -118,10 +118,15 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hindi: '[curious] Check pincode। इलाका दिखाता है। बैन नहीं, स्कोर नहीं।',
     hinglish: '[curious] Check pincode. Area dikhata hai. Ban nahi. Score nahi.',
   },
-  'call-buyer': {
-    english: '[warm] Call the buyer. The call stays in this browser. Allow the mic.',
-    hindi: '[warm] Call the buyer। कॉल इस ब्राउज़र में रहती है। माइक दें।',
-    hinglish: '[warm] Call the buyer. Call is browser mein rehti hai. Mic allow karo.',
+  'try-one-more-call': {
+    english: '[warm] Try one more call. Autopilot already called. One extra call, then it stops.',
+    hindi: '[warm] Try one more call। ऑटोपायलट पहले कॉल कर चुका है। एक अतिरिक्त कॉल, फिर रुक जाता है।',
+    hinglish: '[warm] Try one more call. Autopilot pehle call kar chuka hai. Ek extra call, phir ruk jaata hai.',
+  },
+  'demo-call': {
+    english: '[warm] Demo: in the real product, RTO Shield calls the buyer automatically. This browser call is only for the demo.',
+    hindi: '[warm] Demo: in the real product, RTO Shield calls the buyer automatically। यह ब्राउज़र कॉल सिर्फ डेमो के लिए है।',
+    hinglish: '[warm] Demo: in the real product, RTO Shield calls the buyer automatically. Yeh browser call sirf demo ke liye hai.',
   },
   'prepaid-offer': {
     english: '[excited] Offer prepaid makes a checkout link. Cash on delivery stays until they pay.',

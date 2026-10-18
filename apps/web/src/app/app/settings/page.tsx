@@ -211,7 +211,7 @@ export default function SettingsPage() {
 
       <Section eyebrow="04 · Calls" title="Voice calls">
         <p className="-mt-2 max-w-xl text-[15px] leading-7 text-ink/70">
-          Calls: by RTO Shield. Open an order that is still running and press Call the buyer. The call stays in this browser. Without a platform voice key, it stays on screen and does not dial.
+          Calls: by RTO Shield. Autopilot calls the buyer. On an exception, Try one more call places one extra call. With calls set to live, that call dials the buyer. In this test setup it is marked Simulated call and does not dial. The demo can still open a browser call so you can talk to the agent.
         </p>
       </Section>
 

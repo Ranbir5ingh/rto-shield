@@ -22,6 +22,7 @@ import { assertSafeVoiceScript, templateMessage, type DraftMessage } from '../co
 import { maskPhone, whatsappNumber } from '../common/phone';
 import { generateSample } from '../common/sample';
 import type { ColumnMapping, ImportInput, ManualOrderInput } from '../common/validation';
+import { AuditEvent } from '../database/audit.schema';
 import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { User, type UserDocument } from '../database/user.schema';
@@ -80,6 +81,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     @Inject(forwardRef(() => ElevenLabsService)) private readonly calls: ElevenLabsService,
     @Inject(forwardRef(() => WhatsAppService)) private readonly whatsapp: WhatsAppService,
     private readonly demo: DemoService,
+    @InjectModel(AuditEvent.name) private readonly audit: Model<AuditEvent>,
   ) {}
 
   onModuleInit() {
@@ -1155,6 +1157,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       interventionWhy: order.interventionWhy || '',
       callState: order.callState || 'idle',
       callDueAt: order.callDueAt,
+      extraCall: order.extraCall
+        ? {
+            at: order.extraCall.at,
+            mode: order.extraCall.mode,
+            outcome: order.extraCall.outcome,
+            conversationId: order.extraCall.conversationId || '',
+          }
+        : null,
       addressFixedAt: order.addressFixedAt,
       exception: order.exception,
       exceptionWhy: order.exceptionWhy || '',
@@ -1366,9 +1376,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async placeCall(user: UserDocument, id: string, browser: boolean) {
+    if (effectiveRole(user) !== 'demo' || !browser) {
+      throw new BadRequestException('RTO Shield places the call. Try one more call is on Exceptions.');
+    }
     const order = await this.findOwned(user, id);
     await this.holdDemo(user, ['demo.call', 'demo.call.browser'], 'The demo has started enough buyer calls for today.');
-    const plan = await this.dial(user, order, browser ? 'browser' : 'auto');
+    const plan = await this.dial(user, order, 'browser');
     if (plan.mode === 'phone' || plan.mode === 'simulated') {
       order.callState = plan.mode === 'simulated' ? 'simulated' : 'called';
       order.callConversationId = plan.conversationId;
@@ -1379,10 +1392,50 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       );
       await order.save();
     }
-    if (effectiveRole(user) === 'demo') {
-      await this.demo.note(user, plan.mode === 'phone' ? 'demo.call' : 'demo.call.browser', String(order._id), { mode: plan.mode });
-    }
+    await this.demo.note(user, plan.mode === 'phone' ? 'demo.call' : 'demo.call.browser', String(order._id), { mode: plan.mode });
     return { ...plan, order: this.toDetail(user, order) };
+  }
+
+  /**
+   * One extra platform call from Exceptions. Live dials. Browser and simulated
+   * modes record a Simulated call and do not return a signed URL.
+   */
+  async tryOneMoreCall(user: UserDocument, id: string) {
+    const order = await this.findOwned(user, id);
+    if (order.stage === 'closed') throw new BadRequestException('This order is already closed.');
+    if (order.extraCall) throw new BadRequestException('One extra call already used.');
+    await this.holdDemo(user, ['demo.call', 'demo.call.browser'], 'The demo has started enough buyer calls for today.');
+    const plan = await this.dial(user, order, 'phone');
+    const at = new Date().toISOString();
+    if (plan.mode === 'phone') {
+      order.extraCall = { at, mode: 'phone', outcome: 'calling', conversationId: plan.conversationId || '' };
+      order.callConversationId = plan.conversationId || order.callConversationId;
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Extra call placed');
+    } else {
+      order.extraCall = {
+        at,
+        mode: 'simulated',
+        outcome: 'simulated',
+        conversationId: plan.conversationId || '',
+      };
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Simulated call. The buyer was not dialed.');
+    }
+    await order.save();
+    await this.audit.create({
+      sellerId: user._id,
+      action: 'call.extra',
+      orderId: String(order._id),
+      meta: { mode: order.extraCall.mode, outcome: order.extraCall.outcome },
+    });
+    if (effectiveRole(user) === 'demo') {
+      await this.demo.note(user, 'demo.call', String(order._id), { mode: order.extraCall.mode });
+    }
+    return {
+      result: order.extraCall.outcome,
+      mode: order.extraCall.mode,
+      notice: order.extraCall.outcome === 'simulated' ? 'Simulated call. The buyer was not dialed.' : null,
+      order: this.toDetail(user, order),
+    };
   }
 
   async escalate(user: UserDocument, id: string) {
@@ -1400,6 +1453,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) return;
     const user = await this.users.findById(order.sellerId);
     if (!user) return;
+    if (order.extraCall?.outcome === 'calling') {
+      if (!this.extraPending(order, parsed.conversationId)) return;
+      order.callConversationId = parsed.conversationId || order.callConversationId;
+      await this.finishExtraCall(user, order, parsed);
+      return;
+    }
     order.callConversationId = parsed.conversationId || order.callConversationId;
     order.callState = 'called';
     order.timeline = pushTimeline(order.timeline, 'call', `Call finished: ${parsed.outcome}`);
@@ -1441,6 +1500,87 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       order.intervention = 'hold_review';
       order.interventionWhy = 'The call did not confirm the order. Hold it for the seller.';
     }
+    await order.save();
+  }
+
+  private extraPending(order: OrderDocument, conversationId: string) {
+    const extra = order.extraCall;
+    if (!extra || extra.outcome !== 'calling') return false;
+    if (extra.conversationId && conversationId && extra.conversationId !== conversationId) return false;
+    return true;
+  }
+
+  /** Drop the fields that keep a stopped order on Exceptions. */
+  private leaveExceptions(order: OrderDocument) {
+    order.exception = null;
+    order.exceptionWhy = '';
+    if (order.intervention === 'hold_review') order.intervention = 'confirm';
+    if (order.callState === 'due' || order.callState === 'called' || order.callState === 'simulated') order.callState = 'held';
+    if (order.whatsappStatus === 'failed') order.whatsappStatus = 'read';
+  }
+
+  private async finishExtraCall(
+    user: UserDocument,
+    order: OrderDocument,
+    parsed: { outcome: string; landmark: string; address: string },
+  ) {
+    const extra = order.extraCall;
+    if (!extra) return;
+    const stamp = (outcome: NonNullable<OrderDocument['extraCall']>['outcome']) => {
+      order.extraCall = { ...extra, outcome };
+    };
+    if (parsed.outcome === 'confirmed') {
+      stamp('confirmed');
+      order.outcome = 'confirmed';
+      order.stage = 'closed';
+      this.leaveExceptions(order);
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Confirmed');
+      await order.save();
+      return;
+    }
+    if (parsed.outcome === 'cancelled') {
+      stamp('cancelled');
+      order.outcome = 'cancelled';
+      order.stage = 'closed';
+      this.leaveExceptions(order);
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Cancelled');
+      await order.save();
+      if (order.shopifyGid) {
+        void this.shopify.cancelOrder(user, order.shopifyGid).catch((error: unknown) => {
+          this.logger.warn(`Cancel after call missed: ${error instanceof Error ? error.name : 'error'}`);
+        });
+      }
+      return;
+    }
+    if (parsed.outcome === 'address') {
+      stamp('address');
+      this.leaveExceptions(order);
+      order.intervention = 'confirm';
+      order.interventionWhy = 'Address updated from the call. Confirm before it ships.';
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Address changed');
+      await order.save();
+      const line = [parsed.address, parsed.landmark].filter(Boolean).join(', ').slice(0, 300);
+      if (line) {
+        await this.writeStructuredAddress(user, order, {
+          street: (parsed.address || line).slice(0, 160),
+          landmark: parsed.landmark || '',
+          city: order.city,
+          state: order.state,
+          pin: order.pincode,
+        }, 'call');
+      }
+      return;
+    }
+    if (parsed.outcome === 'prepaid') {
+      stamp('prepaid');
+      this.leaveExceptions(order);
+      order.timeline = pushTimeline(order.timeline, 'extra_call', 'Buyer asked to pay now');
+      await order.save();
+      await this.offerPrepaid(user, String(order._id));
+      return;
+    }
+    stamp('no_answer');
+    order.timeline = pushTimeline(order.timeline, 'extra_call', 'No answer');
     await order.save();
   }
 

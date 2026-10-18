@@ -77,6 +77,12 @@ export interface OrderSummary {
   interventionWhy?: string;
   callState?: 'idle' | 'due' | 'called' | 'simulated' | 'held';
   callDueAt?: string | null;
+  extraCall?: {
+    at: string;
+    mode: 'phone' | 'simulated';
+    outcome: 'calling' | 'confirmed' | 'address' | 'cancelled' | 'no_answer' | 'simulated' | 'prepaid';
+    conversationId?: string;
+  } | null;
   addressFixedAt?: string | null;
   exception?: 'address' | 'template_pending' | 'send' | 'call' | 'shopify' | null;
   exceptionWhy?: string;

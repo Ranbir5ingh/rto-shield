@@ -18,7 +18,7 @@ export type CallKind = 'simulated' | 'browser' | 'phone';
 
 const SIMULATED = 'Simulated call. The buyer was not dialed.';
 
-/** Free test mode is browser for the button and simulated for outbound. live dials only with a phone number id. */
+/** Outbound calls (autopilot and Try one more call) are simulated unless live can dial. A browser signed URL is only the demo call. */
 export function planCall(input: CallDecisionInput): { kind: CallKind; notice: string | null } {
   if (input.mode === 'simulated') return { kind: 'simulated', notice: SIMULATED };
   const outbound = input.prefer === 'phone';
