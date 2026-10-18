@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { observedClientIp } from '@/lib/proxy-client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   request.headers.forEach((value, key) => {
     if (!HOP.has(key.toLowerCase())) headers.set(key, value);
   });
+  // Render's proxy replaces the chain, so Express would otherwise see Vercel's egress IP.
+  const client = observedClientIp(request.headers.get('x-forwarded-for'), request.headers.get('x-real-ip'));
+  if (client) headers.set('x-rto-client-ip', client);
   const init: RequestInit = {
     method: request.method,
     headers,

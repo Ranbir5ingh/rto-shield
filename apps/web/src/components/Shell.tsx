@@ -463,6 +463,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function StatusStrip({ status }: { status: Integrations | null }) {
+  // The yellow strip is a local setup hint. Production logs the same lines on the API.
+  if (process.env.NODE_ENV === 'production') return null;
   if (!status) return null;
   const notes = [
     status.encryption === 'development-fallback' ? 'Encryption key is unset. Set ENCRYPTION_KEY before real buyer data.' : null,

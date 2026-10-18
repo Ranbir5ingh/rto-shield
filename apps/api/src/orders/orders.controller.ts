@@ -131,7 +131,7 @@ export class OrdersController {
     @Body(new ZodValidationPipe(callSchema)) body: { browser?: boolean },
     @Req() req: Request,
   ) {
-    return this.orders.placeCall(user, id, Boolean(body.browser), clientIp(req.ip, req.headers['x-forwarded-for']));
+    return this.orders.placeCall(user, id, Boolean(body.browser), clientIp(req.ip, req.headers['x-forwarded-for'], req.headers['x-rto-client-ip']));
   }
 
   @Post('orders/:id/extra-call')

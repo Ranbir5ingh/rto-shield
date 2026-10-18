@@ -62,9 +62,23 @@ export function hashDemoIp(ip: string): string {
 export const DEMO_CALL_WINDOW_MS = 30 * 60 * 1000;
 export const DEMO_CALL_WINDOW_CAP = 2;
 
-export function clientIp(ip: string | undefined, forwarded: string | string[] | undefined): string {
-  const raw = ip || (Array.isArray(forwarded) ? forwarded[0] : forwarded) || '';
-  return String(raw).split(',')[0].trim();
+function headerHop(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return String(raw || '').split(',')[0].trim();
+}
+
+/**
+ * The browser IP for a demo call.
+ * Our web proxy sets `x-rto-client-ip` to the first X-Forwarded-For hop it saw.
+ * Express `req.ip` is only the fallback: behind Render that is often the Vercel egress, and a
+ * direct caller can put anything in X-Forwarded-For, so that header is not trusted on its own.
+ */
+export function clientIp(
+  ip: string | undefined,
+  forwarded: string | string[] | undefined,
+  proxyClient?: string | string[] | undefined,
+): string {
+  return headerHop(proxyClient) || headerHop(ip) || headerHop(forwarded);
 }
 
 export interface DemoCallStamp {

@@ -61,11 +61,6 @@ test('public and app pages stay quiet, and the docks match their surfaces', asyn
   const sections = await page.locator('#gap, #chapters, #model, #pricing, #faq').count();
   expect(sections).toBe(5);
 
-  if (desktop) {
-    mkdirSync('../../docs/screenshots', { recursive: true });
-    await page.screenshot({ path: '../../docs/screenshots/landing.png' });
-  }
-
   await page.goto('/login');
   await page.getByLabel('Email').fill(OWNER.email);
   await page.getByLabel('Password').fill(OWNER.password);
@@ -73,18 +68,12 @@ test('public and app pages stay quiet, and the docks match their surfaces', asyn
   await expect(page).toHaveURL(/\/app/);
   await dismissTour(page);
 
-  const shots: Record<string, string> = {
-    '/app': '../../docs/screenshots/results.png',
-    '/app/queue': '../../docs/screenshots/exceptions.png',
-    '/app/settings': '../../docs/screenshots/settings.png',
-  };
   for (const route of APP) {
     await page.goto(route);
     await dismissTour(page);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
-    if (desktop && shots[route]) await page.screenshot({ path: shots[route] });
   }
 
   if (!desktop) {

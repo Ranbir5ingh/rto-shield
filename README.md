@@ -8,7 +8,7 @@ Suggested price: ₹499 a month. This build does not take a card.
 
 ## The problem
 
-A refused cash-on-delivery parcel in India still costs the return trip. RTO Shield uses **₹150** as the default cost of one return-to-origin. The shop can change that number. Results estimates rupees saved as risky orders the shop cancelled, times that cost. It is a planning figure, not a payout.
+A refused cash-on-delivery parcel in India still costs the return trip. RTO Shield uses **₹150** as the default cost of the shipping on one return-to-origin. The shop can change that number. Results counts rupees prevented as converted and cancelled risky orders, plus shipping. It is a planning figure, not a payout.
 
 The buyer is asked before the parcel ships. A bad address is checked. A silent buyer gets a call. The orders that still need a person land on Exceptions.
 
@@ -79,7 +79,11 @@ Phones and street addresses are encrypted at rest. Lists mask the phone. The sco
 
 ![Exceptions](docs/screenshots/exceptions.png)
 
+![Activity](docs/screenshots/activity.png)
+
 ![Settings](docs/screenshots/settings.png)
+
+![Results on a phone](docs/screenshots/mobile.png)
 
 ## Tech stack
 

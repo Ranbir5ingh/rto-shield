@@ -25,7 +25,7 @@ export class DemoController {
 
   @Get('demo/call-budget')
   callBudget(@CurrentUser() user: UserDocument, @Req() req: Request) {
-    return this.demo.demoCallBudget(user, clientIp(req.ip, req.headers['x-forwarded-for']));
+    return this.demo.demoCallBudget(user, clientIp(req.ip, req.headers['x-forwarded-for'], req.headers['x-rto-client-ip']));
   }
 
   @Post('tours/complete')

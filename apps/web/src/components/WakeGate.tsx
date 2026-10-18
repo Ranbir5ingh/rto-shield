@@ -118,10 +118,9 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
   const needsApi = routeNeedsApi(pathname);
   const [attempt, setAttempt] = useState(0);
-  const [session, setSession] = useState<WakeSession>(() => {
-    const current = loadWakeSession();
-    return current === 'exiting' ? saveWakeSession('done') : current;
-  });
+  // Start idle on the server and the first client paint. Reading sessionStorage
+  // here changes the tree after a previous visit (React #418) on every page.
+  const [session, setSession] = useState<WakeSession>('idle');
   const [snap, setSnap] = useState<WakeSnapshot>(EMPTY);
   const [elapsed, setElapsed] = useState(0);
   const [gateHost, setGateHost] = useState(false);
@@ -231,7 +230,7 @@ export function WakeGate({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div style={{ display: showPage ? 'contents' : 'none' }}>{showPage ? children : null}</div>
+      {showPage ? children : null}
       {showOverlay ? (
         <WakeScreen
           key="wake"

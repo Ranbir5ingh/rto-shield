@@ -38,7 +38,11 @@ export default function WhatsAppGuidePage() {
     <div>
       <SiteHeader />
       <article className="mx-auto max-w-3xl px-5 pb-28 pt-16 sm:px-8 md:pb-16 md:pt-32">
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+        />
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">Guide</p>
         <h1 className="mt-3 font-display text-[clamp(1.8rem,6vw,3rem)] font-black uppercase leading-[0.95]">Your own number is optional</h1>
         <p className="mt-4 text-base leading-7 text-ink/80">

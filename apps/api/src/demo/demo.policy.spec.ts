@@ -1,5 +1,5 @@
 import { whatsappAllowlist } from './demo-send';
-import { demoAllows, demoCallWindow, effectiveRole, isDemoSession, isOfficialDemoAccount } from './demo.policy';
+import { clientIp, demoAllows, demoCallWindow, effectiveRole, isDemoSession, isOfficialDemoAccount } from './demo.policy';
 
 describe('demo policy', () => {
   const previous = process.env.DEMO_ACCOUNT_EMAIL;
@@ -63,6 +63,14 @@ describe('demo policy', () => {
     expect(demoAllows('POST', '/api/orders/sample')).toBe(false);
     expect(demoAllows('POST', '/api/orders/import')).toBe(false);
     expect(demoAllows('GET', '/api/account/export')).toBe(false);
+  });
+
+  it('uses the browser IP marked by the web proxy, not the Vercel hop Express sees', () => {
+    expect(clientIp('76.76.21.21', '76.76.21.21', '203.0.113.9')).toBe('203.0.113.9');
+    expect(clientIp('76.76.21.21', '203.0.113.9, 76.76.21.21', '203.0.113.9, 76.76.21.21')).toBe('203.0.113.9');
+    expect(clientIp('203.0.113.8', '198.51.100.4, 203.0.113.8')).toBe('203.0.113.8');
+    expect(clientIp(undefined, '203.0.113.7')).toBe('203.0.113.7');
+    expect(clientIp(undefined, undefined, undefined)).toBe('');
   });
 
   it('allows two demo calls per half hour for a session and for an IP', () => {
