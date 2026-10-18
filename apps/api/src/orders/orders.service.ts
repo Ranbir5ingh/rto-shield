@@ -39,6 +39,7 @@ import { sessionOpen } from '../whatsapp/whatsapp-templates';
 import { actionLocked, buyerReplied, chooseIntervention, outreachStarted, pushTimeline, reductionSettings } from './action';
 import { DEMO_DEV_ADDRESS, isRtoTestGid } from './demo-address';
 import {
+  addressFixSkipDetail,
   askGeminiForAddress,
   fetchIndiaPost,
   matchPostOffices,
@@ -418,15 +419,18 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       }
       const offices = new Map<string, Awaited<ReturnType<typeof fetchIndiaPost>> | null>();
       const lookup = async (pin: string, force = false) => {
-        if (offices.has(pin)) return offices.get(pin) || [];
-        if (!force && offices.size >= 4) return [];
+        if (offices.has(pin)) {
+          const rows = offices.get(pin);
+          return rows ? { rows, why: '' } : { rows: [], why: 'India Post did not answer for this pin' };
+        }
+        if (!force && offices.size >= 4) return { rows: [], why: 'India Post lookup was skipped after checking other pins' };
         try {
           const rows = await fetchIndiaPost(pin, fetch, 2_500);
           offices.set(pin, rows);
-          return rows;
+          return { rows, why: '' };
         } catch {
           offices.set(pin, null);
-          return [];
+          return { rows: [], why: 'India Post did not answer for this pin' };
         }
       };
       const writeOutcome = async (order: OrderDocument, fields: Record<string, unknown>) => {
@@ -450,8 +454,16 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
                 state: order.state || '',
                 pin: order.pincode || '',
               };
-          const matched = matchPostOffices(parsed, await lookup(parsed.pin, live));
-          if (!matched.ok) continue;
+          const found = await lookup(parsed.pin, live);
+          const matched = found.why ? { ok: false as const, why: found.why } : matchPostOffices(parsed, found.rows);
+          if (!matched.ok) {
+            const detail = addressFixSkipDetail(matched.why);
+            this.logger.warn(`${detail} (${order.externalOrderId || 'order'})`);
+            await writeOutcome(order, {
+              timeline: pushTimeline(order.timeline, 'address', detail),
+            });
+            continue;
+          }
           if (live) {
             try {
               await this.shopify.updateShippingAddress(

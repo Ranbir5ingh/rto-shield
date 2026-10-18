@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { metaSignature } from '@rto/vault';
@@ -51,7 +51,7 @@ describe('buyer address replies write Shopify', () => {
     global.fetch = originalFetch;
   });
 
-  function installFetch() {
+  function installFetch(postOffice?: Array<Record<string, string>>) {
     calls = [];
     global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -69,7 +69,7 @@ describe('buyer address replies write Shopify', () => {
         return Response.json([
           {
             Status: 'Success',
-            PostOffice: [{ Name: 'Indiranagar', District: 'Bengaluru', State: 'Karnataka', Block: 'Bangalore North', Division: 'Bengaluru East' }],
+            PostOffice: postOffice || [{ Name: 'Indiranagar', District: 'Bengaluru', State: 'Karnataka', Block: 'Bangalore North', Division: 'Bengaluru East' }],
           },
         ]);
       }
@@ -432,5 +432,123 @@ describe('buyer address replies write Shopify', () => {
     expect(calls.some((call) => call.body.includes('rto-address-fixed') && call.body.includes('gid://shopify/Order/1'))).toBe(true);
     expect(calls.some((call) => /gid:\/\/shopify\/Order\/[2-5]/.test(call.body) && /orderUpdate|tagsAdd/.test(call.body))).toBe(false);
     expect(calls.some((call) => call.url.includes('graph.facebook.com') || call.url.includes('whatsapp'))).toBe(false);
+    expect(calls.some((call) => call.body.includes('tag:rto-test') && call.body.includes('pageInfo') && call.body.includes('endCursor'))).toBe(true);
+  });
+
+  it('fixes a Bengaluru order when India Post still says Bangalore', async () => {
+    installFetch([{ Name: 'Indiranagar S.O', District: 'Bangalore', State: 'Karnataka', Division: 'Bangalore East' }]);
+    const agent = request.agent(app.getHttpServer());
+    const signupToken = await csrf(agent);
+    await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', signupToken)
+      .send({ email: 'alias-demo@shop.test', password: 'supersecret', name: 'Demo', shopName: 'Alias Demo' })
+      .expect(201);
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const orders = app.get<Model<Order>>(getModelToken(Order.name));
+    const vault = app.get(VaultService);
+    const owner = await users.findOne({ email: 'alias-demo@shop.test' });
+    owner!.shopify = {
+      shopDomain: SHOP,
+      demo: true,
+      scopes: 'read_orders,write_orders,read_fulfillments,read_customers',
+      tokenEnvelope: vault.seal(TOKEN),
+      installedAt: new Date().toISOString(),
+      uninstalledAt: null,
+      backfill: { status: 'done', processed: 1, total: 1, error: null },
+      riskTags: { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' },
+      rtoTag: 'RTO',
+      autoCancelOnBuyerCancel: false,
+    };
+    await owner!.save();
+    await orders.create({
+      sellerId: owner!._id,
+      buyerNameEnc: 'enc',
+      phoneEnc: 'enc',
+      phoneMasked: '98••••01',
+      addressEnc: 'enc',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '560038',
+      orderValue: 800,
+      paymentType: 'cod',
+      orderedAt: new Date(),
+      hour: 10,
+      stage: 'pending',
+      outcome: null,
+      source: 'shopify',
+      externalOrderId: '#1047',
+      shopifyGid: 'gid://shopify/Order/1',
+    });
+    await agent.get('/api/dashboard').expect(200);
+    const fixed = await orders.findOne({ sellerId: owner!._id, externalOrderId: '#1047' });
+    expect(fixed?.pincode).toBe('560038');
+    expect(fixed?.city).toBe('Bengaluru');
+    expect(fixed?.addressFixedAt).toBeTruthy();
+    expect(fixed?.timeline.map((step) => step.detail).join(' ')).toMatch(/India Post/);
+    expect(fixed?.timeline.map((step) => step.detail).join(' ')).not.toMatch(/skipped/i);
+  });
+
+  it('records why an address fix was skipped', async () => {
+    installFetch([{ Name: 'Colaba', District: 'Mumbai', State: 'Maharashtra' }]);
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    const agent = request.agent(app.getHttpServer());
+    const signupToken = await csrf(agent);
+    await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', signupToken)
+      .send({ email: 'skip-demo@shop.test', password: 'supersecret', name: 'Demo', shopName: 'Skip Demo' })
+      .expect(201);
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const orders = app.get<Model<Order>>(getModelToken(Order.name));
+    const vault = app.get(VaultService);
+    const owner = await users.findOne({ email: 'skip-demo@shop.test' });
+    owner!.shopify = {
+      shopDomain: SHOP,
+      demo: true,
+      scopes: 'read_orders,write_orders,read_fulfillments,read_customers',
+      tokenEnvelope: vault.seal(TOKEN),
+      installedAt: new Date().toISOString(),
+      uninstalledAt: null,
+      backfill: { status: 'done', processed: 1, total: 1, error: null },
+      riskTags: { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' },
+      rtoTag: 'RTO',
+      autoCancelOnBuyerCancel: false,
+    };
+    await owner!.save();
+    await orders.create({
+      sellerId: owner!._id,
+      buyerNameEnc: 'enc',
+      phoneEnc: 'enc',
+      phoneMasked: '98••••01',
+      addressEnc: 'enc',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '560038',
+      orderValue: 800,
+      paymentType: 'cod',
+      orderedAt: new Date(),
+      hour: 10,
+      stage: 'pending',
+      outcome: null,
+      source: 'shopify',
+      externalOrderId: '#1047',
+      shopifyGid: 'gid://shopify/Order/1',
+    });
+    await agent.get('/api/dashboard').expect(200);
+    const skipped = await orders.findOne({ sellerId: owner!._id, externalOrderId: '#1047' });
+    expect(skipped?.addressFixedAt).toBeNull();
+    expect(skipped?.pincode).toBe('560038');
+    const detail = skipped?.timeline.map((step) => step.detail).join(' ') || '';
+    expect(detail).toMatch(/Address fix skipped/);
+    expect(detail).toMatch(/Bengaluru/);
+    expect(detail).toMatch(/Mumbai/);
+    const activity = await agent.get('/api/activity').expect(200);
+    const events = (activity.body.events as Array<{ detail: string }>).map((event) => event.detail).join(' ');
+    expect(events).toMatch(/Address fix skipped/);
+    expect(events).toMatch(/Bengaluru/);
+    expect(warn.mock.calls.some((args) => String(args[0]).includes('Address fix skipped') && String(args[0]).includes('#1047'))).toBe(true);
+    expect(calls.some((call) => call.body.includes('orderUpdate'))).toBe(false);
+    warn.mockRestore();
   });
 });

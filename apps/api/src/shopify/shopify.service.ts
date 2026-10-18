@@ -26,6 +26,7 @@ import {
 } from './shopify-errors';
 import { pushTimeline } from '../orders/action';
 import { backfillSince, mapGraphqlOrder, mapRestOrder, normalizeShop, shopifyOutcomeUpdate, staleRiskTags, type MappedOrder } from './shopify-map';
+import { collectRtoTestOrderGids, type RtoTestOrderConnection } from './rto-test-orders';
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-10';
 
@@ -228,16 +229,14 @@ export class ShopifyService {
     const token = this.tokenFor(user, true);
     const shop = user.shopify?.shopDomain;
     if (!token || !shop) return new Set();
-    const data = await this.graphql<{
-      orders?: { edges?: Array<{ node?: { id?: string | null; tags?: string[] | null } | null }> };
-    }>(shop, token, `query { orders(first: 50, query: "tag:rto-test") { edges { node { id tags } } } }`, {});
-    const ids = new Set<string>();
-    for (const edge of data.orders?.edges || []) {
-      const id = edge.node?.id || '';
-      const tags = Array.isArray(edge.node?.tags) ? edge.node.tags : [];
-      if (id && tags.some((tag) => tag.trim().toLowerCase() === 'rto-test')) ids.add(id);
-    }
-    return ids;
+    return collectRtoTestOrderGids((cursor) =>
+      this.graphql<RtoTestOrderConnection>(
+        shop,
+        token,
+        `query($cursor: String) { orders(first: 50, after: $cursor, query: "tag:rto-test", sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor } edges { node { id tags } } } }`,
+        { cursor },
+      ),
+    );
   }
 
   startBackfill(user: UserDocument) {

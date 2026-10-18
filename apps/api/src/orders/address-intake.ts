@@ -54,14 +54,100 @@ export function normPlace(value: string) {
   return value.toLowerCase().replace(/[^a-z]/g, '');
 }
 
+/** Official and common names for the same place. Compared after letters-only normalization. */
+const PLACE_ALIAS_GROUPS = [
+  ['bengaluru', 'bangalore', 'bengalooru'],
+  ['mumbai', 'bombay'],
+  ['gurugram', 'gurgaon'],
+  ['kolkata', 'calcutta'],
+  ['chennai', 'madras'],
+  ['prayagraj', 'allahabad'],
+  ['pune', 'poona'],
+  ['kochi', 'cochin'],
+  ['thiruvananthapuram', 'trivandrum'],
+  ['kozhikode', 'calicut'],
+  ['vadodara', 'baroda'],
+  ['varanasi', 'benares', 'banaras'],
+  ['mysuru', 'mysore'],
+  ['mangaluru', 'mangalore'],
+  ['hubballi', 'hubli'],
+  ['belagavi', 'belgaum'],
+  ['shivamogga', 'shimoga'],
+  ['kalaburagi', 'gulbarga'],
+  ['vijayapura', 'bijapur'],
+  ['ballari', 'bellary'],
+  ['tumakuru', 'tumkur'],
+  ['delhi', 'newdelhi'],
+  ['panaji', 'panjim'],
+  ['kannur', 'cannanore'],
+  ['alappuzha', 'alleppey'],
+  ['kollam', 'quilon'],
+  ['thrissur', 'trichur'],
+  ['palakkad', 'palghat'],
+  ['thoothukudi', 'tuticorin'],
+  ['tiruchirappalli', 'tiruchirapalli', 'trichy'],
+  ['visakhapatnam', 'vizag'],
+  ['vijayawada', 'bezwada'],
+  ['rajamahendravaram', 'rajahmundry'],
+  ['kadapa', 'cuddapah'],
+  ['shimla', 'simla'],
+  ['udhagamandalam', 'ootacamund', 'ooty'],
+  ['puducherry', 'pondicherry'],
+  ['kanpur', 'cawnpore'],
+  ['jabalpur', 'jubbulpore'],
+  ['odisha', 'orissa'],
+  ['uttarakhand', 'uttaranchal'],
+] as const;
+
+const PLACE_ALIAS = new Map<string, string>();
+for (const group of PLACE_ALIAS_GROUPS) {
+  const canon = group[0];
+  for (const name of group) PLACE_ALIAS.set(name, canon);
+}
+
+function canonPlace(value: string) {
+  const key = normPlace(value);
+  if (!key) return '';
+  const exact = PLACE_ALIAS.get(key);
+  if (exact) return exact;
+  for (const [alias, canon] of PLACE_ALIAS) {
+    if (alias.length >= 4 && (key.startsWith(alias) || key.endsWith(alias))) return canon;
+  }
+  return key;
+}
+
 function placeMatch(wanted: string, candidates: Array<string | undefined>) {
   const needle = normPlace(wanted);
   if (!needle) return false;
+  const needleCanon = canonPlace(wanted);
   return candidates.some((candidate) => {
     const hay = normPlace(candidate || '');
     if (!hay) return false;
-    return hay === needle || hay.includes(needle) || needle.includes(hay);
+    if (hay === needle || hay.includes(needle) || needle.includes(hay)) return true;
+    const hayCanon = canonPlace(candidate || '');
+    return Boolean(needleCanon && hayCanon && needleCanon === hayCanon);
   });
+}
+
+function listedPlaces(offices: PostOffice[], fields: Array<keyof PostOffice>) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const office of offices) {
+    for (const field of fields) {
+      const text = String(office[field] || '').replace(/\s+/g, ' ').trim();
+      const key = normPlace(text);
+      if (!text || !key || seen.has(key)) continue;
+      seen.add(key);
+      names.push(text);
+      if (names.length >= 4) return names.join(', ');
+    }
+  }
+  return names.join(', ') || 'nothing India Post recognises';
+}
+
+export function addressFixSkipDetail(why: string) {
+  const reason = why.trim() || 'India Post did not confirm the address';
+  return `Address fix skipped: ${reason}`;
 }
 
 export function matchPostOffices(
@@ -73,13 +159,31 @@ export function matchPostOffices(
   const cityWanted = parsed.city.trim();
   const stateWanted = parsed.state.trim();
   const cityOffices = cityWanted
-    ? offices.filter((office) => placeMatch(cityWanted, [office.Name, office.District, office.Block, office.Division]))
+    ? offices.filter((office) =>
+        placeMatch(cityWanted, [
+          office.Name,
+          office.District,
+          office.Block,
+          office.Division,
+          office.State,
+        ]),
+      )
     : offices;
-  if (cityWanted && !cityOffices.length) return { ok: false, why: 'The city does not match this pin' };
+  if (cityWanted && !cityOffices.length) {
+    return {
+      ok: false,
+      why: `The city does not match this pin (${cityWanted} vs ${listedPlaces(offices, ['District', 'Name', 'State'])})`,
+    };
+  }
   const stateOffices = stateWanted
-    ? cityOffices.filter((office) => placeMatch(stateWanted, [office.State]))
+    ? cityOffices.filter((office) => placeMatch(stateWanted, [office.State, office.District]))
     : cityOffices;
-  if (stateWanted && !stateOffices.length) return { ok: false, why: 'The state does not match this pin' };
+  if (stateWanted && !stateOffices.length) {
+    return {
+      ok: false,
+      why: `The state does not match this pin (${stateWanted} vs ${listedPlaces(offices, ['State', 'District'])})`,
+    };
+  }
   const office = stateOffices[0] || cityOffices[0];
   if (!parsed.street && !parsed.landmark) return { ok: false, why: 'The reply had no street' };
   return {
