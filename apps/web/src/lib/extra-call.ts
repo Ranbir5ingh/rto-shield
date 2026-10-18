@@ -1,6 +1,34 @@
 export const EXTRA_CALL_LABEL = 'Try one more call';
 export const EXTRA_CALL_USED = 'One extra call already used.';
 export const DEMO_CALL_LABEL = 'Demo: in the real product, RTO Shield calls the buyer automatically.';
+export const RESET_CALL_LABEL = 'Reset call';
+
+export interface DemoCallBudget {
+  applies: boolean;
+  cap: number;
+  remaining: number;
+  resetsAt: string | null;
+  windowMinutes: number;
+}
+
+function clock(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${suffix}`;
+}
+
+/** Remaining demo calls in the half-hour window, plus when the next slot opens. */
+export function demoCallBudgetLine(budget: Pick<DemoCallBudget, 'remaining' | 'cap' | 'resetsAt'>): string {
+  const left = budget.remaining === 1 ? '1 demo call left' : `${Math.max(0, budget.remaining)} demo calls left`;
+  const when = budget.resetsAt && budget.remaining < budget.cap ? clock(budget.resetsAt) : '';
+  if (budget.remaining <= 0) return when ? `No demo calls left. Resets at ${when}.` : 'No demo calls left this half hour.';
+  if (!when) return `${left} this half hour.`;
+  return `${left}. Resets at ${when}.`;
+}
 
 export interface CallStep {
   step: string;

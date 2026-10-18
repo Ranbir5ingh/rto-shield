@@ -6,10 +6,10 @@ import { LogoMark } from '@/components/Logo';
 import { Dock, type DockItem } from '@/components/Dock';
 
 const sections = [
-  { id: 'gap', href: '/#gap', label: 'The gap', short: 'Gap', icon: Compass },
-  { id: 'chapters', href: '/#chapters', label: 'Chapters', short: 'Chap', icon: Rows3 },
-  { id: 'model', href: '/#model', label: 'Try it', short: 'Try', icon: FlaskConical },
-  { id: 'pricing', href: '/#pricing', label: 'Pricing', short: 'Price', icon: Tag },
+  { id: 'gap', href: '/#gap', label: 'Problem', short: 'Why', icon: Compass },
+  { id: 'chapters', href: '/#chapters', label: 'Autopilot', short: 'Auto', icon: Rows3 },
+  { id: 'model', href: '/#model', label: 'Score', short: 'Score', icon: FlaskConical },
+  { id: 'pricing', href: '/#pricing', label: 'Go live', short: 'Live', icon: Tag },
   { id: 'faq', href: '/#faq', label: 'FAQ', short: 'FAQ', icon: CircleHelp },
 ] as const;
 

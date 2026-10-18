@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Req, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
@@ -6,9 +6,10 @@ import { CurrentUser } from '../common/current-user';
 import { Public, SkipCsrf } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import type { UserDocument } from '../database/user.schema';
-import { isDemoSession } from './demo.policy';
+import { clientIp, isDemoSession } from './demo.policy';
 import { tourCompleteSchema } from './demo.validation';
 import { DemoService } from './demo.service';
+import type { Request } from 'express';
 
 function sameSecret(header: string, expected: string) {
   if (!expected || !header || header.length !== expected.length) return false;
@@ -21,6 +22,11 @@ export class DemoController {
     private readonly demo: DemoService,
     private readonly config: ConfigService,
   ) {}
+
+  @Get('demo/call-budget')
+  callBudget(@CurrentUser() user: UserDocument, @Req() req: Request) {
+    return this.demo.demoCallBudget(user, clientIp(req.ip, req.headers['x-forwarded-for']));
+  }
 
   @Post('tours/complete')
   complete(

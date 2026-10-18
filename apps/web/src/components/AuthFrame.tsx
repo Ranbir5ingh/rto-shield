@@ -24,7 +24,7 @@ export function AuthFrame({
         <div className="relative max-w-md">
           <Eyebrow>/Before the tape gun/</Eyebrow>
           <p className="statement mt-6 text-[clamp(1.8rem,3vw,2.6rem)]">
-            Score the order.<br />Confirm the <span className="text-risk">risky</span> ones.<br />Ship the rest.
+            Score the order.<br />Autopilot asks.<br />You see what <span className="text-risk">stops</span>.
           </p>
           <div className="mt-10 border-t border-ink/20">
             {[

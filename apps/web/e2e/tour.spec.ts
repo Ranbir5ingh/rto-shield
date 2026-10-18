@@ -212,6 +212,34 @@ test('try the demo reaches the connected store', async ({ page }) => {
   await expect(page.locator('[data-tour="shopify-connect"]')).toHaveCount(0);
 });
 
+test('a judge can reset the demo call and sees the half-hour budget', async ({ page }) => {
+  await openDemo(page);
+  if (await page.locator('[data-tour-overlay]').isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#tour-card')).toHaveCount(0);
+  }
+  await page.goto('/app/queue');
+  if (await page.locator('[data-tour-overlay]').isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#tour-card')).toHaveCount(0);
+  }
+  await expect(page.getByRole('heading', { level: 1, name: 'Exceptions', exact: true })).toBeVisible();
+  const detail = page.locator('[data-tour="exception-order"]:visible');
+  if ((await detail.count()) === 0) {
+    await page.locator('[data-tour="exceptions"] a').first().click();
+    await expect(page).toHaveURL(/\/app\/queue\/[a-f\d]{24}$/i);
+  }
+  await expect(detail).toHaveCount(1);
+  await expect(detail.getByRole('button', { name: 'Reset call' })).toBeVisible();
+  await expect(detail.locator('[data-demo-calls]')).toHaveText('2 demo calls left this half hour.');
+  await expect(detail.getByRole('button', { name: 'Try one more call' })).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Reset call' }).click();
+  await expect(detail.getByRole('button', { name: 'Start browser call' })).toBeVisible();
+  await expect(detail.locator('[data-demo-calls]')).toHaveText('2 demo calls left this half hour.');
+  mkdirSync('/opt/cursor/artifacts/pre-submission', { recursive: true });
+  await detail.screenshot({ path: `/opt/cursor/artifacts/pre-submission/reset-call-${surfaceOf(page)}.png` });
+});
+
 test('demo walks every tour step', async ({ page }) => {
   test.setTimeout(180_000);
   const steps = toursFor('demo', surfaceOf(page));

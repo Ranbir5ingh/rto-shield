@@ -15,10 +15,13 @@ import {
   DEMO_CALL_LABEL,
   EXTRA_CALL_LABEL,
   EXTRA_CALL_USED,
+  RESET_CALL_LABEL,
   autopilotCallLine,
+  demoCallBudgetLine,
   extraCallResult,
   outcomeAfter,
   type CallResult,
+  type DemoCallBudget,
 } from '@/lib/extra-call';
 import { inr } from '@/lib/format';
 import { invalidateShop, qk, useMe } from '@/lib/queries';
@@ -93,6 +96,9 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
   const [pinState, setPinState] = useState<{ status: PincodeStatus; view?: PincodeView } | null>(null);
   const [live, setLive] = useState<OrderDetail | null>(null);
   const [demoResult, setDemoResult] = useState<CallResult | null>(null);
+  const [callEpoch, setCallEpoch] = useState(0);
+  const [budgetTick, setBudgetTick] = useState(0);
+  const [callBudget, setCallBudget] = useState<DemoCallBudget | null>(null);
   const baseline = useRef(0);
   const pollRef = useRef<number | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -111,6 +117,22 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
     setDemoResult(null);
     if (pollRef.current) window.clearInterval(pollRef.current);
   }, [order?.id]);
+
+  useEffect(() => {
+    if (!demo) {
+      setCallBudget(null);
+      return;
+    }
+    let stop = false;
+    void api<DemoCallBudget>('/demo/call-budget')
+      .then((budget) => {
+        if (!stop) setCallBudget(budget);
+      })
+      .catch(() => undefined);
+    return () => {
+      stop = true;
+    };
+  }, [demo, order?.id, budgetTick]);
 
   useEffect(() => {
     if (!live || !order || live.id !== order.id) return;
@@ -176,6 +198,13 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
         }
       })();
     }, 1500);
+  }
+
+  function resetDemoCall() {
+    setDemoResult(null);
+    setCallEpoch((current) => current + 1);
+    setBudgetTick((current) => current + 1);
+    setCallOpen(true);
   }
 
   function onDemoPlan(plan: { mode: string; notice: string | null; order?: OrderDetail }) {
@@ -271,6 +300,7 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
     }
   }
 
+  const callsLeft = !callBudget?.applies || callBudget.remaining > 0;
   const persisted = extraCallResult(shown?.extraCall?.outcome);
   const result = persisted || demoResult;
 
@@ -320,19 +350,32 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
                     {autopilotCallLine(shown)}
                   </p>
                   {demo ? (
-                    <Button
-                      type="button"
-                      tone="ghost"
-                      className="mt-2 !h-auto !whitespace-normal !px-3 !py-2 !text-left !text-[12px] !normal-case !leading-5 !tracking-normal"
-                      data-tour="demo-call"
-                      onClick={() => {
-                        baseline.current = (shown.timeline || []).length;
-                        remember();
-                        setCallOpen(true);
-                      }}
-                    >
-                      {DEMO_CALL_LABEL}
-                    </Button>
+                    <div className="mt-2">
+                      <div className="flex flex-wrap items-start gap-2">
+                        <Button
+                          type="button"
+                          tone="ghost"
+                          className="!h-auto !whitespace-normal !px-3 !py-2 !text-left !text-[12px] !normal-case !leading-5 !tracking-normal"
+                          data-tour="demo-call"
+                          disabled={!callsLeft}
+                          onClick={() => {
+                            baseline.current = (shown.timeline || []).length;
+                            remember();
+                            setCallOpen(true);
+                          }}
+                        >
+                          {DEMO_CALL_LABEL}
+                        </Button>
+                        <Button type="button" tone="ghost" className="!px-3 !py-2 !text-[11px]" onClick={resetDemoCall}>
+                          {RESET_CALL_LABEL}
+                        </Button>
+                      </div>
+                      {callBudget?.applies ? (
+                        <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft" data-demo-calls>
+                          {demoCallBudgetLine(callBudget)}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : (
                     <>
                       <Button
@@ -358,12 +401,15 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
           {demo && callOpen && shown.stage !== 'closed' ? (
             <div className="mt-4">
               <CallBuyer
-                orderId={shown.id}
-                open
-                label={DEMO_CALL_LABEL}
-                onClose={() => setCallOpen(false)}
-                onPlan={onDemoPlan}
-              />
+              key={callEpoch}
+              orderId={shown.id}
+              open
+              label={DEMO_CALL_LABEL}
+              canStart={callsLeft}
+              onClose={() => setCallOpen(false)}
+              onPlan={onDemoPlan}
+              onSettled={() => setBudgetTick((current) => current + 1)}
+            />
             </div>
           ) : null}
           {result ? <div ref={resultRef}><CallResultBox result={result} /></div> : null}

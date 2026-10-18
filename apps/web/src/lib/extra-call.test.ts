@@ -1,4 +1,4 @@
-import { autopilotAttempts, autopilotCallLine, extraCallResult, outcomeAfter } from './extra-call';
+import { autopilotAttempts, autopilotCallLine, demoCallBudgetLine, extraCallResult, outcomeAfter } from './extra-call';
 
 describe('extra call copy', () => {
   it('counts autopilot attempts and ignores the finished line', () => {
@@ -19,6 +19,14 @@ describe('extra call copy', () => {
     expect(autopilotCallLine({ timeline: [{ step: 'call', detail: 'Outbound call placed' }], callState: 'called' })).toBe('Autopilot called 1 time.');
     expect(autopilotCallLine({ timeline: [], callState: 'idle' })).toBe('Autopilot has not called.');
     expect(autopilotAttempts({ timeline: [], callState: 'held' })).toBe(1);
+  });
+
+  it('shows how many demo calls are left and when the window resets', () => {
+    expect(demoCallBudgetLine({ remaining: 2, cap: 2, resetsAt: null })).toBe('2 demo calls left this half hour.');
+    expect(demoCallBudgetLine({ remaining: 0, cap: 2, resetsAt: null })).toBe('No demo calls left this half hour.');
+    const line = demoCallBudgetLine({ remaining: 1, cap: 2, resetsAt: '2026-10-18T13:15:00.000Z' });
+    expect(line.startsWith('1 demo call left. Resets at ')).toBe(true);
+    expect(line.endsWith('.')).toBe(true);
   });
 
   it('maps the inline result and reads a demo call that landed after the panel opened', () => {

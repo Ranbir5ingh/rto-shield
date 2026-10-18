@@ -24,9 +24,10 @@ export default function PrivacyPage() {
           is never a ban.
         </p>
         <p>
-          Phone numbers are not sent to TabPFN, Gemma, SerpApi, or ElevenLabs. The Hindi voice script is shop name
-          and amount only. Addresses are sent to the platform ML service so it can score quality. From there they
-          reach Gemma only when the platform sets GEMINI_API_KEY or OLLAMA_BASE_URL. Shops do not paste a Gemini key.
+          Scoring does not send the phone, the buyer’s name, or the pincode to TabPFN, Gemma, or SerpApi. A WhatsApp
+          send gives the phone to Meta. A live call gives the phone to ElevenLabs so it can dial. Browser mode and a
+          Simulated call do not dial. Addresses go to the platform ML service for quality, and to Gemini on the API
+          when a reply is parsed. Shops do not paste a Gemini key. Empty Gemini falls back to templates.
         </p>
         <p>
           Ollama is the privacy-max option: Gemma runs on a machine the platform controls, including fully offline.

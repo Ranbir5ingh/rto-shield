@@ -14,8 +14,9 @@ export default function TermsPage() {
             or will not return, and not a judgment on a buyer or a place.
           </p>
           <p>
-            You confirm orders yourself. WhatsApp opens with a draft filled in. RTO Shield does not send the message.
-            Cancelling or shipping stays your decision.
+            Autopilot can message the buyer and place a call. WhatsApp goes out from RTO Shield’s number, with the
+            shop’s name on the template, unless the shop turns on its own number. A score is not a promise, and
+            cancelling or shipping stays the shop’s decision. Exceptions is where a stopped order gets one extra call.
           </p>
           <p>
             The suggested price is ₹499 a month. This build does not take a card. Demo shops are filled with synthetic

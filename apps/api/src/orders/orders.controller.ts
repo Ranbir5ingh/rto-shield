@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { clientIp } from '../demo/demo.policy';
 import { CurrentUser } from '../common/current-user';
 import { Public } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
@@ -128,8 +129,9 @@ export class OrdersController {
     @CurrentUser() user: UserDocument,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(callSchema)) body: { browser?: boolean },
+    @Req() req: Request,
   ) {
-    return this.orders.placeCall(user, id, Boolean(body.browser));
+    return this.orders.placeCall(user, id, Boolean(body.browser), clientIp(req.ip, req.headers['x-forwarded-for']));
   }
 
   @Post('orders/:id/extra-call')

@@ -7,7 +7,7 @@ import { DemoSession } from '../database/demo-session.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { PlatformFlag } from '../database/platform.schema';
 import type { UserDocument } from '../database/user.schema';
-import { demoResetMs, effectiveRole } from './demo.policy';
+import { demoCallWindow, demoResetMs, effectiveRole, hashDemoIp, isDemoSession } from './demo.policy';
 
 const RESET_KEY = 'demo.resetAt';
 
@@ -51,6 +51,57 @@ export class DemoService {
   async note(user: UserDocument, action: string, orderId = '', meta: Record<string, string | number | boolean | null> = {}) {
     if (effectiveRole(user) !== 'demo') return;
     await this.audit.create({ sellerId: user._id, action, orderId, meta });
+  }
+
+  async demoCallBudget(user: UserDocument, ip: string) {
+    if (!isDemoSession(user)) {
+      return { applies: false, cap: 2, remaining: 2, resetsAt: null, windowMinutes: 30 };
+    }
+    const sessionId = typeof user.$locals?.demoSessionId === 'string' ? user.$locals.demoSessionId : '';
+    const ipHash = hashDemoIp(ip || 'unknown');
+    const since = new Date(Date.now() - 30 * 60 * 1000);
+    const rows = await this.audit
+      .find({
+        sellerId: user._id,
+        action: { $in: ['demo.call', 'demo.call.browser'] },
+        at: { $gte: since },
+      })
+      .select('at meta')
+      .lean();
+    const budget = demoCallWindow({
+      now: Date.now(),
+      sessionId,
+      ipHash,
+      calls: rows.map((row) => ({
+        at: new Date(row.at).getTime(),
+        sessionId: String(row.meta?.sessionId || ''),
+        ipHash: String(row.meta?.ipHash || ''),
+      })),
+    });
+    return { applies: true, ...budget };
+  }
+
+  async assertDemoCallWindow(user: UserDocument, ip: string) {
+    const budget = await this.demoCallBudget(user, ip);
+    if (!budget.applies || budget.remaining > 0) return budget;
+    throw new HttpException(
+      {
+        message: 'Two demo calls are used in this half hour.',
+        details: budget,
+      },
+      429,
+    );
+  }
+
+  async recordDemoCall(user: UserDocument, orderId: string, mode: string, ip: string) {
+    if (!isDemoSession(user)) return;
+    const sessionId = typeof user.$locals?.demoSessionId === 'string' ? user.$locals.demoSessionId : '';
+    await this.audit.create({
+      sellerId: user._id,
+      action: mode === 'phone' ? 'demo.call' : 'demo.call.browser',
+      orderId,
+      meta: { mode, sessionId, ipHash: hashDemoIp(ip || 'unknown') },
+    });
   }
 
   async actionsToday(user: UserDocument, actions: string[]): Promise<number> {

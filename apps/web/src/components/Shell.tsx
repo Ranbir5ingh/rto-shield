@@ -419,7 +419,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         />
 
         {/* page scroller — full-bleed so the scrollbar hugs the viewport edge */}
-        <main id="app-main" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 lg:pb-0">
+        <main id="app-main" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
           {user ? (
             children
           ) : (

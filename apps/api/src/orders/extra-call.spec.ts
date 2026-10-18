@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 
 const ORDER_ID = '64b000000000000000000001';
@@ -63,7 +63,13 @@ function harness(plan: { mode: string; notice: string | null; conversationId: st
     createPrepaidDraft: jest.fn(),
   };
   const whatsapp = { dispatchFlow: jest.fn(async () => 'simulated'), sendSessionLine: jest.fn(async () => true) };
-  const demo = { note: jest.fn(async () => undefined), actionsToday: jest.fn(async () => 0), capture: jest.fn() };
+  const demo = {
+    note: jest.fn(async () => undefined),
+    actionsToday: jest.fn(async () => 0),
+    capture: jest.fn(),
+    assertDemoCallWindow: jest.fn(async () => ({ applies: true, remaining: 2 })),
+    recordDemoCall: jest.fn(async () => undefined),
+  };
   const crypto = { decrypt: jest.fn(() => '9876543210'), encrypt: jest.fn(() => 'enc') };
   const service = new OrdersService(
     orders as never,
@@ -147,6 +153,15 @@ describe('Try one more call', () => {
     expect(calls.place).not.toHaveBeenCalled();
   });
 
+  it('checks the half-hour window before a demo browser call', async () => {
+    const { service, calls, demo } = harness({ mode: 'browser', notice: null, conversationId: '' });
+    demo.assertDemoCallWindow.mockRejectedValueOnce(new HttpException('Two demo calls are used in this half hour.', 429));
+    const demoUser = { ...seller(), role: 'demo' };
+    await expect(service.placeCall(demoUser as never, ORDER_ID, true, '203.0.113.9')).rejects.toBeInstanceOf(HttpException);
+    expect(calls.place).not.toHaveBeenCalled();
+    expect(demo.recordDemoCall).not.toHaveBeenCalled();
+  });
+
   it('keeps the demo browser call and does not spend the extra call', async () => {
     const { service, current, demo } = harness({
       mode: 'simulated',
@@ -158,7 +173,8 @@ describe('Try one more call', () => {
     expect(body.mode).toBe('simulated');
     expect(body.order.extraCall).toBeNull();
     expect(current.timeline.some((step: { detail: string }) => step.detail.startsWith('Simulated call'))).toBe(true);
-    expect(demo.note).toHaveBeenCalled();
+    expect(demo.recordDemoCall).toHaveBeenCalled();
+    expect(demo.assertDemoCallWindow).toHaveBeenCalled();
   });
 
   it('closes a confirmed extra call and drops it from Exceptions', async () => {

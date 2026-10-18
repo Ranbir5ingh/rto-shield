@@ -807,6 +807,14 @@ body {
   box-shadow: 5px 5px 0 #1b1712;
 }
 
+.dock-fixed {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  box-shadow: none;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 .dock-item {
   position: relative;
   z-index: 1;
@@ -888,10 +896,11 @@ body {
 }
 
 [data-dock='bottom'] .dock-item {
+  flex: 1 1 0;
   flex-direction: column;
   gap: 0;
-  min-width: 3rem;
-  padding: 0.55rem 0.7rem;
+  min-width: 0;
+  padding: 0.7rem 0.35rem;
 }
 
 [data-dock='bottom'] .dock-label {

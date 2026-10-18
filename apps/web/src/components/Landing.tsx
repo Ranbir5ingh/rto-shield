@@ -49,9 +49,9 @@ const RULES_ROWS = [
 
 const SEEN_ROWS: [string, string, string, string, string][] = [
   ['S1042', '₹2,458', 'COD', '110001', 'CLEAR'],
-  ['S1047', '₹1,299', 'COD', '400050', 'RTO RISK'],
-  ['S1049', '₹4,599', 'COD', '122018', 'FAKE ADDRESS'],
-  ['S1052', '₹2,799', 'COD', '400001', 'GHOST BUYER'],
+  ['S1047', '₹1,299', 'COD', '400050', 'HIGH'],
+  ['S1049', '₹4,599', 'COD', '122018', 'ADDRESS'],
+  ['S1052', '₹2,799', 'COD', '400001', 'HOLD'],
 ];
 
 function DataGap() {
@@ -62,7 +62,7 @@ function DataGap() {
       <div className={`absolute inset-0 ${isOver ? 'bg-white' : 'bg-paper'} p-8 sm:p-12`}>
         <div className="flex items-center justify-between">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-ink">
-            {isOver ? 'What RTO Shield sees' : 'What your rules see'}
+            {isOver ? 'What autopilot sees' : 'Packed and shipped'}
           </p>
           <LabelChip>{isOver ? 'Complete view' : 'Fragmented view'}</LabelChip>
         </div>
@@ -90,8 +90,8 @@ function DataGap() {
         </div>
         <p className="mt-8 max-w-md font-mono text-xs leading-6 text-inksoft">
           {isOver
-            ? 'The same four orders — with every hidden pattern surfaced before the tape gun comes out.'
-            : 'Four orders. Four parcels packed. Two of them are already lost — and nothing on this screen says so.'}
+            ? 'The same four orders, scored. Autopilot asks, checks the address, and holds what still looks wrong.'
+            : 'Four orders. Four parcels packed. Nothing on this screen says which ones come back.'}
         </p>
       </div>
     );
@@ -127,9 +127,9 @@ function DataGap() {
 
 function Pillars() {
   const items = [
-    ['01', 'Score every order', 'Each pending order gets 0–100, a Low, Medium, or High band, and a plain sentence saying why. Address quality is a feature. The pincode is courier context — never a verdict on a region.', 'bg-hl/50', '-rotate-1'],
-    ['02', 'Confirm the risky ones', 'Risky orders wait in a queue with a WhatsApp link and a draft in Hindi, Hinglish, or English. You send the message — the product never does.', 'bg-sky/40', 'rotate-1'],
-    ['03', 'Ship with proof', 'Confirmed teaches accepted. Cancelled teaches refused. Silence stays out of the next score. Every outcome makes the next prediction sharper.', 'bg-lime/40', '-rotate-1'],
+    ['01', 'Message in the shop’s name', 'Autopilot sends WhatsApp from RTO Shield’s number. The template carries the store name and the order. A shop can turn on its own WhatsApp Business number instead.', 'bg-hl/50', '-rotate-1'],
+    ['02', 'Fix the address', 'A buyer reply is checked against India Post. When the pin, city, and state agree, the address is written back to Shopify and the confirmation continues.', 'bg-sky/40', 'rotate-1'],
+    ['03', 'Call, then one more', 'If nobody answers, autopilot places an AI call. On Exceptions the seller gets one extra call. No answer leaves Confirm and Cancel right there.', 'bg-lime/40', '-rotate-1'],
   ];
   return (
     <section id="chapters" className="relative">
@@ -153,7 +153,7 @@ function Pillars() {
 function TryModel() {
   const [value, setValue] = useState(1599);
   const [pay, setPay] = useState<'cod' | 'prepaid'>('cod');
-  const [pin, setPin] = useState<'metro' | 'town' | 'remote'>('town');
+  const [address, setAddress] = useState<'complete' | 'landmark' | 'thin'>('landmark');
   const [buyer, setBuyer] = useState<'first' | 'repeat' | 'rto'>('first');
   const stampRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -161,8 +161,8 @@ function TryModel() {
 
   let score = 18;
   if (pay === 'cod') score += 22;
-  if (pin === 'town') score += 12;
-  if (pin === 'remote') score += 20;
+  if (address === 'landmark') score += 12;
+  if (address === 'thin') score += 20;
   if (buyer === 'first') score += 14;
   if (buyer === 'rto') score += 30;
   if (value > 3000) score += 8;
@@ -236,10 +236,14 @@ function TryModel() {
               </div>
             </div>
             <div>
-              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.22em]">Pincode</p>
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.22em]">Address</p>
               <div className="mt-4 flex flex-wrap gap-3">
-                {(['metro', 'town', 'remote'] as const).map((p) => (
-                  <button key={p} type="button" {...seg(pin === p)} onClick={() => setPin(p)}>{p}</button>
+                {([
+                  ['complete', 'Complete'],
+                  ['landmark', 'Landmark only'],
+                  ['thin', 'Incomplete'],
+                ] as const).map(([id, label]) => (
+                  <button key={id} type="button" {...seg(address === id)} onClick={() => setAddress(id)}>{label}</button>
                 ))}
               </div>
             </div>
@@ -254,7 +258,7 @@ function TryModel() {
               </div>
             </div>
             <p className="font-mono text-[11px] leading-6 text-inksoft">
-              ILLUSTRATIVE — YOUR SHOP'S REAL SCORE TRAINS ON YOUR OWN HISTORY.
+              Illustrative. The shop’s real score trains on its own history. A pincode is courier context, never a ban.
             </p>
           </div>
           <div className="relative flex flex-col items-center justify-center overflow-hidden border-t-2 border-dashed border-ink/20 bg-paperdeep/60 p-8 sm:p-12 lg:border-l lg:border-t-0">
@@ -277,7 +281,7 @@ function TryModel() {
               {band === 'High' ? <Flag tone="red">High risk</Flag> : band === 'Medium' ? <Flag tone="banana">Medium risk</Flag> : <Flag tone="go">Low risk</Flag>}
             </div>
             <p className="mt-6 text-center font-mono text-xs leading-6 text-inksoft">
-              {band === 'High' ? 'Hold the parcel. Confirm on WhatsApp first.' : band === 'Medium' ? 'Worth a message before it ships.' : 'Ship it. This one looks clean.'}
+              {band === 'High' ? 'Autopilot asks on WhatsApp, then calls.' : band === 'Medium' ? 'Worth a message before it ships.' : 'Ship it. This one looks clean.'}
             </p>
           </div>
         </div>
@@ -290,43 +294,44 @@ function WhatsAppChapter() {
   return (
     <section className="relative">
       <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
-        <Eyebrow data-scramble>/The confirmation/</Eyebrow>
+        <Eyebrow data-scramble>/The product/</Eyebrow>
         <h2 data-scrub-words className="statement mt-6 max-w-4xl text-[clamp(2rem,5vw,4.5rem)]">
-          You send the message. Not us.
+          Four screens. One voice tour.
         </h2>
         <div className="mt-16 grid gap-8 lg:grid-cols-2">
           <div data-reveal="pop" className="sticker relative -rotate-1 p-8 sm:p-10">
             <Tape className="-top-3 left-10 rotate-6" sky />
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The queue</p>
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The app</p>
             <div className="mt-6">
               {[
-                ['S1047 · ₹1,299', 'RTO RISK'],
-                ['S1049 · ₹4,599', 'FAKE ADDRESS'],
-                ['S1052 · ₹2,799', 'GHOST BUYER'],
+                ['Results', 'Saved'],
+                ['Exceptions', 'Extra call'],
+                ['Activity', 'The log'],
+                ['Settings', 'Policy'],
               ].map(([id, flag], i) => (
                 <div key={id} data-reveal="slap" data-delay={(i * 0.1).toFixed(2)} className="datarow">
                   <span className="font-bold">{id}</span>
-                  <Flag tone="red">{flag}</Flag>
+                  <Flag tone="ghost">{flag}</Flag>
                 </div>
               ))}
             </div>
             <p className="mt-8 font-mono text-xs leading-6 text-inksoft">
-              Medium and High orders wait here. One tap opens WhatsApp with the draft ready.
+              Autopilot moves the clear orders. Exceptions is the only queue, and it is where the extra call lives.
             </p>
           </div>
           <div data-reveal="pop" data-delay="0.15" className="sticker relative rotate-1 bg-lime/25 p-8 sm:p-10">
             <Tape className="-top-3 right-10 -rotate-3" pink />
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The draft — Hindi</p>
-            <p className="mt-6 font-dev text-lg leading-8">
-              नमस्ते! आपका ऑर्डर S1047 (₹1,299, COD) कन्फर्म करने के लिए मैसेज कर रहे हैं। कृपया YES लिखकर भेजें ताकि हम आज ही डिस्पैच कर सकें।
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.22em]">The tour</p>
+            <p className="mt-6 font-display text-2xl font-black uppercase leading-tight">
+              A robot voice walks the shop in Hindi, English, or Hinglish.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <span className="label-chip">Hindi</span>
-              <span className="label-chip">Hinglish</span>
               <span className="label-chip">English</span>
+              <span className="label-chip">Hinglish</span>
             </div>
             <p className="mt-8 font-mono text-xs leading-6 text-inksoft">
-              Gemma drafts it when configured; clean local templates cover you until then. The phone number never leaves the shop.
+              Notes, drafts, and address replies use the platform’s AI. Sellers do not paste a Gemini key, an ElevenLabs key, or a WhatsApp token. If the model is quiet, the built-in templates still send.
             </p>
           </div>
         </div>
@@ -351,7 +356,7 @@ function Pricing() {
               <span className="hl">₹499</span><span className="text-2xl font-bold text-inksoft">/mo</span>
             </p>
             <p className="mt-6 max-w-xl text-[15px] leading-7 text-inksoft">
-              Scoring, the confirmation queue, WhatsApp, and calls. Your TabPFN, Gemma, and SerpApi keys if you want them. This build does not take a card.
+              Scoring, WhatsApp, address fixes, and calls run on the platform. Sellers do not paste a key. Going live is a config change: the WhatsApp number, calls, and the platform Gemini key. This build does not take a card.
             </p>
           </div>
           <div className="border-t-2 border-dashed border-ink/20 p-8 sm:p-12 lg:border-l lg:border-t-0">
@@ -367,10 +372,11 @@ function Pricing() {
 }
 
 const FAQS: [string, string][] = [
-  ['Does this charge ₹499?', 'No. The plan is the suggested price; this build takes no card and runs the full product.'],
-  ['What leaves the shop?', 'Nothing you don\u2019t choose. Scores compute from your orders; only the pincode and address text you submit go to the scoring service, and you can delete everything any time.'],
-  ['How does it learn my shop?', 'Upload delivered and returned orders, or open the demo shop. TabPFN trains in context on that history; a cold shop starts on a rules prior, then scikit-learn, and the screen always names which one ran.'],
-  ['Is the pincode the verdict?', 'No. Pincode and address quality are features, not verdicts — courier context, never a judgment on a region or its people.'],
+  ['Does this charge ₹499?', 'No. ₹499 a month is the suggested price. This build takes no card and runs the product.'],
+  ['Do sellers paste API keys?', 'No. WhatsApp, the call agent, and Gemini are platform keys. A shop connects Shopify and can optionally use its own WhatsApp Business number. Empty Gemini falls back to the built-in templates.'],
+  ['What does autopilot send?', 'The address ask, the payment link, and the reminder, from RTO Shield’s number, with the store name on the template. You only see the orders that stop, on Exceptions.'],
+  ['When does it call?', 'Autopilot calls when nobody replies. On an exception the seller gets one extra call. Browser mode records a Simulated call and does not dial. Live dials when a calling number is configured. The demo can talk to the agent in the browser.'],
+  ['Is the pincode a ban?', 'No. India Post is used to check an address, not to judge a region. The score does not treat a pincode as a verdict.'],
 ];
 
 function Faq() {
@@ -408,7 +414,7 @@ function Faq() {
 }
 
 function Ticker() {
-  const items = ['SCORE 0–100', 'LOW · MEDIUM · HIGH', '₹150 PER RETURN', 'PHONE STAYS IN THE SHOP', '₹499 / MONTH', 'NO CARD CHECKOUT'];
+  const items = ['AUTOPILOT', 'ONE EXTRA CALL', 'INDIA POST CHECK', 'SHOPIFY WRITE-BACK', 'NO SELLER KEYS', 'HINDI · ENGLISH · HINGLISH'];
   const row = [...items, ...items];
   return (
     <div className="relative -rotate-1 overflow-hidden border-y-2 border-ink bg-ink py-4" aria-hidden="true">
@@ -511,18 +517,18 @@ export function Landing() {
             <span className="reveal-mask"><span data-hero-line className="reveal-line"><span className="hl">SHIELD</span></span></span>
           </h1>
           <div data-hero-item className="mt-8 flex flex-wrap gap-3">
-            <LabelChip>COD risk intelligence</LabelChip>
-            <LabelChip>Built for Bharat</LabelChip>
+            <LabelChip>Autopilot for COD</LabelChip>
+            <LabelChip>No seller keys</LabelChip>
           </div>
           <div className="mt-12 grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-end">
             <div>
               <p data-hero-item className="font-display text-3xl font-black tracking-tight sm:text-4xl">
-                The complete <span className="hl-pink hl">COD Risk Score.</span>
+                Autopilot for <span className="hl-pink hl">COD returns.</span>
               </p>
               <p data-hero-item className="mt-5 max-w-xl text-lg leading-8 text-inksoft">
-                80% of COD losses come from orders your rules can't see.{' '}
-                <strong className="text-ink">RTO Shield reads all of it</strong> — every order, every address,
-                every pattern — turning checkout data into a ship-or-stop insight.
+                RTO Shield scores the order, messages the buyer from its own WhatsApp number in the shop’s name,
+                checks a new address with India Post, writes it back to Shopify, and calls when nobody answers.
+                Exceptions keeps <strong className="text-ink">one extra call</strong>.
               </p>
               <div data-hero-item className="mt-8 flex flex-wrap gap-4">
                 <DemoButton className="btn-go" label="Try the demo" />
@@ -555,7 +561,7 @@ export function Landing() {
       <Ticker />
 
       <Statement>
-        An unscored order<br />is a <span className="hl">gamble.</span>
+        A refused parcel<br />still costs the <span className="hl">return.</span>
       </Statement>
 
       <DataGap />
@@ -569,7 +575,7 @@ export function Landing() {
       <section className="relative">
         <div className="mx-auto max-w-page px-5 py-24 sm:px-8 sm:py-32">
           <p data-scrub="highlight" className="statement max-w-5xl text-[clamp(2.2rem,6vw,5.5rem)]">
-            Predict returns before they happen. Score every order, confirm the risky ones, ship the rest with proof.
+            Score the order. Ask on WhatsApp. Fix the address. Call once, then one more time from Exceptions.
           </p>
           <p className="hand mt-8 rotate-[-2deg] text-2xl text-inksoft">watch the words get marked up as you scroll ↓</p>
         </div>
@@ -598,7 +604,7 @@ export function Landing() {
           </div>
           <div className="mt-8 flex flex-wrap items-center justify-between gap-6 border-t border-paper/20 pt-8">
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60">
-              The complete COD Risk Score · Built for Bharat
+              Autopilot for COD returns · Results, Exceptions, Activity, Settings
             </p>
             <div className="flex gap-8">
               <Link href="/login" className="font-mono text-[11px] uppercase tracking-[0.22em] text-paper/60 transition hover:text-paper">Log in</Link>

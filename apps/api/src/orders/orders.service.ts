@@ -1375,12 +1375,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async placeCall(user: UserDocument, id: string, browser: boolean) {
+  async placeCall(user: UserDocument, id: string, browser: boolean, ip = '') {
     if (!isDemoSession(user) || !browser) {
       throw new BadRequestException('RTO Shield places the call. Try one more call is on Exceptions.');
     }
     const order = await this.findOwned(user, id);
     await this.holdDemo(user, ['demo.call', 'demo.call.browser'], 'The demo has started enough buyer calls for today.');
+    await this.demo.assertDemoCallWindow(user, ip);
     const plan = await this.dial(user, order, 'browser');
     if (plan.mode === 'phone' || plan.mode === 'simulated') {
       order.callState = plan.mode === 'simulated' ? 'simulated' : 'called';
@@ -1392,7 +1393,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       );
       await order.save();
     }
-    await this.demo.note(user, plan.mode === 'phone' ? 'demo.call' : 'demo.call.browser', String(order._id), { mode: plan.mode });
+    await this.demo.recordDemoCall(user, String(order._id), plan.mode, ip);
     return { ...plan, order: this.toDetail(user, order) };
   }
 

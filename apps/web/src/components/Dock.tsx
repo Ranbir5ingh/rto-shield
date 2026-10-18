@@ -77,16 +77,18 @@ export function Dock({
   return (
     <div
       data-dock={placement}
-      className={`pointer-events-none fixed z-[70] flex justify-center px-2 ${className} ${
+      className={`pointer-events-none fixed z-[70] ${className} ${
         placement === 'bottom'
-          ? 'inset-x-0 bottom-0 pb-[max(0.65rem,env(safe-area-inset-bottom))]'
-          : 'inset-x-0 bottom-0 pb-[max(0.65rem,env(safe-area-inset-bottom))] md:bottom-auto md:top-4 md:pb-0'
+          ? 'inset-x-0 bottom-0'
+          : 'inset-x-0 bottom-0 flex justify-center px-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] md:bottom-auto md:top-4 md:pb-0'
       }`}
     >
-      <nav aria-label={label} className="dock pointer-events-auto max-w-full">
+      <nav aria-label={label} className={`dock pointer-events-auto ${placement === 'bottom' ? 'dock-fixed w-full' : 'max-w-full'}`}>
         <div
           ref={listRef}
-          className="relative flex max-w-[100vw] items-stretch overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className={`relative flex items-stretch [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+            placement === 'bottom' ? 'w-full' : 'max-w-[100vw] overflow-x-auto p-1'
+          }`}
         >
           {indicator ? (
             <span

@@ -59,6 +59,42 @@ export function hashDemoIp(ip: string): string {
     .slice(0, 16);
 }
 
+export const DEMO_CALL_WINDOW_MS = 30 * 60 * 1000;
+export const DEMO_CALL_WINDOW_CAP = 2;
+
+export function clientIp(ip: string | undefined, forwarded: string | string[] | undefined): string {
+  const raw = ip || (Array.isArray(forwarded) ? forwarded[0] : forwarded) || '';
+  return String(raw).split(',')[0].trim();
+}
+
+export interface DemoCallStamp {
+  at: number;
+  sessionId: string;
+  ipHash: string;
+}
+
+/** Two demo calls per 30 minutes. A full session bucket or a full IP bucket blocks the next call. */
+export function demoCallWindow(input: {
+  now: number;
+  sessionId: string;
+  ipHash: string;
+  calls: DemoCallStamp[];
+  cap?: number;
+  windowMs?: number;
+}): { cap: number; remaining: number; resetsAt: string | null; windowMinutes: number } {
+  const cap = input.cap ?? DEMO_CALL_WINDOW_CAP;
+  const windowMs = input.windowMs ?? DEMO_CALL_WINDOW_MS;
+  const since = input.now - windowMs;
+  const recent = input.calls.filter((call) => call.at >= since);
+  const sessionHits = input.sessionId ? recent.filter((call) => call.sessionId === input.sessionId) : [];
+  const ipHits = input.ipHash ? recent.filter((call) => call.ipHash === input.ipHash) : [];
+  const used = Math.max(sessionHits.length, ipHits.length);
+  const bucket = sessionHits.length >= ipHits.length ? sessionHits : ipHits;
+  const oldest = bucket.reduce((min, call) => Math.min(min, call.at), Number.POSITIVE_INFINITY);
+  const resetsAt = used > 0 && Number.isFinite(oldest) ? new Date(oldest + windowMs).toISOString() : null;
+  return { cap, remaining: Math.max(0, cap - used), resetsAt, windowMinutes: windowMs / 60_000 };
+}
+
 export function requestPath(url: string): string {
   const bare = (url || '/').split('?')[0].replace(/\/+$/, '') || '/';
   return bare.startsWith('/api/') ? bare.slice(4) : bare;

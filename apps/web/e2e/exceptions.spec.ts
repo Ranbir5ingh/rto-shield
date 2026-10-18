@@ -70,6 +70,7 @@ test('exceptions use the results frame, and a phone opens a detail page', async 
   await expect(page.locator('[data-tour="exception-action"]').getByRole('button', { name: 'Cancel' })).toBeVisible();
   await expect(page.locator('[data-tour="exception-action"]').getByRole('link', { name: 'Open' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Try one more call' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset call' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Call the buyer' })).toHaveCount(0);
   await expect(page.locator('[data-autopilot-calls]')).toContainText(/Autopilot called|Autopilot has not called/);
   const extra = page.getByRole('button', { name: 'Try one more call' });

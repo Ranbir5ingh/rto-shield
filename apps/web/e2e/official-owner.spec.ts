@@ -40,6 +40,7 @@ test('an owner login on the official demo account is a seller session', async ({
   await page.locator('[data-tour="exceptions"] a').first().click();
   await expect(page).toHaveURL(/\/app\/queue\/[a-f\d]{24}$/i);
   await expect(page.getByRole('button', { name: 'Try one more call' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset call' })).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Demo: in the real product, RTO Shield calls the buyer automatically.' }),
   ).toHaveCount(0);

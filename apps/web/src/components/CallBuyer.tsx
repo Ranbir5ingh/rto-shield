@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import type { OrderDetail } from '@/lib/types';
@@ -39,16 +39,27 @@ export function CallBuyer({
   onClose,
   label = 'Call the buyer',
   onPlan,
+  canStart = true,
+  onSettled,
 }: {
   orderId: string;
   open: boolean;
   onClose: () => void;
   label?: string;
   onPlan?: (plan: CallPlanUpdate) => void;
+  canStart?: boolean;
+  onSettled?: () => void;
 }) {
   const [phase, setPhase] = useState<'idle' | 'calling' | 'live' | 'done'>('idle');
   const [notice, setNotice] = useState('');
   const session = useRef<{ endSession: () => Promise<void> } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      void session.current?.endSession().catch(() => undefined);
+      session.current = null;
+    };
+  }, []);
 
   if (!open) return null;
 
@@ -92,6 +103,8 @@ export function CallBuyer({
       session.current = null;
       setPhase('idle');
       setNotice(describeCallError(err));
+    } finally {
+      onSettled?.();
     }
   }
 
@@ -114,7 +127,7 @@ export function CallBuyer({
         {phase === 'live' ? (
           <Button type="button" tone="danger" onClick={hangup}>End call</Button>
         ) : (
-          <Button type="button" onClick={start} disabled={phase === 'calling'}>
+          <Button type="button" onClick={start} disabled={phase === 'calling' || !canStart}>
             {phase === 'calling' ? 'Connecting…' : phase === 'done' ? 'Call again' : 'Start browser call'}
           </Button>
         )}

@@ -1,5 +1,5 @@
 import { whatsappAllowlist } from './demo-send';
-import { demoAllows, effectiveRole, isDemoSession, isOfficialDemoAccount } from './demo.policy';
+import { demoAllows, demoCallWindow, effectiveRole, isDemoSession, isOfficialDemoAccount } from './demo.policy';
 
 describe('demo policy', () => {
   const previous = process.env.DEMO_ACCOUNT_EMAIL;
@@ -63,6 +63,51 @@ describe('demo policy', () => {
     expect(demoAllows('POST', '/api/orders/sample')).toBe(false);
     expect(demoAllows('POST', '/api/orders/import')).toBe(false);
     expect(demoAllows('GET', '/api/account/export')).toBe(false);
+  });
+
+  it('allows two demo calls per half hour for a session and for an IP', () => {
+    const now = Date.parse('2026-10-18T12:00:00.000Z');
+    const windowMs = 30 * 60 * 1000;
+    expect(demoCallWindow({ now, sessionId: 's1', ipHash: 'ip1', calls: [] })).toMatchObject({
+      remaining: 2,
+      resetsAt: null,
+    });
+    const one = demoCallWindow({
+      now,
+      sessionId: 's1',
+      ipHash: 'ip1',
+      calls: [{ at: now - 5 * 60 * 1000, sessionId: 's1', ipHash: 'ip1' }],
+    });
+    expect(one.remaining).toBe(1);
+    expect(one.resetsAt).toBe(new Date(now - 5 * 60 * 1000 + windowMs).toISOString());
+    const fullSession = demoCallWindow({
+      now,
+      sessionId: 's1',
+      ipHash: 'ip-new',
+      calls: [
+        { at: now - 10 * 60 * 1000, sessionId: 's1', ipHash: 'ip1' },
+        { at: now - 60 * 1000, sessionId: 's1', ipHash: 'ip1' },
+      ],
+    });
+    expect(fullSession.remaining).toBe(0);
+    const fullIp = demoCallWindow({
+      now,
+      sessionId: 's2',
+      ipHash: 'ip1',
+      calls: [
+        { at: now - 10 * 60 * 1000, sessionId: 's1', ipHash: 'ip1' },
+        { at: now - 60 * 1000, sessionId: 'other', ipHash: 'ip1' },
+      ],
+    });
+    expect(fullIp.remaining).toBe(0);
+    const agedOut = demoCallWindow({
+      now,
+      sessionId: 's1',
+      ipHash: 'ip1',
+      calls: [{ at: now - windowMs - 1, sessionId: 's1', ipHash: 'ip1' }],
+    });
+    expect(agedOut.remaining).toBe(2);
+    expect(agedOut.resetsAt).toBeNull();
   });
 
   it('normalises the WhatsApp allowlist', () => {
