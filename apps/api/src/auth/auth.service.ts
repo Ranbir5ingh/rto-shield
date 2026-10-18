@@ -73,7 +73,7 @@ export class AuthService implements OnModuleInit {
       sellerGemini: Boolean(user.gemini?.keyEnvelope && user.gemini.validatedAt),
       tour: {
         sellerSeen: Boolean(user.sellerTourSeenAt),
-        demoSeen: Boolean(user.$locals?.demoTourSeen),
+        demoSeen: user.$locals?.actor === 'demo' ? Boolean(user.$locals?.demoTourSeen) : Boolean(user.demoTourSeenAt),
       },
       reduction: reductionSettings(user),
       elevenlabsConfigured: Boolean(user.elevenlabs?.keyEnvelope || process.env.ELEVENLABS_API_KEY),

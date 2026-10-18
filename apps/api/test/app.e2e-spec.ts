@@ -255,8 +255,24 @@ describe('RTO Shield API', () => {
     const orders = await agent.get('/api/orders?stage=pending&limit=50').expect(200);
     expect(orders.body.orders.length).toBeGreaterThan(0);
     expect(orders.body.orders.every((order: { riskScore: number | null; riskBand: string | null }) => order.riskScore !== null && order.riskBand)).toBe(true);
+    const done = await agent.post('/api/tours/complete').set('x-csrf-token', opened.body.csrfToken).send({ tour: 'demo' }).expect(201);
+    expect(done.body.ok).toBe(true);
+    const me = await agent.get('/api/auth/me').expect(200);
+    expect(me.body.user.role).toBe('owner');
+    expect(me.body.user.isDemo).toBe(true);
+    expect(me.body.user.tour.demoSeen).toBe(true);
+
     const dashboard = await agent.get('/api/dashboard').expect(200);
     expect(dashboard.body.model).toBeTruthy();
+    expect(dashboard.body.impact.preventedInr).toBeGreaterThan(0);
+    expect(dashboard.body.impact.conversions).toBeGreaterThan(0);
+    const activity = await agent.get('/api/activity').expect(200);
+    const convertedIds = new Set(
+      (activity.body.events as Array<{ step: string; orderId: string }>)
+        .filter((event) => event.step === 'converted')
+        .map((event) => event.orderId),
+    );
+    expect(convertedIds.size).toBe(dashboard.body.impact.conversions);
     expect(dashboard.body.distribution.High + dashboard.body.distribution.Medium + dashboard.body.distribution.Low).toBeGreaterThan(0);
     expect(dashboard.body.liveWire.length).toBeGreaterThan(0);
     expect(orders.body.total).toBeGreaterThan(20);

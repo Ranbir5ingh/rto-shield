@@ -13,6 +13,7 @@ export class DashboardService {
   ) {}
 
   async summary(user: UserDocument) {
+    await this.orderService.creditDemoOutcomes(user);
     const sellerId = user._id;
     const [delivered, rto, history, pending, closed, highPendingOrders, preventedOrders, distribution, trend, reasonDocs, model, wireRows] =
       await Promise.all([

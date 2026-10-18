@@ -30,6 +30,22 @@ async function footerFits(page: Page) {
   }
 }
 
+async function cardClearsTarget(page: Page, stepId: string) {
+  const card = page.locator('#tour-card');
+  const target = page.locator(`[data-tour="${stepId}"]`).first();
+  await expect(target).toBeVisible();
+  const cardBox = await card.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(cardBox && targetBox).toBeTruthy();
+  if (!cardBox || !targetBox) return;
+  const separated =
+    cardBox.x + cardBox.width <= targetBox.x + 1
+    || targetBox.x + targetBox.width <= cardBox.x + 1
+    || cardBox.y + cardBox.height <= targetBox.y + 1
+    || targetBox.y + targetBox.height <= cardBox.y + 1;
+  expect(separated).toBe(true);
+}
+
 async function cardInView(page: Page) {
   const card = page.locator('#tour-card');
   await expect(card).toBeVisible();
@@ -83,6 +99,7 @@ async function walk(page: Page, steps: TourStep[], shots: boolean, requested?: s
     }
     await assertReveal(page, step, mobile);
     await cardInView(page);
+    await cardClearsTarget(page, step.id);
     if (index === 0) {
       await footerFits(page);
       const second = steps[1]?.narrationId;
@@ -243,8 +260,12 @@ test('every screen renders without a sideways scroll', async ({ page }) => {
   await page.goto('/app/queue');
   await expect(page.getByRole('heading', { level: 1, name: 'Exceptions', exact: true })).toBeVisible();
   await expect(page.locator('[data-tour="exceptions"]')).toBeVisible();
-  await expect(page.locator('[data-tour="exception-order"]')).toBeVisible();
-  await expect(page.locator('[data-tour="exception-action"]')).toBeVisible();
+  if (await page.locator('[data-tour="exceptions"] a').count()) {
+    await expect(page.locator('[data-tour="exception-order"]')).toBeHidden();
+  } else {
+    await expect(page.locator('[data-tour="exception-order"]')).toBeVisible();
+    await expect(page.locator('[data-tour="exception-action"]')).toBeVisible();
+  }
   await expect(page.locator('[data-selection-bar="true"]')).toHaveCount(0);
 
   await page.goto('/app/history');

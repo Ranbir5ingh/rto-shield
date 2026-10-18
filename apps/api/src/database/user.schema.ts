@@ -82,6 +82,10 @@ export class User {
   @Prop({ type: Date, default: null })
   sellerTourSeenAt!: Date | null;
 
+  /** Set when a password-login demo owner finishes the demo tour. Live demo sessions keep their own flag. */
+  @Prop({ type: Date, default: null })
+  demoTourSeenAt!: Date | null;
+
   @Prop({ type: Object, default: null })
   shopify!: ShopifyLink | null;
 

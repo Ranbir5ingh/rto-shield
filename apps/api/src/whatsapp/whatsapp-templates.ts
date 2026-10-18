@@ -22,6 +22,8 @@ export type TemplateFlow =
   | 'order_reminder'
   | 'address_updated_confirmation';
 
+export const CONFIRMATION_LANGUAGES = ['english', 'hindi', 'hinglish'] as const;
+
 export const TEMPLATE_FLOWS: TemplateFlow[] = [
   'order_confirmation',
   'address_update_request',

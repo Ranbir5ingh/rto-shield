@@ -87,12 +87,27 @@ export class DemoService {
       return { ok: true };
     }
     const sessionId = user.$locals?.demoSessionId;
-    if (effectiveRole(user) !== 'demo' || typeof sessionId !== 'string') {
-      throw new ForbiddenException('That tour is for a demo session');
+    if (effectiveRole(user) === 'demo' && typeof sessionId === 'string') {
+      await this.sessions.updateOne({ _id: sessionId }, { $set: { tourSeen: true } });
+      await this.note(user, 'demo.tour');
+      return { ok: true };
     }
-    await this.sessions.updateOne({ _id: sessionId }, { $set: { tourSeen: true } });
-    await this.note(user, 'demo.tour');
-    return { ok: true };
+    // Try-demo can sign in as the demo owner (role owner, isDemo) without a visitor session.
+    if (user.isDemo) {
+      user.demoTourSeenAt = new Date();
+      await user.save();
+      await this.audit.create({ sellerId: user._id, action: 'demo.tour', meta: {} });
+      return { ok: true };
+    }
+    throw new ForbiddenException('That tour is for a demo session');
+  }
+
+  async outcomeStamp(user: UserDocument) {
+    return this.audit.countDocuments({ sellerId: user._id, action: 'demo.outcomes' });
+  }
+
+  async stampOutcomes(user: UserDocument, meta: Record<string, number>) {
+    await this.audit.create({ sellerId: user._id, action: 'demo.outcomes', meta });
   }
 
   async maybeReset() {

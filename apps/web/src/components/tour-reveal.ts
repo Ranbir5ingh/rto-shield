@@ -114,5 +114,8 @@ export function restoreTourUi(memory: RevealMemory) {
 
 export function stepOnPage(step: TourStep, pathname: string, mobile: boolean) {
   if (mobile && step.reveal?.includes('order')) return pathname.startsWith('/app/orders/');
+  if (mobile && (step.id === 'exception-order' || step.id === 'exception-action')) {
+    return pathname === step.route || /^\/app\/queue\/[^/]+$/.test(pathname);
+  }
   return pathname === step.route;
 }

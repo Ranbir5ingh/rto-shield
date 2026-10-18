@@ -887,6 +887,30 @@ body {
   }
 }
 
+[data-dock='bottom'] .dock-item {
+  flex-direction: column;
+  gap: 0;
+  min-width: 3rem;
+  padding: 0.55rem 0.7rem;
+}
+
+[data-dock='bottom'] .dock-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+[data-dock='bottom'] .dock-tip {
+  bottom: calc(100% + 8px);
+  top: auto;
+}
+
 @media (max-width: 767px) {
   .dock-item {
     flex-direction: column;

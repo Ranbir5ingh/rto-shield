@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Search, Settings } from 'lucide-react';
+import { Dock } from '@/components/Dock';
 import { LogoMark } from '@/components/Logo';
 import { Tour } from '@/components/Tour';
 import { Notice, Skeleton } from '@/components/ui';
@@ -188,8 +189,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
     client.clear();
     router.replace('/');
   }
-
-  const fill = pathname === '/app/queue';
 
   return (
     <div className="flex h-dvh overflow-hidden bg-paper text-ink">
@@ -398,14 +397,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <StatusStrip status={status} sellerGemini={Boolean(user?.sellerGemini)} />
 
         {/* page scroller — full-bleed so the scrollbar hugs the viewport edge */}
-        <main
-          id="app-main"
-          className={
-            fill
-              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
-              : 'min-h-0 flex-1 overflow-y-auto overscroll-contain'
-          }
-        >
+        <main id="app-main" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 lg:pb-0">
           {user ? (
             children
           ) : (
@@ -421,33 +413,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </main>
 
-        {/* ------- mobile bottom nav ------- */}
-        <nav aria-label="Primary" className="shrink-0 border-t-2 border-ink bg-paper lg:hidden">
-          <div className="grid grid-cols-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-            {links.map(([href, label, , Icon]) => {
-              const active = activeNav(pathname || '', href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  onMouseEnter={() => prefetchRoute(client, href)}
-                  className={`relative flex flex-col items-center gap-1 py-2.5 ${
-                    active ? 'bg-lime' : ''
-                  }`}
-                >
-                  {href === '/app/queue' && queueCount > 0 ? (
-                    <span className="absolute right-3 top-1 border border-ink bg-risk px-1 font-mono text-[9px] font-bold text-white">
-                      {queueCount}
-                    </span>
-                  ) : null}
-                  <Icon size={19} aria-hidden="true" />
-                  <span className="sr-only">{label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
+        <Dock
+          className="lg:hidden"
+          placement="bottom"
+          label="Primary"
+          items={links.map(([href, label, , Icon]) => ({
+            id: href,
+            href,
+            label,
+            short: label,
+            icon: Icon,
+            current: activeNav(pathname || '', href),
+            onPrefetch: () => prefetchRoute(client, href),
+            mark: href === '/app/queue' && queueCount > 0 ? (
+              <span className="absolute right-1 top-1 z-10 border border-ink bg-risk px-1 font-mono text-[9px] font-bold leading-none text-white">
+                {queueCount > 99 ? '99+' : queueCount}
+              </span>
+            ) : undefined,
+          }))}
+        />
       </div>
 
       {palette && <CommandPalette onClose={() => setPalette(false)} />}

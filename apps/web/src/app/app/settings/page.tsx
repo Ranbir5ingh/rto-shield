@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (me.data && !user) setUser(me.data);
@@ -205,6 +206,28 @@ export default function SettingsPage() {
 
       <Section eyebrow="05 · Connections" title="Where orders come from">
         <Connections locked={demo} />
+        {user.role === 'owner' ? (
+          <div className="mt-6 border-t-2 border-ink pt-5">
+            <p className="font-display text-lg font-extrabold uppercase tracking-tight">Test message</p>
+            <p className="mt-2 max-w-xl text-[15px] leading-7 text-ink/70">
+              Sends the approved confirmation template to your allowlisted number. It does not change an order.
+            </p>
+            <Button
+              type="button"
+              className="mt-4"
+              disabled={testing}
+              onClick={() => {
+                setTesting(true);
+                api('/whatsapp/test-allowlist', { method: 'POST' })
+                  .then(() => toast.success('Test message sent.'))
+                  .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Could not send the test'))
+                  .finally(() => setTesting(false));
+              }}
+            >
+              {testing ? 'Sending…' : 'Send test message to my number'}
+            </Button>
+          </div>
+        ) : null}
       </Section>
 
       {status && !status.sellerView ? (

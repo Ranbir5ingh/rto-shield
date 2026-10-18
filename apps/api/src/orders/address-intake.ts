@@ -102,9 +102,9 @@ export function indiaPostOffices(body: unknown): PostOffice[] {
   return record.PostOffice;
 }
 
-export async function fetchIndiaPost(pin: string, fetchImpl: typeof fetch = fetch): Promise<PostOffice[]> {
+export async function fetchIndiaPost(pin: string, fetchImpl: typeof fetch = fetch, timeoutMs = 8_000): Promise<PostOffice[]> {
   if (!/^\d{6}$/.test(pin)) return [];
-  const response = await fetchImpl(`https://api.postalpincode.in/pincode/${pin}`, { signal: AbortSignal.timeout(8_000) });
+  const response = await fetchImpl(`https://api.postalpincode.in/pincode/${pin}`, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) return [];
   return indiaPostOffices(await response.json());
 }

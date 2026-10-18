@@ -2,11 +2,11 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { autoUpdate, computePosition, flip, hide, offset, shift, size } from '@floating-ui/dom';
+import { autoUpdate } from '@floating-ui/dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import type { TourStep } from '@/lib/tours';
 import { isTourLang, tourText, type TourLang } from '@/lib/tour-copy';
-import { cardWidthFor, resolveTourFrame, type Rect, type TourFrame } from '@/components/tour-place';
+import { cardWidthFor, resolveTourFrame, scrollDeltaToClear, tourBounds, type Rect, type TourFrame } from '@/components/tour-place';
 import { freshRevealMemory, restoreTourUi, revealStep, stepOnPage, type RevealMemory } from '@/components/tour-reveal';
 
 interface Box {
@@ -75,6 +75,38 @@ function chromeInset() {
   const rect = dock.getBoundingClientRect();
   if (rect.top < window.innerHeight / 2) return { top: Math.max(12, rect.bottom + 8), bottom: 12 };
   return { top: 12, bottom: Math.max(12, window.innerHeight - rect.top + 8) };
+}
+
+function scrollParent(node: HTMLElement): HTMLElement {
+  let current: HTMLElement | null = node.parentElement;
+  while (current && current !== document.body) {
+    const style = getComputedStyle(current);
+    if (/(auto|scroll)/.test(style.overflowY)) return current;
+    current = current.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement) || document.documentElement;
+}
+
+/** Move the target until a band above or below it can hold the card. */
+function nudgeTarget(node: HTMLElement, delta: number) {
+  if (Math.abs(delta) < 2) return;
+  const scroller = scrollParent(node);
+  if (delta > 0) {
+    const room = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    if (room + 1 < delta) {
+      const current = Number.parseFloat(scroller.style.paddingBottom || '0') || 0;
+      scroller.style.paddingBottom = `${current + (delta - Math.max(0, room))}px`;
+    }
+    scroller.scrollBy({ top: delta, behavior: 'auto' });
+    return;
+  }
+  const need = -delta;
+  if (scroller.scrollTop + 1 >= need) {
+    scroller.scrollBy({ top: delta, behavior: 'auto' });
+    return;
+  }
+  const current = Number.parseFloat(scroller.style.paddingTop || '0') || 0;
+  scroller.style.paddingTop = `${current + (need - scroller.scrollTop)}px`;
 }
 
 function clipSrc(id: string, lang: TourLang, blobs: Map<string, string>) {
@@ -331,6 +363,17 @@ export function Tour({
       }
       revealStep(step, mobileNow, memory);
       const node = tourTarget(step.id);
+      if (!node && mobileNow && (step.id === 'exception-order' || step.id === 'exception-action')) {
+        const link = document.querySelector<HTMLAnchorElement>('[data-tour="exceptions"] a');
+        if (link && window.location.pathname === '/app/queue') {
+          if (!pushed) {
+            pushed = true;
+            link.click();
+          }
+          again();
+          return;
+        }
+      }
       const next = node ? measure(node) : null;
       if (!node || !next) {
         again();
@@ -396,60 +439,37 @@ export function Tour({
     let last = '';
     let live = true;
 
+    let nudges = 0;
     const place = () => {
-      const next = measure(node);
-      if (!next) return;
       const width = Math.min(320, cardWidthFor(window.innerWidth));
       const inset = chromeInset();
-      const boundary = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
-      const apply = (nextFrame: TourFrame) => {
-        const key = `${nextFrame.mode}:${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(nextFrame.top)}:${Math.round(nextFrame.left)}:${Math.round(nextFrame.maxHeight)}`;
-        if (key === last) return;
-        last = key;
-        setBox(next);
-        setFrame(nextFrame);
-      };
-      const finishPlace = (placed: { x: number; y: number } | null, referenceHidden: boolean) => {
-        const rect = cardEl.getBoundingClientRect();
-        apply(resolveTourFrame({
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          inset,
-          target: targetRect(node),
-          card: { width, height: Math.max(rect.height, cardEl.scrollHeight, 96) },
-          placed,
-          referenceHidden,
-          mobile: window.innerWidth < 768,
-        }));
-      };
-      void computePosition(node, cardEl, {
-        strategy: 'fixed',
-        placement: window.innerWidth < 768 ? 'top' : 'bottom',
-        middleware: [
-          offset(12),
-          flip({ padding: 12, boundary, rootBoundary: 'viewport', fallbackPlacements: ['top', 'bottom', 'right', 'left'] }),
-          shift({ padding: 12, boundary, rootBoundary: 'viewport', crossAxis: true }),
-          size({
-            padding: 12,
-            boundary,
-            rootBoundary: 'viewport',
-            apply({ availableWidth, availableHeight, elements }) {
-              const room = Math.max(0, window.innerHeight - inset.top - inset.bottom);
-              const cap = Math.min(room, Math.max(0, availableHeight));
-              Object.assign(elements.floating.style, {
-                maxWidth: `${Math.min(width, Math.max(0, availableWidth))}px`,
-                maxHeight: `${cap}px`,
-              });
-            },
-          }),
-          hide({ strategy: 'referenceHidden', boundary, rootBoundary: 'viewport' }),
-        ],
-      }).then((pos) => {
-        if (!live) return;
-        finishPlace({ x: pos.x, y: pos.y }, Boolean(pos.middlewareData.hide?.referenceHidden));
-      }).catch(() => {
-        if (!live) return;
-        finishPlace(null, false);
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      const bounds = tourBounds(viewport, inset);
+      const rect = cardEl.getBoundingClientRect();
+      const card = { width, height: Math.max(rect.height, cardEl.scrollHeight, 220) };
+      let target = targetRect(node);
+      const delta = scrollDeltaToClear(target, bounds, card.height);
+      if (Math.abs(delta) > 2 && nudges < 4) {
+        nudges += 1;
+        nudgeTarget(node, delta);
+        target = targetRect(node);
+      }
+      const next = measure(node);
+      if (!next) return;
+      const nextFrame = resolveTourFrame({
+        viewport,
+        inset,
+        target,
+        card,
+        placed: { x: target.left, y: target.top + target.height + 12 },
+        referenceHidden: false,
+        mobile: window.innerWidth < 768,
       });
+      const key = `${nextFrame.mode}:${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(nextFrame.top)}:${Math.round(nextFrame.left)}:${Math.round(nextFrame.maxHeight)}`;
+      if (key === last) return;
+      last = key;
+      setBox(next);
+      setFrame(nextFrame);
     };
 
     const stop = autoUpdate(node, cardEl, () => {
@@ -458,6 +478,10 @@ export function Tour({
     return () => {
       live = false;
       stop();
+      document.querySelectorAll<HTMLElement>('#app-main').forEach((scroller) => {
+        scroller.style.paddingTop = '';
+        scroller.style.paddingBottom = '';
+      });
     };
   }, [index, pathname, phase, pin, step]);
 

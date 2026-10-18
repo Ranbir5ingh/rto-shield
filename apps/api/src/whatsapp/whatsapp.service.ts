@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -17,6 +17,7 @@ import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
+  CONFIRMATION_LANGUAGES,
   ORDER_CONFIRMATION_EN,
   TEMPLATE_FLOWS,
   TEMPLATE_REJECTED,
@@ -37,8 +38,11 @@ import {
 const GRAPH = process.env.META_GRAPH_VERSION || 'v23.0';
 
 @Injectable()
-export class WhatsAppService {
+export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsAppService.name);
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private bootRefresh: NodeJS.Timeout | null = null;
+  private readonly refreshedAt = new Map<string, number>();
 
   constructor(
     private readonly config: ConfigService,
@@ -52,6 +56,23 @@ export class WhatsAppService {
     private readonly demoState: DemoService,
     @Inject(forwardRef(() => OrdersService)) private readonly orderDesk: OrdersService,
   ) {}
+
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    this.bootRefresh = setTimeout(() => {
+      void this.refreshAllLinks();
+    }, 20_000);
+    this.bootRefresh.unref?.();
+    this.refreshTimer = setInterval(() => {
+      void this.refreshAllLinks();
+    }, 15 * 60 * 1000);
+    this.refreshTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.bootRefresh) clearTimeout(this.bootRefresh);
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+  }
 
   verifyToken() {
     return this.config.get<string>('WHATSAPP_VERIFY_TOKEN')?.trim() || '';
@@ -211,18 +232,74 @@ export class WhatsAppService {
     return this.status(user);
   }
 
-  async refreshTemplate(user: UserDocument) {
+  async refreshTemplate(user: UserDocument, force = false) {
     const link = this.requireLink(user);
-    const expected = expectedTemplate(user.messageLanguage);
-    const listed = await this.templateState(link, this.vault.open(link.tokenEnvelope), expected);
+    const id = String(user._id);
+    const last = this.refreshedAt.get(id) || 0;
+    if (!force && Date.now() - last < 45_000) return this.status(user);
+    const token = this.vault.open(link.tokenEnvelope);
+    const rows = await this.listTemplates(link, token);
+    this.refreshedAt.set(id, Date.now());
+    if (!rows) return this.status(user);
+    const flowStatus: Record<string, string> = { ...(link.flowStatus || {}) };
+    const languages = new Set<string>([user.messageLanguage, ...CONFIRMATION_LANGUAGES]);
+    for (const language of languages) {
+      for (const flow of TEMPLATE_FLOWS) {
+        const identity = expectedTemplate(language, flow);
+        const listed = pickTemplateStatus(rows, identity);
+        if (listed) flowStatus[templateKey(identity)] = listed;
+      }
+    }
+    const mine = expectedTemplate(user.messageLanguage);
+    const mineStatus = pickTemplateStatus(rows, mine);
     user.whatsapp = {
       ...link,
-      templateName: expected.name,
-      templateLanguage: expected.language,
-      templateStatus: listed === null ? link.templateStatus : listed || 'missing',
+      flowStatus,
+      templateName: mine.name,
+      templateLanguage: mine.language,
+      templateStatus: mineStatus || link.templateStatus,
     };
     await user.save();
     return this.status(user);
+  }
+
+  /** Password owners only. Sends the approved confirmation template to the allowlist. Does not touch orders. */
+  async sendAllowlistTest(user: UserDocument) {
+    if (user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo') {
+      throw new ForbiddenException('Sign in with your password to send a test message');
+    }
+    if (user.role !== 'owner') throw new ForbiddenException('Only the shop owner can send a test message');
+    const allow = whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST);
+    const to = allow[0];
+    if (!to) throw new BadRequestException('No test number is configured');
+    await this.refreshTemplate(user, true);
+    const identity = this.approvedConfirmation(user);
+    if (!identity) throw new BadRequestException('The confirmation template is not approved yet');
+    await this.graphSend(user, {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: identity.name,
+        language: { code: identity.language },
+        components: flowComponents('order_confirmation', {
+          firstName: 'there',
+          orderNo: 'TEST',
+          amount: '1',
+          store: templateText(user.shopName, 'the shop'),
+          address: '',
+          discount: '0',
+          payToken: '',
+        }),
+      },
+    });
+    await this.audit.create({
+      sellerId: user._id,
+      action: 'whatsapp.allowlist_test',
+      orderId: '',
+      meta: { template: identity.name, toLast4: to.slice(-4) },
+    });
+    return { sent: true };
   }
 
   async sendOrders(user: UserDocument, ids: string[]) {
@@ -367,28 +444,65 @@ export class WhatsAppService {
   async rememberFlows(user: UserDocument) {
     const link = user.whatsapp;
     if (!link?.tokenEnvelope || !link.wabaId) return;
-    const token = this.vault.open(link.tokenEnvelope);
-    const flowStatus: Record<string, string> = { ...(link.flowStatus || {}) };
-    let changed = false;
-    for (const flow of TEMPLATE_FLOWS) {
-      const identity = expectedTemplate(user.messageLanguage, flow);
-      const listed = await this.templateState(link, token, identity);
-      if (listed === null) continue;
-      const key = templateKey(identity);
-      if (flowStatus[key] !== listed) {
-        flowStatus[key] = listed;
-        changed = true;
-      }
-      if (flow === 'order_confirmation') {
-        link.templateName = identity.name;
-        link.templateLanguage = identity.language;
-        link.templateStatus = listed || 'missing';
-        changed = true;
+    try {
+      await this.refreshTemplate(user);
+    } catch (error) {
+      this.logger.warn(`Template refresh missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+  }
+
+  private approvedConfirmation(user: UserDocument) {
+    const link = user.whatsapp;
+    const flowStatus = link?.flowStatus || {};
+    const languages = [user.messageLanguage, ...CONFIRMATION_LANGUAGES];
+    for (const language of languages) {
+      const identity = expectedTemplate(language);
+      const status = flowStatus[templateKey(identity)] || (link?.templateName === identity.name ? link.templateStatus : '');
+      if (status === 'APPROVED') return identity;
+    }
+    return null;
+  }
+
+  private async refreshAllLinks() {
+    const users = await this.users
+      .find({ 'whatsapp.tokenEnvelope': { $type: 'object' }, 'whatsapp.wabaId': { $nin: [null, ''] } })
+      .limit(30);
+    let updated = 0;
+    for (const user of users) {
+      try {
+        await this.refreshTemplate(user, true);
+        updated += 1;
+      } catch (error) {
+        this.logger.warn(`Template refresh missed: ${error instanceof Error ? error.name : 'error'}`);
       }
     }
-    if (!changed) return;
-    user.whatsapp = { ...link, flowStatus };
-    await user.save();
+    if (updated) this.logger.log(`WhatsApp template refresh checked ${updated} shops`);
+  }
+
+  private async listTemplates(link: WhatsAppLink, token: string): Promise<ListedTemplate[] | null> {
+    const url = new URL(`https://graph.facebook.com/${GRAPH}/${link.wabaId}/message_templates`);
+    url.searchParams.set('limit', '100');
+    url.searchParams.set('fields', 'name,language,status');
+    let next: string | null = url.toString();
+    const rows: ListedTemplate[] = [];
+    for (let page = 0; page < 2 && next; page += 1) {
+      let response: Response;
+      try {
+        response = await fetch(next, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(4_000) });
+      } catch (error) {
+        this.logger.warn(`WhatsApp template list missed: ${error instanceof Error ? error.name : 'error'}`);
+        return null;
+      }
+      if (!response.ok) {
+        const explained = explainMetaTemplateError(response.status, await readJson(response));
+        this.logger.warn(`WhatsApp template list rejected: ${explained.log}`);
+        return null;
+      }
+      const body = (await readJson(response)) as { data?: ListedTemplate[]; paging?: { next?: string } } | null;
+      rows.push(...(body?.data || []));
+      next = metaNextPage(body?.paging?.next);
+    }
+    return rows;
   }
 
   async dispatchFlow(user: UserDocument, order: OrderDocument, requested: TemplateFlow): Promise<'sent' | 'simulated' | 'fallback' | 'pending' | 'failed'> {

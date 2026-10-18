@@ -24,7 +24,6 @@ import { Public, SkipCsrf } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import { whatsappSaveSchema, whatsappSendSchema, whatsappTestSchema } from '../common/validation';
 import type { UserDocument } from '../database/user.schema';
-import { effectiveRole } from '../demo/demo.policy';
 import { InboxService } from '../inbox/inbox.service';
 import { WhatsAppService } from './whatsapp.service';
 
@@ -92,8 +91,14 @@ export class WhatsAppController {
 
   @Get('whatsapp/template')
   templateStatus(@CurrentUser() user: UserDocument) {
-    if (effectiveRole(user) === 'demo') return this.whatsapp.status(user);
+    if (!user.whatsapp?.tokenEnvelope || !user.whatsapp.wabaId) return this.whatsapp.status(user);
     return this.whatsapp.refreshTemplate(user);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('whatsapp/test-allowlist')
+  allowlistTest(@CurrentUser() user: UserDocument) {
+    return this.whatsapp.sendAllowlistTest(user);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

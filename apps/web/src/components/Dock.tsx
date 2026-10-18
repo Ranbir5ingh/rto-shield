@@ -30,10 +30,12 @@ export function Dock({
   items,
   label,
   placement,
+  className = '',
 }: {
   items: DockItem[];
   label: string;
   placement: 'bottom' | 'responsive';
+  className?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<Indicator | null>(null);
@@ -74,7 +76,7 @@ export function Dock({
   return (
     <div
       data-dock={placement}
-      className={`pointer-events-none fixed z-[70] flex justify-center px-2 ${
+      className={`pointer-events-none fixed z-[70] flex justify-center px-2 ${className} ${
         placement === 'bottom'
           ? 'inset-x-0 bottom-0 pb-[max(0.65rem,env(safe-area-inset-bottom))]'
           : 'inset-x-0 bottom-0 pb-[max(0.65rem,env(safe-area-inset-bottom))] md:bottom-auto md:top-4 md:pb-0'

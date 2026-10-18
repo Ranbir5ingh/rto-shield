@@ -30,7 +30,7 @@ import { geminiCallFor } from '../ml/gemini-call';
 import { MlService, type GeminiCall } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
-import { demoSendCap, effectiveRole } from '../demo/demo.policy';
+import { demoSendCap, effectiveRole, isOfficialDemoAccount } from '../demo/demo.policy';
 import { ShopifyService } from '../shopify/shopify.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
@@ -59,6 +59,7 @@ import { buyerSignal, phoneLedger, pinLedger, pinSignal } from './shop-signals';
 export class OrdersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrdersService.name);
   private readonly upgrading = new Set<string>();
+  private readonly crediting = new Set<string>();
   private sweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -374,7 +375,117 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     return { orders: items.map((order) => this.toDetail(user, order)) };
   }
 
+  /**
+   * Demo shops open with seeded orders and no buyer replies, so Results stays at ₹0.
+   * Walk those open sample orders once: validate a few addresses with India Post,
+   * record prepaid conversions, confirmations, and holds. Counts come from the rows written.
+   */
+  async creditDemoOutcomes(user: UserDocument) {
+    if (!user.isDemo && !user.shopify?.demo && !isOfficialDemoAccount(user.email)) return;
+    const id = String(user._id);
+    if (this.crediting.has(id)) return;
+    this.crediting.add(id);
+    try {
+      if (await this.demo.outcomeStamp(user)) return;
+      const seeded = await this.orders.countDocuments({ sellerId: user._id, source: 'sample' });
+      if (!seeded) return;
+      const pending = await this.orders
+        .find({ sellerId: user._id, stage: 'pending', source: 'sample' })
+        .sort({ externalOrderId: 1 })
+        .limit(40);
+      const counts = { conversions: 0, confirmations: 0, addressFixes: 0, holds: 0 };
+      const offices = new Map<string, Awaited<ReturnType<typeof fetchIndiaPost>> | null>();
+      const lookup = async (pin: string) => {
+        if (offices.has(pin)) return offices.get(pin) || [];
+        if (offices.size >= 4) return [];
+        try {
+          const rows = await fetchIndiaPost(pin, fetch, 2_500);
+          offices.set(pin, rows);
+          return rows;
+        } catch {
+          offices.set(pin, null);
+          return [];
+        }
+      };
+      const writeOutcome = async (order: OrderDocument, fields: Record<string, unknown>) => {
+        const written = await this.orders.updateOne(
+          { _id: order._id, sellerId: user._id, stage: 'pending' },
+          { $set: fields },
+        );
+        return written.modifiedCount > 0;
+      };
+      for (let index = 0; index < pending.length; index += 1) {
+        const order = pending[index]!;
+        const bucket = index % 4;
+        if (bucket === 0) {
+          const parsed: ParsedAddress = {
+            street: 'Lane 4, Shastri Nagar',
+            landmark: '',
+            city: order.city || '',
+            state: order.state || '',
+            pin: order.pincode || '',
+          };
+          const matched = matchPostOffices(parsed, await lookup(parsed.pin));
+          if (!matched.ok) continue;
+          const line = [matched.address.street, matched.address.landmark].filter(Boolean).join(', ').slice(0, 300);
+          const saved = await writeOutcome(order, {
+            addressEnc: this.crypto.encrypt(line || matched.address.street),
+            city: matched.address.city || order.city,
+            state: matched.address.state || order.state,
+            pincode: matched.address.pin || order.pincode,
+            addressDraft: matched.address,
+            addressFixedAt: new Date(),
+            timeline: pushTimeline(order.timeline, 'address', 'Address checked against India Post and saved.'),
+          });
+          if (saved) counts.addressFixes += 1;
+          continue;
+        }
+        if (bucket === 1 && order.paymentType === 'cod') {
+          const now = new Date().toISOString();
+          const saved = await writeOutcome(order, {
+            outcome: 'converted',
+            stage: 'closed',
+            intervention: 'offer_prepaid',
+            prepaid: {
+              draftGid: '',
+              invoiceUrl: '',
+              discountPct: reductionSettings(user).discountPct,
+              status: 'converted',
+              linkedOrderId: '',
+              offeredAt: now,
+              expiresAt: now,
+            },
+            timeline: pushTimeline(order.timeline, 'converted', 'Buyer paid the prepaid link.'),
+          });
+          if (saved) counts.conversions += 1;
+          continue;
+        }
+        if (bucket === 2 || bucket === 1) {
+          const saved = await writeOutcome(order, {
+            outcome: 'confirmed',
+            stage: 'closed',
+            timeline: pushTimeline(order.timeline, 'confirmed', 'Buyer confirmed the order.'),
+          });
+          if (saved) counts.confirmations += 1;
+          continue;
+        }
+        const saved = await writeOutcome(order, {
+          intervention: 'hold_review',
+          interventionWhy: 'Held for the seller.',
+          timeline: pushTimeline(order.timeline, 'hold', 'Held for the seller.'),
+        });
+        if (saved) counts.holds += 1;
+      }
+      await this.demo.stampOutcomes(user, counts);
+    } catch (error) {
+      this.logger.warn(`Demo outcomes missed: ${error instanceof Error ? error.name : 'error'}`);
+    } finally {
+      this.crediting.delete(id);
+    }
+  }
+
   async activity(user: UserDocument) {
+    await this.creditDemoOutcomes(user);
     const items = await this.orders.find({ sellerId: user._id, 'timeline.0': { $exists: true } }).sort({ updatedAt: -1 }).limit(40);
     const events = items.flatMap((order) => (order.timeline || []).map((step) => ({
       at: step.at,
@@ -655,7 +766,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const byId = new Map(result.predictions.map((row) => [row.id, row]));
     // Templates land with the score. Gemma replaces notes and drafts afterwards, off this timer.
     const now = new Date();
-    const writes: Array<{ updateOne: { filter: { _id: OrderDocument['_id']; sellerId: UserDocument['_id'] }; update: { $set: Record<string, unknown> } } }> = [];
+    const writes: Array<{ updateOne: { filter: { _id: OrderDocument['_id']; sellerId: UserDocument['_id']; stage: 'pending' }; update: { $set: Record<string, unknown> } } }> = [];
     for (const order of pending) {
       const prediction = byId.get(String(order._id));
       if (!prediction) continue;
@@ -692,7 +803,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       order.timeline = timeline;
       writes.push({
         updateOne: {
-          filter: { _id: order._id, sellerId: user._id },
+          filter: { _id: order._id, sellerId: user._id, stage: 'pending' },
           update: {
             $set: {
               riskScore: order.riskScore,
