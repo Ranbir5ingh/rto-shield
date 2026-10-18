@@ -28,10 +28,17 @@ const steps: TourStep[] = [
   },
 ];
 
+function start(dialogReady = true) {
+  if (dialogReady) {
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+  }
+}
+
 describe('product tour', () => {
   beforeEach(() => {
     HTMLMediaElement.prototype.play = () => Promise.resolve();
     HTMLMediaElement.prototype.pause = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })));
     window.matchMedia = ((query: string) => ({
       matches: false,
       media: query,
@@ -70,6 +77,8 @@ describe('product tour', () => {
       </div>,
     );
 
+    expect(screen.getByRole('radio', { name: 'English' }).getAttribute('aria-checked')).toBe('true');
+    start();
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('Connect Shopify');
     expect(dialog.textContent).toContain('One click. Enter your store domain');
@@ -96,6 +105,8 @@ describe('product tour', () => {
         <Tour steps={steps} onFinish={onFinish} stepTimeoutMs={40} />
       </div>,
     );
+    expect(screen.getByRole('radio', { name: 'English' }).getAttribute('aria-checked')).toBe('true');
+    start();
     expect(screen.getByRole('dialog').textContent).toContain('Connect Shopify');
     await waitFor(() => expect(screen.getByRole('dialog').textContent).toContain('Other ways in'));
     await waitFor(() => expect(onFinish).toHaveBeenCalledWith('done'));
@@ -105,6 +116,7 @@ describe('product tour', () => {
   it('ends once when the anchor never appears, and Escape still closes it', async () => {
     const onFinish = vi.fn();
     const { unmount } = render(<Tour steps={[steps[0]!]} onFinish={onFinish} stepTimeoutMs={40} />);
+    start();
     expect(screen.getByRole('dialog').textContent).toContain('Connect Shopify');
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
     expect(onFinish).toHaveBeenCalledWith('done');
@@ -141,6 +153,7 @@ describe('product tour', () => {
       );
     }
     render(<Harness />);
+    start();
     expect(await screen.findByText('Call and prepaid')).toBeTruthy();
     expect(screen.getByRole('dialog').textContent).toContain('More actions');
   });

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { OrderActions } from '@/components/OrderActions';
+import { PincodeCheck, type PincodeStatus, type PincodeView } from '@/components/PincodeCheck';
 import { useToast } from '@/components/Toaster';
 import { Button, CopyButton, Page, RiskBadge, Section, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
@@ -22,6 +23,8 @@ export default function OrderDetailPage() {
   const orderQuery = useOrder(id);
   const order = orderQuery.data ?? null;
   const [note, setNote] = useState('');
+  const [pinState, setPinState] = useState<{ status: PincodeStatus; view?: PincodeView } | null>(null);
+  const [sendingWa, setSendingWa] = useState(false);
   const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
   const [saving, setSaving] = useState('');
   const [calling, setCalling] = useState(false);
@@ -108,10 +111,36 @@ export default function OrderDetailPage() {
 
   async function pin() {
     if (!order) return;
-    const body = await api<{ locality: string | null; region: string | null; notice: string | null; fairness: string }>(
-      `/pincode/${order.pincode}`,
-    );
-    setNote([body.locality || body.region, body.notice, body.fairness].filter(Boolean).join(' '));
+    setPinState({ status: 'loading' });
+    try {
+      const body = await api<PincodeView>(`/pincode/${order.pincode}`);
+      setPinState({ status: 'ready', view: body });
+      const place = body.locality || body.region || 'area on file';
+      toast.info(`${order.pincode}: ${place}. Context only, not a ban.`);
+    } catch (err) {
+      setPinState({ status: 'error' });
+      toast.error(err instanceof ApiError ? err.message : 'Could not check this pincode');
+    }
+  }
+
+  async function sendWhatsapp() {
+    if (!order || sendingWa) return;
+    setSendingWa(true);
+    try {
+      const body = await api<{ sent: string[]; notice?: string }>('/whatsapp/send', {
+        method: 'POST',
+        body: JSON.stringify({ ids: [order.id] }),
+      });
+      if (body.notice) toast.info(body.notice);
+      else toast.success('WhatsApp sent.');
+      const next = await api<OrderDetail>(`/orders/${order.id}`);
+      client.setQueryData(qk.order(order.id), next);
+      invalidateShop(client);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'WhatsApp did not send');
+    } finally {
+      setSendingWa(false);
+    }
   }
 
   if (orderQuery.isError && !order) {
@@ -189,6 +218,7 @@ export default function OrderDetailPage() {
               <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{reason}</li>
             )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
           </ul>
+          {pinState ? <PincodeCheck status={pinState.status} view={pinState.view} /> : null}
           <p className="mt-4 font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em] text-inksoft">
             Reasons from the order facts. Score from {predictorLabel(order.model)}.
           </p>
@@ -227,31 +257,36 @@ export default function OrderDetailPage() {
           </form>
         </Section>
 
-        {order.messages ? (
-          <Section eyebrow="Outreach" title="Message draft" action={text ? <CopyButton text={text} /> : null} tour="message-draft">
-            <p className="font-hindi text-[15px] leading-7">{text}</p>
-            <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-inksoft">Draft from {engineLabel(order.messages.source)}</p>
-            <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {wa ? (
-                <a className="btn-go !px-5 !py-3 !text-[11px]" href={wa} target="_blank" rel="noreferrer">
-                  Open WhatsApp
-                </a>
-              ) : null}
-              <Button type="button" tone="ghost" onClick={voice} disabled={voiceState === 'playing'}>
-                {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
-              </Button>
-              <Button type="button" tone="ghost" onClick={pin}>
-                Pincode context
-              </Button>
-            </div>
-            {note ? <p className="mt-3 text-sm leading-6 text-ink/70">{note}</p> : null}
-          </Section>
-        ) : (
-          <Section eyebrow="Outreach" title="Message draft" tour="message-draft">
-            <p className="text-sm text-inksoft">No draft yet.</p>
-          </Section>
-        )}
+        <Section eyebrow="Outreach" title="Message draft" tour="message-draft">
+          {text ? <p className="font-hindi text-[15px] leading-7">{text}</p> : <p className="text-sm text-inksoft">No draft yet.</p>}
+          {order.messages ? (
+            <>
+              <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-inksoft">Draft from {engineLabel(order.messages.source)}</p>
+              <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
+            </>
+          ) : null}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <CopyButton text={text} tour="copy-draft" />
+            <button
+              type="button"
+              data-tour="send-whatsapp"
+              className="btn-go !px-3 !py-2.5 !text-[11px] !tracking-[0.08em] !shadow-[3px_3px_0_#1B1712]"
+              disabled={sendingWa}
+              onClick={() => { void sendWhatsapp(); }}
+            >
+              {sendingWa ? 'Sending…' : 'Send on WhatsApp'}
+            </button>
+            {wa ? (
+              <a className="btn-ghost !px-3 !py-2.5 !text-[11px] !tracking-[0.08em]" href={wa} target="_blank" rel="noreferrer">
+                Open WhatsApp
+              </a>
+            ) : null}
+            <Button type="button" tone="ghost" className="!px-3 !py-2.5 !text-[11px]" onClick={voice} disabled={voiceState === 'playing'}>
+              {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
+            </Button>
+          </div>
+          {note ? <p className="mt-3 text-sm leading-6 text-ink/70">{note}</p> : null}
+        </Section>
       </div>
 
       <Section eyebrow="Thread" title="WhatsApp conversation" pad={false} tour="conversation">

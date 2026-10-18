@@ -1,0 +1,416 @@
+export type TourLang = 'english' | 'hindi' | 'hinglish';
+
+export function isTourLang(value: string | null | undefined): value is TourLang {
+  return value === 'english' || value === 'hindi' || value === 'hinglish';
+}
+
+interface Line {
+  title: string;
+  body: string;
+  mobileBody?: string;
+}
+
+const COPY: Record<string, Record<TourLang, Line>> = {
+  'shopify-connect': {
+    english: {
+      title: 'Connect Shopify',
+      body: 'Enter the shop domain. Shopify sends the orders. You do not have to upload a sheet first.',
+    },
+    hindi: {
+      title: 'Shopify जोड़ें',
+      body: 'शॉप डोमेन डालें। Shopify ऑर्डर भेज देगा। शीट पहले अपलोड करने की ज़रूरत नहीं।',
+    },
+    hinglish: {
+      title: 'Connect Shopify',
+      body: 'Shop domain daalo. Shopify orders bhej dega. Sheet pehle upload karne ki zaroorat nahi.',
+    },
+  },
+  'import-alternatives': {
+    english: {
+      title: 'Other ways in',
+      body: 'A CSV or the sample shop still works if Shopify is not ready.',
+    },
+    hindi: {
+      title: 'और तरीके',
+      body: 'Shopify तैयार न हो तो CSV या सैंपल शॉप भी चलती है।',
+    },
+    hinglish: {
+      title: 'Other ways in',
+      body: 'Shopify ready na ho to CSV ya sample shop bhi chalega.',
+    },
+  },
+  'shopify-connected': {
+    english: {
+      title: 'Shopify, connected',
+      body: 'Sellers connect a store in one click. This demo store is already connected.',
+    },
+    hindi: {
+      title: 'Shopify जुड़ा है',
+      body: 'असली शॉप एक क्लिक में जुड़ती है। यह डेमो स्टोर पहले से जुड़ा है।',
+    },
+    hinglish: {
+      title: 'Shopify, connected',
+      body: 'Asli shop ek click mein judti hai. Yeh demo store pehle se connected hai.',
+    },
+  },
+  'queue-list': {
+    english: {
+      title: 'The queue',
+      body: 'Each row is one order. The number is the risk score. Red means look twice before you ship.',
+    },
+    hindi: {
+      title: 'कतार',
+      body: 'हर पंक्ति एक ऑर्डर है। नंबर रिस्क स्कोर है। लाल हो तो भेजने से पहले दोबारा देखें।',
+    },
+    hinglish: {
+      title: 'The queue',
+      body: 'Har row ek order hai. Number risk score hai. Red matlab ship se pehle do baar dekho.',
+    },
+  },
+  'all-open': {
+    english: {
+      title: 'All open',
+      body: 'Needs action is only High and Medium. All open is on now, so the quiet Low orders are in the list too.',
+    },
+    hindi: {
+      title: 'सभी खुले',
+      body: 'Needs action में सिर्फ High और Medium हैं। All open चालू है, इसलिए Low ऑर्डर भी सूची में हैं।',
+    },
+    hinglish: {
+      title: 'All open',
+      body: 'Needs action sirf High aur Medium hai. All open on hai, isliye Low orders bhi list mein hain.',
+    },
+  },
+  'band-low': {
+    english: {
+      title: 'Low',
+      body: 'All open stays on, so this Low tab is here. It was hidden on Needs action.',
+    },
+    hindi: {
+      title: 'Low',
+      body: 'All open चालू रहता है, इसलिए यह Low टैब यहाँ है। Needs action पर यह छिपा था।',
+    },
+    hinglish: {
+      title: 'Low',
+      body: 'All open on rehta hai, isliye yeh Low tab yahan hai. Needs action par yeh chhipa tha.',
+    },
+  },
+  'message-language': {
+    english: {
+      title: 'Message language',
+      body: 'Message language is open. Hinglish, Hindi, or English. The draft changes as soon as you pick one.',
+    },
+    hindi: {
+      title: 'संदेश की भाषा',
+      body: 'Message language खुला है। Hinglish, Hindi, या English। चुनते ही ड्राफ्ट बदल जाता है।',
+    },
+    hinglish: {
+      title: 'Message language',
+      body: 'Message language khula hai. Hinglish, Hindi, ya English. Pick karte hi draft badal jaata hai.',
+    },
+  },
+  'lang-hinglish': {
+    english: {
+      title: 'Hinglish',
+      body: 'Hinglish is the usual pick. The menu stays open so you can see the other two.',
+    },
+    hindi: {
+      title: 'Hinglish',
+      body: 'Hinglish आम चुनाव है। मेनू खुला रहता है ताकि बाकी दो दिखें।',
+    },
+    hinglish: {
+      title: 'Hinglish',
+      body: 'Hinglish usual pick hai. Menu khula rehta hai taaki baaki do dikhein.',
+    },
+  },
+  'lang-hindi': {
+    english: {
+      title: 'Hindi',
+      body: 'Hindi is the next line in the same menu.',
+    },
+    hindi: {
+      title: 'Hindi',
+      body: 'Hindi उसी मेनू की अगली पंक्ति है।',
+    },
+    hinglish: {
+      title: 'Hindi',
+      body: 'Hindi usi menu ki next line hai.',
+    },
+  },
+  'lang-english': {
+    english: {
+      title: 'English',
+      body: 'English is the last line. Picking one would change the draft. This step does not pick.',
+    },
+    hindi: {
+      title: 'English',
+      body: 'English आखिरी पंक्ति है। चुनने से ड्राफ्ट बदलता। यह स्टेप नहीं चुनता।',
+    },
+    hinglish: {
+      title: 'English',
+      body: 'English last line hai. Pick karne se draft badalta. Yeh step pick nahi karta.',
+    },
+  },
+  'why-flagged': {
+    english: {
+      title: 'Why it was flagged',
+      body: 'These chips are facts from the order, not a paragraph the model wrote. The score sits beside them.',
+      mobileBody: 'This order is open. The chips are facts from the order, not a paragraph the model wrote.',
+    },
+    hindi: {
+      title: 'क्यों फ्लैग हुआ',
+      body: 'ये चिप ऑर्डर के तथ्य हैं, मॉडल का पैराग्राफ नहीं। स्कोर उनके पास है।',
+      mobileBody: 'यह ऑर्डर खुला है। चिप ऑर्डर के तथ्य हैं, मॉडल का पैराग्राफ नहीं।',
+    },
+    hinglish: {
+      title: 'Why it was flagged',
+      body: 'Yeh chips order ke facts hain, model ka paragraph nahi. Score unke paas hai.',
+      mobileBody: 'Yeh order khula hai. Chips order ke facts hain, model ka paragraph nahi.',
+    },
+  },
+  'message-draft': {
+    english: {
+      title: 'Message draft',
+      body: 'This is the WhatsApp draft for this order. It changes when the message language changes.',
+    },
+    hindi: {
+      title: 'मैसेज ड्राफ्ट',
+      body: 'यह इस ऑर्डर का WhatsApp ड्राफ्ट है। संदेश की भाषा बदलते ही यह बदलता है।',
+    },
+    hinglish: {
+      title: 'Message draft',
+      body: 'Yeh is order ka WhatsApp draft hai. Message language badalte hi yeh badal jaata hai.',
+    },
+  },
+  'copy-draft': {
+    english: {
+      title: 'Copy',
+      body: 'Copy puts this draft on the clipboard.',
+    },
+    hindi: {
+      title: 'Copy',
+      body: 'Copy इस ड्राफ्ट को क्लिपबोर्ड पर रख देता है।',
+    },
+    hinglish: {
+      title: 'Copy',
+      body: 'Copy is draft ko clipboard par rakh deta hai.',
+    },
+  },
+  'send-whatsapp': {
+    english: {
+      title: 'Send on WhatsApp',
+      body: 'Send on WhatsApp sends only this order. Select rows when you want to send several.',
+    },
+    hindi: {
+      title: 'Send on WhatsApp',
+      body: 'Send on WhatsApp सिर्फ यह ऑर्डर भेजता है। कई भेजने हों तो पंक्तियाँ चुनें।',
+    },
+    hinglish: {
+      title: 'Send on WhatsApp',
+      body: 'Send on WhatsApp sirf yeh order bhejta hai. Kai bhejne hon to rows select karo.',
+    },
+  },
+  conversation: {
+    english: {
+      title: 'Conversation',
+      body: 'Queued, sent, delivered, read. The lines under that are the WhatsApp thread.',
+    },
+    hindi: {
+      title: 'Conversation',
+      body: 'Queued, sent, delivered, read। उसके नीचे की पंक्तियाँ WhatsApp थ्रेड हैं।',
+    },
+    hinglish: {
+      title: 'Conversation',
+      body: 'Queued, sent, delivered, read. Neeche ki lines WhatsApp thread hain.',
+    },
+  },
+  'hold-approve': {
+    english: {
+      title: 'Hold for review',
+      body: 'This button is the action this order needs. It can ask for a landmark, offer prepaid, hold the order, or approve it.',
+    },
+    hindi: {
+      title: 'Hold for review',
+      body: 'यह बटन इस ऑर्डर का अगला काम है। लैंडमार्क माँगना, प्रीपेड ऑफर, होल्ड, या अप्रूव।',
+    },
+    hinglish: {
+      title: 'Hold for review',
+      body: 'Yeh button is order ka agla kaam hai. Landmark, prepaid, hold, ya approve.',
+    },
+  },
+  'more-menu': {
+    english: {
+      title: 'More',
+      body: 'More is open. Each item under it gets its own step. Nothing here is pressed until Call the buyer.',
+    },
+    hindi: {
+      title: 'More',
+      body: 'More खुला है। हर आइटम का अपना स्टेप है। Call the buyer तक कुछ दबाया नहीं जाता।',
+    },
+    hinglish: {
+      title: 'More',
+      body: 'More khula hai. Har item ka apna step hai. Call the buyer tak kuch press nahi hota.',
+    },
+  },
+  'menu-confirmed': {
+    english: {
+      title: 'Confirmed',
+      body: 'Confirmed means the buyer said yes. The tour is only showing the button.',
+    },
+    hindi: {
+      title: 'Confirmed',
+      body: 'Confirmed मतलब खरीदार ने हाँ कहा। यह स्टेप सिर्फ बटन दिखा रहा है।',
+    },
+    hinglish: {
+      title: 'Confirmed',
+      body: 'Confirmed matlab buyer ne haan kaha. Yeh step sirf button dikha raha hai.',
+    },
+  },
+  'menu-cancelled': {
+    english: {
+      title: 'Cancelled',
+      body: 'Cancelled means the buyer said no. The order is not cancelled by this step.',
+    },
+    hindi: {
+      title: 'Cancelled',
+      body: 'Cancelled मतलब खरीदार ने ना कहा। यह स्टेप ऑर्डर रद्द नहीं करता।',
+    },
+    hinglish: {
+      title: 'Cancelled',
+      body: 'Cancelled matlab buyer ne naa kaha. Yeh step order cancel nahi karta.',
+    },
+  },
+  'menu-skip': {
+    english: {
+      title: 'Skip',
+      body: 'Skip is for no answer yet. The order stays open.',
+    },
+    hindi: {
+      title: 'Skip',
+      body: 'Skip तब है जब अभी जवाब नहीं आया। ऑर्डर खुला रहता है।',
+    },
+    hinglish: {
+      title: 'Skip',
+      body: 'Skip tab hai jab abhi jawab nahi aaya. Order khula rehta hai.',
+    },
+  },
+  'menu-prepaid': {
+    english: {
+      title: 'Offer prepaid',
+      body: 'Offer prepaid makes a checkout link. Cash on delivery stays until they pay. This step does not send it.',
+    },
+    hindi: {
+      title: 'Offer prepaid',
+      body: 'Offer prepaid चेकआउट लिंक बनाता है। भुगतान तक कैश ऑन डिलीवरी रहती है। यह स्टेप नहीं भेजता।',
+    },
+    hinglish: {
+      title: 'Offer prepaid',
+      body: 'Offer prepaid checkout link banata hai. Payment tak COD rehti hai. Yeh step bhejta nahi.',
+    },
+  },
+  'menu-voice': {
+    english: {
+      title: 'Play Hindi',
+      body: 'Play Hindi reads the draft aloud. This step only shows the button.',
+    },
+    hindi: {
+      title: 'Play Hindi',
+      body: 'Play Hindi ड्राफ्ट ज़ोर से पढ़ता है। यह स्टेप सिर्फ बटन दिखाता है।',
+    },
+    hinglish: {
+      title: 'Play Hindi',
+      body: 'Play Hindi draft padh kar sunata hai. Yeh step sirf button dikhata hai.',
+    },
+  },
+  'menu-pin': {
+    english: {
+      title: 'Check pincode',
+      body: 'Check pincode shows the area for this address. A pincode is not a ban, and this step does not look it up.',
+    },
+    hindi: {
+      title: 'Check pincode',
+      body: 'Check pincode इस पते का इलाका दिखाता है। पिनकोड बैन नहीं है, और यह स्टेप खोज नहीं करता।',
+    },
+    hinglish: {
+      title: 'Check pincode',
+      body: 'Check pincode is address ka area dikhata hai. Pincode ban nahi hai, aur yeh step lookup nahi karta.',
+    },
+  },
+  'call-panel': {
+    english: {
+      title: 'Call the buyer',
+      body: 'Call the buyer opened this panel and closed the menu. The call stays in the browser. Allow the microphone. The phone number stays on the server.',
+    },
+    hindi: {
+      title: 'Call the buyer',
+      body: 'Call the buyer ने यह पैनल खोला और मेनू बंद किया। कॉल ब्राउज़र में रहती है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
+    },
+    hinglish: {
+      title: 'Call the buyer',
+      body: 'Call the buyer ne yeh panel khola aur menu band kiya. Call browser mein rehti hai. Mic allow karo. Number server par rehta hai.',
+    },
+  },
+  'whatsapp-setup': {
+    english: {
+      title: 'Setup guide',
+      body: 'Setup guide walks through Meta for this Cloud API number.',
+    },
+    hindi: {
+      title: 'Setup guide',
+      body: 'Setup guide इस Cloud API नंबर के लिए Meta तक ले जाता है।',
+    },
+    hinglish: {
+      title: 'Setup guide',
+      body: 'Setup guide is Cloud API number ke liye Meta tak le jaata hai.',
+    },
+  },
+  'whatsapp-card': {
+    english: {
+      title: 'WhatsApp, ready',
+      body: "Already configured with Meta's test number. A real shop pastes its own token.",
+    },
+    hindi: {
+      title: 'WhatsApp तैयार',
+      body: 'Meta के टेस्ट नंबर पर पहले से सेट है। असली शॉप अपना टोकन डालती है।',
+    },
+    hinglish: {
+      title: 'WhatsApp, ready',
+      body: 'Meta ke test number par pehle se set hai. Asli shop apna token paste karti hai.',
+    },
+  },
+  'history-list': {
+    english: {
+      title: 'History',
+      body: 'Delivered, RTO, and cancelled orders teach the model. A confirm you tap in the app is not a training label.',
+    },
+    hindi: {
+      title: 'History',
+      body: 'Delivered, RTO, और cancelled ऑर्डर मॉडल को सिखाते हैं। ऐप में किया कन्फर्म ट्रेनिंग लेबल नहीं है।',
+    },
+    hinglish: {
+      title: 'History',
+      body: 'Delivered, RTO, aur cancelled orders model ko sikhate hain. App ka confirm training label nahi hai.',
+    },
+  },
+  impact: {
+    english: {
+      title: 'Impact',
+      body: 'Rupees that did not go back, plus prepaid checkouts, address fixes, and confirmations.',
+    },
+    hindi: {
+      title: 'Impact',
+      body: 'जो रुपये वापस नहीं गए, साथ में प्रीपेड चेकआउट, पता सुधार, और कन्फर्मेशन।',
+    },
+    hinglish: {
+      title: 'Impact',
+      body: 'Jo rupaye wapas nahi gaye, saath mein prepaid, address fixes, aur confirmations.',
+    },
+  },
+};
+
+export function tourText(id: string, lang: TourLang, mobile = false): { title: string; body: string } | null {
+  const row = COPY[id]?.[lang];
+  if (!row) return null;
+  if (mobile && row.mobileBody) return { title: row.title, body: row.mobileBody };
+  return { title: row.title, body: row.body };
+}

@@ -3,10 +3,31 @@ import { expect, test, type Page } from '@playwright/test';
 import { toursFor, type TourStep, type TourSurface } from '../src/lib/tours';
 
 const OWNER = { email: 'e2e-owner@shop.test', password: 'e2e-owner-pass' };
-const SHOTS = new Set(['all-open', 'band-low', 'message-language', 'lang-hindi', 'why-flagged', 'more-menu', 'menu-prepaid', 'call-panel']);
+const SHOTS = new Set(['all-open', 'band-low', 'message-language', 'lang-hindi', 'why-flagged', 'copy-draft', 'send-whatsapp', 'more-menu', 'menu-pin', 'call-panel']);
 
 function surfaceOf(page: Page): TourSurface {
   return (page.viewportSize()?.width ?? 1280) < 1024 ? 'mobile' : 'desktop';
+}
+
+async function footerFits(page: Page) {
+  const footer = page.locator('[data-tour-footer]');
+  const card = page.locator('#tour-card');
+  await expect(footer).toBeVisible();
+  const buttons = footer.getByRole('button');
+  await expect(buttons).toHaveCount(4);
+  const viewport = page.viewportSize();
+  const cardBox = await card.boundingBox();
+  expect(viewport && cardBox).toBeTruthy();
+  if (!viewport || !cardBox) return;
+  for (const button of await buttons.all()) {
+    const box = await button.boundingBox();
+    expect(box).toBeTruthy();
+    if (!box) continue;
+    expect(box.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 2);
+  }
 }
 
 async function cardInView(page: Page) {
@@ -47,17 +68,32 @@ async function assertReveal(page: Page, step: TourStep, mobile: boolean) {
   }
 }
 
-async function walk(page: Page, steps: TourStep[], shots: boolean) {
+async function walk(page: Page, steps: TourStep[], shots: boolean, requested?: string[]) {
   const mobile = surfaceOf(page) === 'mobile';
   for (let index = 0; index < steps.length; index += 1) {
     const step = steps[index]!;
     const card = page.locator('#tour-card');
-    await expect(card.getByRole('heading', { level: 2, name: step.title, exact: true })).toBeVisible();
+    if (step.titleFromAnchor) {
+      const anchor = page.locator(`[data-tour="${step.id}"]`).first();
+      await expect(anchor).toBeVisible();
+      const label = ((await anchor.textContent()) || '').replace(/\s+/g, ' ').trim();
+      await expect(card.getByRole('heading', { level: 2 })).toHaveText(label);
+    } else {
+      await expect(card.getByRole('heading', { level: 2, name: step.title, exact: true })).toBeVisible();
+    }
     await assertReveal(page, step, mobile);
     await cardInView(page);
+    if (index === 0) {
+      await footerFits(page);
+      const second = steps[1]?.narrationId;
+      if (requested && second) {
+        await expect.poll(() => requested.some((url) => url.includes(`/api/tours/narration/${second}`) && url.includes('lang='))).toBe(true);
+        await expect(card).toHaveAttribute('data-tour-audio', 'ready');
+      }
+    }
     if (shots && SHOTS.has(step.id)) {
       await page.screenshot({
-        path: `/opt/cursor/artifacts/tour-voice-guide/${mobile ? 'mobile' : 'desktop'}-${step.id}.png`,
+        path: `/opt/cursor/artifacts/tour-lang-prefetch/${mobile ? 'mobile' : 'desktop'}-${step.id}.png`,
       });
     }
     if (index === steps.length - 1) await card.getByRole('button', { name: 'Done' }).click();
@@ -76,10 +112,22 @@ async function assertTourClosed(page: Page) {
 
 async function startTour(page: Page, title: string) {
   const card = page.locator('#tour-card');
-  if (!(await card.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Help' }).click();
-    await page.getByRole('menuitem', { name: 'Take the tour' }).click();
-  }
+  // The tour can mount while Help is being clicked, and its scrim then swallows the click.
+  await expect(async () => {
+    if (await card.isVisible().catch(() => false)) return;
+    if (await page.locator('[data-tour-overlay]').isVisible().catch(() => false)) {
+      await expect(card).toBeVisible({ timeout: 1500 });
+      return;
+    }
+    await page.getByRole('button', { name: 'Help' }).click({ timeout: 2000 });
+    await page.getByRole('menuitem', { name: 'Take the tour' }).click({ timeout: 2000 });
+    await expect(card).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(card.getByRole('heading', { level: 2, name: 'Tour language', exact: true })).toBeVisible();
+  await expect(card.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
+  await expect(card.getByRole('radio', { name: 'Hindi', exact: true })).toBeVisible();
+  await expect(card.getByRole('radio', { name: 'Hinglish', exact: true })).toBeVisible();
+  await card.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(card.getByRole('heading', { level: 2, name: title, exact: true })).toBeVisible();
 }
 
@@ -123,15 +171,19 @@ test.describe.configure({ mode: 'serial' });
 
 test('owner walks every tour step, including menus the tour opens', async ({ page }) => {
   test.setTimeout(180_000);
-  mkdirSync('/opt/cursor/artifacts/tour-voice-guide', { recursive: true });
+  mkdirSync('/opt/cursor/artifacts/tour-lang-prefetch', { recursive: true });
+  const requested: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().includes('/api/tours/narration/')) requested.push(req.url());
+  });
   const steps = toursFor('seller', surfaceOf(page));
   await loginOwner(page);
   await startTour(page, steps[0]!.title);
   await expect(page.locator('#tour-card').getByRole('button', { name: 'Mute' })).toBeVisible();
-  await walk(page, steps, true);
+  await walk(page, steps, true, requested);
 
   await startTour(page, steps[0]!.title);
-  await advanceTo(page, 'More actions');
+  await advanceTo(page, 'More');
   await expect(page.getByRole('menu')).toBeVisible();
   await expect(page.locator('[data-tour="menu-prepaid"]')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -177,6 +229,63 @@ test('every screen renders without a sideways scroll', async ({ page }) => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   }
+  await page.setViewportSize({ width: 360, height: 700 });
+  await page.goto('/app/queue');
+  if (!(await page.locator('#tour-card').isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Help' }).click();
+    await page.getByRole('menuitem', { name: 'Take the tour' }).click();
+  }
+  const narrowCard = page.locator('#tour-card');
+  if (await narrowCard.getByRole('button', { name: 'Start', exact: true }).isVisible().catch(() => false)) {
+    await narrowCard.getByRole('button', { name: 'Start', exact: true }).click();
+  }
+  await footerFits(page);
+  await page.keyboard.press('Escape');
+  await assertTourClosed(page);
+  await page.goto('/app/queue');
+  await expect(page.getByRole('heading', { level: 1, name: /confirmation queue/i })).toBeVisible();
+  const row = page.locator('[data-tour-row="1"]');
+  await expect(row).toBeVisible();
+  await row.locator('input[type="checkbox"]').check();
+  const bar = page.locator('[data-selection-bar="true"]');
+  await expect(bar).toBeVisible();
+  const barBox = await bar.boundingBox();
+  const narrow = page.viewportSize();
+  expect(barBox && narrow).toBeTruthy();
+  if (barBox && narrow) {
+    expect(barBox.height).toBeLessThan(56);
+    expect(barBox.x).toBeGreaterThanOrEqual(-1);
+    expect(barBox.x + barBox.width).toBeLessThanOrEqual(narrow.width + 1);
+    const centers: number[] = [];
+    for (const button of await bar.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      expect(box).toBeTruthy();
+      if (!box) continue;
+      expect(box.x + box.width).toBeLessThanOrEqual(narrow.width + 1);
+      centers.push(box.y + box.height / 2);
+    }
+    const mid = centers[0] ?? 0;
+    for (const center of centers) expect(Math.abs(center - mid)).toBeLessThan(8);
+  }
+  await bar.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(bar).toHaveCount(0);
+  await row.click();
+  await expect(page).toHaveURL(/\/app\/orders\//);
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Check pincode' })).toBeVisible();
+  const menuBox = await menu.boundingBox();
+  const menuViewport = page.viewportSize();
+  expect(menuBox && menuViewport).toBeTruthy();
+  if (menuBox && menuViewport) {
+    expect(menuBox.x).toBeGreaterThanOrEqual(-1);
+    expect(menuBox.y).toBeGreaterThanOrEqual(-1);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(menuViewport.width + 1);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(menuViewport.height + 2);
+  }
+  await page.getByRole('button', { name: 'Close menu' }).click();
+
   await page.goto('/app/history');
   await expect(page.getByRole('heading', { name: /order history/i })).toBeVisible();
   const historyLink = page.locator('article a[href^="/app/orders/"]').first();

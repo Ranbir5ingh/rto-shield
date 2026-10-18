@@ -8,6 +8,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -44,17 +45,46 @@ export class ElevenLabsController {
 
   /** Cached tour voice. The API key stays on the server. Unknown steps and a missing key are silent. */
   @Get('tours/narration/:stepId')
-  async narrationAudio(@Param('stepId') stepId: string, @Res() res: Response) {
-    const audio = await this.narration.audio(stepId);
+  async narrationAudio(
+    @Param('stepId') stepId: string,
+    @Query('lang') lang: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const language = lang === 'hindi' || lang === 'hinglish' ? lang : 'english';
+    const tag = this.narration.etag(stepId, language);
+    const matches = tag && req.headers['if-none-match'] === tag;
+    if (matches && tag) {
+      res.status(304);
+      res.setHeader('ETag', tag);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.end();
+      return;
+    }
+    const audio = await this.narration.audio(stepId, language);
     if (!audio) {
+      res.setHeader('Cache-Control', 'no-store');
       res.status(204).end();
       return;
     }
     res.status(200);
     res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    if (tag) res.setHeader('ETag', tag);
     res.setHeader('Content-Length', String(audio.length));
     res.end(audio);
+  }
+
+  /** Fill GridFS and the narration cache. Header x-inbox-secret must match INBOX_DRAIN_SECRET. */
+  @Public()
+  @SkipCsrf()
+  @SkipThrottle()
+  @HttpCode(200)
+  @Post('tours/narration/warm')
+  async warmNarration(@Headers('x-inbox-secret') secret?: string) {
+    const expected = this.config.get<string>('INBOX_DRAIN_SECRET')?.trim() || '';
+    if (!sameSecret(secret || '', expected)) throw new UnauthorizedException('Narration warm refused');
+    return this.narration.warm();
   }
 
   @Get('elevenlabs')

@@ -248,13 +248,17 @@ export function Tr({ children, className = '' }: { children: ReactNode; classNam
   return <tr className={`border-t-2 border-dashed border-ink/15 transition hover:bg-hl/20 ${className}`}>{children}</tr>;
 }
 
-export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+export function CopyButton({ text, label = 'Copy', tour }: { text: string; label?: string; tour?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const empty = !text;
   return (
     <button
       type="button"
+      data-tour={tour}
+      disabled={empty}
       aria-live="polite"
       onClick={() => {
+        if (empty) return;
         const done = (next: 'copied' | 'failed') => {
           setState(next);
           window.setTimeout(() => setState('idle'), 1600);

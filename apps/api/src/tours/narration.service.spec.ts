@@ -6,7 +6,7 @@ import { NarrationService } from './narration.service';
 import { NARRATION, TOUR_TTS_MODEL, TOUR_VOICE_ID } from './narration-scripts';
 
 describe('NarrationService', () => {
-  const text = NARRATION['queue-list'];
+  const text = NARRATION['queue-list'].english;
   const cacheDir = path.join(tmpdir(), 'rto-tour-narration');
 
   beforeEach(async () => {
@@ -63,9 +63,29 @@ describe('NarrationService', () => {
     await expect(created.audio('not-a-step')).resolves.toBeNull();
   });
 
-  it('hashes the voice, model, and line, not the key', () => {
-    const hash = createHash('sha256').update(`${TOUR_VOICE_ID}|${TOUR_TTS_MODEL}|${text}`).digest('hex');
+  it('hashes the voice, model, language, and line, not the key', () => {
+    const hash = createHash('sha256').update(`${TOUR_VOICE_ID}|${TOUR_TTS_MODEL}|english|${text}`).digest('hex');
+    const hindi = createHash('sha256').update(`${TOUR_VOICE_ID}|${TOUR_TTS_MODEL}|hindi|${NARRATION['queue-list'].hindi}`).digest('hex');
     expect(hash).toHaveLength(64);
     expect(hash).not.toContain('key');
+    expect(hindi).not.toBe(hash);
+  });
+
+  it('speaks the language the client asked for', async () => {
+    const fetchImpl = jest.fn(async () => new Response(Buffer.from('hi'), { status: 200 }));
+    const { created } = service('test-key-not-real', fetchImpl as unknown as typeof fetch);
+    await created.audio('queue-list', 'hindi');
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body)).text).toBe(NARRATION['queue-list'].hindi);
+  });
+
+  it('warm counts misses when there is no key', async () => {
+    const fetchImpl = jest.fn();
+    const { created } = service('', fetchImpl as unknown as typeof fetch);
+    const counts = await created.warm();
+    expect(counts.synthesized).toBe(0);
+    expect(counts.ready).toBe(0);
+    expect(counts.missing).toBeGreaterThan(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

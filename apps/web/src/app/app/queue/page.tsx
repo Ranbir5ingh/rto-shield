@@ -2,12 +2,13 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
 import { actionCopy, OrderActions } from '@/components/OrderActions';
+import { PincodeCheck, type PincodeStatus, type PincodeView } from '@/components/PincodeCheck';
 import { useToast } from '@/components/Toaster';
-import { Button, CopyButton, Flag, Skeleton, Dropdown } from '@/components/ui';
+import { CopyButton, Flag, Skeleton, Dropdown } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { engineLabel, inr, predictorLabel } from '@/lib/format';
 import { invalidateShop, qk, useMe, useQueue, useWhatsapp } from '@/lib/queries';
@@ -58,8 +59,9 @@ function QueueScreen() {
   const whatsapp = useWhatsapp();
   const orders = queue.data?.orders ?? [];
   const [language, setLanguage] = useState<PublicUser['messageLanguage']>('hinglish');
-  const [pincodeNote, setPincodeNote] = useState<Record<string, string>>({});
+  const [pinByOrder, setPinByOrder] = useState<Record<string, { status: PincodeStatus; view?: PincodeView }>>({});
   const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const suppressClick = useRef(false);
   const [sending, setSending] = useState(false);
   const [band, setBand] = useState<'all' | 'High' | 'Medium' | 'Low'>('all');
   const [callFor, setCallFor] = useState('');
@@ -245,15 +247,21 @@ function QueueScreen() {
     }
   }
 
+  function setPickedOne(id: string, on: boolean) {
+    setPicked((current) => ({ ...current, [id]: on }));
+  }
+
   async function pin(order: OrderDetail) {
-    const body = await api<{ locality: string | null; region: string | null; notice: string | null; fairness: string; snippets: Array<{ title: string }> }>(
-      `/pincode/${order.pincode}`,
-    );
-    const snippets = body.snippets.map((item) => item.title).filter(Boolean).join(' · ');
-    setPincodeNote((current) => ({
-      ...current,
-      [order.id]: [body.locality || body.region, body.notice, snippets, body.fairness].filter(Boolean).join(' '),
-    }));
+    setPinByOrder((current) => ({ ...current, [order.id]: { status: 'loading' } }));
+    try {
+      const body = await api<PincodeView>(`/pincode/${order.pincode}`);
+      setPinByOrder((current) => ({ ...current, [order.id]: { status: 'ready', view: body } }));
+      const place = body.locality || body.region || 'area on file';
+      toast.info(`${order.pincode}: ${place}. Context only, not a ban.`);
+    } catch (err) {
+      setPinByOrder((current) => ({ ...current, [order.id]: { status: 'error' } }));
+      toast.error(err instanceof ApiError ? err.message : 'Could not check this pincode');
+    }
   }
 
   function move(delta: number) {
@@ -270,8 +278,9 @@ function QueueScreen() {
     <QueueDetail
       order={selected}
       text={textFor(selected)}
-      note={pincodeNote[selected.id] || ''}
+      pinState={pinByOrder[selected.id] || null}
       busy={sending || working === selected.id}
+      sending={sending}
       canSend={canSend}
       calling={callFor === selected.id}
       picked={Boolean(picked[selected.id])}
@@ -287,6 +296,7 @@ function QueueScreen() {
       onCall={() => setCallFor(selected.id)}
       onVoice={() => voice(selected)}
       onPin={() => pin(selected)}
+      onSend={() => { void send([selected.id]); }}
       onCloseCall={() => setCallFor('')}
     />
   ) : (
@@ -301,6 +311,7 @@ function QueueScreen() {
   );
 
   const pickedIds = Object.entries(picked).filter(([, on]) => on).map(([id]) => id);
+  const selecting = pickedIds.length > 0;
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full flex-col px-4 sm:px-6 lg:px-8 xl:px-10" data-tour-ready="true">
@@ -376,15 +387,25 @@ function QueueScreen() {
             />
           </label>
         </div>
-        {pickedIds.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2.5 border-2 border-ink bg-lime px-4 py-2.5 shadow-sticker-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]">
+        {selecting ? (
+          <div data-selection-bar="true" className="mt-3 flex flex-nowrap items-center gap-1.5 border-2 border-ink bg-lime px-2 py-1.5 shadow-sticker-sm lg:gap-2.5 lg:px-4 lg:py-2.5">
+            <span className="shrink-0 whitespace-nowrap font-mono text-[10px] font-bold uppercase tracking-[0.06em] lg:text-[11px] lg:tracking-[0.14em]">
               {pickedIds.length} selected
             </span>
-            <Button type="button" disabled={sending || !canSend} onClick={() => send(pickedIds)}>
-              {sending ? 'Sending…' : 'Send selected'}
-            </Button>
-            <Button type="button" tone="ghost" onClick={() => setPicked({})}>Clear</Button>
+            <button type="button" className="inline-flex shrink-0 items-center justify-center whitespace-nowrap border-2 border-ink bg-white px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.04em] shadow-[2px_2px_0_0_#1B1712] lg:px-7 lg:py-4 lg:text-[12px] lg:tracking-[0.18em] lg:shadow-[4px_4px_0_#1B1712]" onClick={() => setPicked(Object.fromEntries(filtered.map((order) => [order.id, true])))}>
+              Select all
+            </button>
+            <button type="button" className="inline-flex shrink-0 items-center justify-center whitespace-nowrap border-2 border-ink bg-white px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.04em] shadow-[2px_2px_0_0_#1B1712] disabled:opacity-50 lg:bg-lime lg:px-7 lg:py-4 lg:text-[12px] lg:tracking-[0.18em] lg:shadow-[4px_4px_0_#1B1712]" disabled={sending || !canSend} onClick={() => send(pickedIds)}>
+              {sending ? 'Sending…' : (
+                <>
+                  <span className="lg:hidden">Send</span>
+                  <span className="hidden lg:inline">Send selected</span>
+                </>
+              )}
+            </button>
+            <button type="button" className="inline-flex shrink-0 items-center justify-center whitespace-nowrap border-2 border-ink bg-white px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.04em] shadow-[2px_2px_0_0_#1B1712] lg:px-7 lg:py-4 lg:text-[12px] lg:tracking-[0.18em] lg:shadow-[4px_4px_0_#1B1712]" onClick={() => setPicked({})}>
+              Clear
+            </button>
           </div>
         ) : null}
       </div>
@@ -427,11 +448,50 @@ function QueueScreen() {
                 role="option"
                 aria-selected={active}
                 tabIndex={0}
-                onClick={() => openRow(order.id)}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return;
+                  const target = event.target instanceof Element ? event.target : null;
+                  if (target?.closest('input,button,a,label')) return;
+                  const startX = event.clientX;
+                  const startY = event.clientY;
+                  const timer = window.setTimeout(() => {
+                    suppressClick.current = true;
+                    setPickedOne(order.id, true);
+                  }, 450);
+                  const end = () => {
+                    window.clearTimeout(timer);
+                    window.removeEventListener('pointermove', move);
+                    window.removeEventListener('pointerup', end);
+                    window.removeEventListener('pointercancel', end);
+                  };
+                  const move = (ev: PointerEvent) => {
+                    if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) end();
+                  };
+                  window.addEventListener('pointermove', move);
+                  window.addEventListener('pointerup', end);
+                  window.addEventListener('pointercancel', end);
+                }}
+                onClick={() => {
+                  if (suppressClick.current) {
+                    suppressClick.current = false;
+                    return;
+                  }
+                  if (selecting) {
+                    setPickedOne(order.id, !picked[order.id]);
+                    return;
+                  }
+                  openRow(order.id);
+                }}
+                onContextMenu={(event) => {
+                  if (suppressClick.current) event.preventDefault();
+                }}
                 onKeyDown={(event) => {
+                  const target = event.target instanceof Element ? event.target : null;
+                  if (target?.closest('input,button,a')) return;
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    openRow(order.id);
+                    if (selecting) setPickedOne(order.id, !picked[order.id]);
+                    else openRow(order.id);
                   }
                 }}
                 className={`grid w-full cursor-pointer grid-cols-[auto_2.75rem_minmax(0,1fr)_auto] items-center gap-3 border-b-2 border-ink/60 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-hl/30 ${
@@ -443,7 +503,7 @@ function QueueScreen() {
                   aria-label={`Select ${order.externalOrderId}`}
                   checked={Boolean(picked[order.id])}
                   onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
+                  onChange={(event) => setPickedOne(order.id, event.target.checked)}
                   className="h-4 w-4 accent-[#1B1712]"
                 />
                 <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
@@ -473,8 +533,9 @@ function QueueScreen() {
 function QueueDetail({
   order,
   text,
-  note,
+  pinState,
   busy,
+  sending,
   canSend,
   calling,
   picked,
@@ -490,12 +551,14 @@ function QueueDetail({
   onCall,
   onVoice,
   onPin,
+  onSend,
   onCloseCall,
 }: {
   order: OrderDetail;
   text: string;
-  note: string;
+  pinState: { status: PincodeStatus; view?: PincodeView } | null;
   busy: boolean;
+  sending: boolean;
   canSend: boolean;
   calling: boolean;
   picked: boolean;
@@ -511,6 +574,7 @@ function QueueDetail({
   onCall: () => void;
   onVoice: () => void;
   onPin: () => void;
+  onSend: () => void;
   onCloseCall: () => void;
 }) {
   return (
@@ -585,6 +649,7 @@ function QueueDetail({
                 </li>
               ))}
             </ul>
+            {pinState ? <PincodeCheck status={pinState.status} view={pinState.view} /> : null}
             <p className="mt-3 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-inksoft">
               Reasons from the order facts. Score from {predictorLabel(order.model)}.
             </p>
@@ -596,11 +661,8 @@ function QueueDetail({
             <p className="mt-3 text-[15px] leading-7 text-ink/75">{order.address}</p>
           </div>
           <div className="border-t-2 border-dashed border-ink/25 pt-5" data-tour="message-draft">
-            <div className="flex items-center justify-between gap-3">
-              <p className="eyebrow text-inksoft">Message draft</p>
-              {text ? <CopyButton text={text} /> : null}
-            </div>
-            <p className="mt-3.5 font-hindi text-[15px] leading-7">{text}</p>
+            <p className="eyebrow text-inksoft">Message draft</p>
+            <p className="mt-3.5 font-hindi text-[15px] leading-7">{text || 'No draft yet.'}</p>
             {order.messages ? (
               <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-inksoft">
                 Draft from {engineLabel(order.messages.source)}
@@ -611,6 +673,18 @@ function QueueDetail({
                 Prepaid nudge: {order.messages.prepaid_nudge}
               </p>
             ) : null}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <CopyButton text={text} tour="copy-draft" />
+              <button
+                type="button"
+                data-tour="send-whatsapp"
+                className="btn-go !px-3 !py-2 !text-[11px] !tracking-[0.08em] !shadow-[3px_3px_0_#1B1712]"
+                disabled={sending}
+                onClick={onSend}
+              >
+                {sending ? 'Sending…' : 'Send on WhatsApp'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -625,7 +699,6 @@ function QueueDetail({
           <p className="eyebrow mb-4 text-inksoft">Conversation</p>
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>
-        {note ? <p className="mt-4 text-sm leading-6 text-ink/70">{note}</p> : null}
 
         {order.interventionWhy ? (
           <p className="mt-8 border-t-2 border-dashed border-ink/25 pt-5 font-mono text-[11px] font-bold uppercase leading-6 tracking-[0.08em] text-inksoft">
