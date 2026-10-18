@@ -116,12 +116,18 @@ export function Dropdown({
   onChange,
   label,
   placeholder = '—',
+  reveal,
+  listTour,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
   label: string;
   placeholder?: string;
+  /** data-tour-open value so the product tour can open this menu. */
+  reveal?: string;
+  /** data-tour value on the open list. */
+  listTour?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(-1);
@@ -131,10 +137,13 @@ export function Dropdown({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('#tour-card')) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      // The tour closes this menu itself on Escape. A second close would toggle it open again.
+      if (e.key === 'Escape' && !document.getElementById('tour-card')) setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -157,6 +166,7 @@ export function Dropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}
+        data-tour-open={reveal}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
@@ -174,6 +184,7 @@ export function Dropdown({
         <ul
           role="listbox"
           aria-label={label}
+          data-tour={listTour}
           className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto border-2 border-ink bg-white py-1 shadow-sticker"
         >
           {options.map((o, i) => {
@@ -182,6 +193,7 @@ export function Dropdown({
               <li key={o.value} role="option" aria-selected={active} className="opt-in" style={{ animationDelay: `${i * 35}ms` }}>
                 <button
                   type="button"
+                  data-tour={listTour ? `lang-${o.value}` : undefined}
                   onClick={() => pick(o.value)}
                   onMouseEnter={() => setFocusIdx(i)}
                   onKeyDown={(e) => {
@@ -363,6 +375,7 @@ export function Section({
   children,
   className = '',
   pad = true,
+  tour,
 }: {
   eyebrow?: ReactNode;
   title?: ReactNode;
@@ -370,9 +383,10 @@ export function Section({
   children: ReactNode;
   className?: string;
   pad?: boolean;
+  tour?: string;
 }) {
   return (
-    <section className={`sticker ${className}`}>
+    <section className={`sticker ${className}`} data-tour={tour}>
       {(eyebrow || title || action) && (
         <div className={`flex flex-wrap items-start justify-between gap-3 ${pad ? 'p-5 sm:p-6 lg:p-7' : 'px-5 pt-5 sm:px-6 sm:pt-6 lg:px-7 lg:pt-7'} pb-0`}>
           <div className="min-w-0">

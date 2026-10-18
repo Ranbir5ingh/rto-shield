@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, ScanLine, Search, Settings } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
@@ -12,7 +12,7 @@ import { Notice, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { gemmaNotice } from '@/lib/ml-status';
 import { prefetchRoute, qk, useIntegrations, useMe, useQueue } from '@/lib/queries';
-import { demoTour, sellerTour } from '@/lib/tours';
+import { toursFor, type TourKind, type TourSurface } from '@/lib/tours';
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
@@ -104,18 +104,31 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const queueCount = queue.data?.orders.length ?? 0;
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
-  const [tour, setTour] = useState<'seller' | 'demo' | null>(null);
+  const [tour, setTour] = useState<TourKind | null>(null);
   const [tourNonce, setTourNonce] = useState(0);
+  const [surface, setSurface] = useState<TourSurface | null>(null);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('rto-sidebar') === 'collapsed';
   });
   const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
   const tourStarted = useRef(false);
+  const tourSteps = useMemo(
+    () => (tour && surface ? toursFor(tour, surface) : null),
+    [tour, surface],
+  );
 
   useEffect(() => {
     window.localStorage.setItem('rto-sidebar', collapsed ? 'collapsed' : 'open');
   }, [collapsed]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setSurface(media.matches ? 'desktop' : 'mobile');
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
 
   useEffect(() => {
     if (me.isError) router.replace('/login');
@@ -433,7 +446,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
-      {tour ? <Tour key={`${tour}-${tourNonce}`} steps={tour === 'demo' ? demoTour : sellerTour} onFinish={finishTour} /> : null}
+      {tourSteps ? <Tour key={`${tour}-${surface}-${tourNonce}`} steps={tourSteps} onFinish={finishTour} /> : null}
     </div>
   );
 }

@@ -158,6 +158,7 @@ export default function OrderDetailPage() {
           order={order}
           busy={Boolean(saving)}
           canSend
+          tour
           onPrimary={() => {
             if (order.intervention === 'offer_prepaid') void prepaid();
             else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
@@ -183,7 +184,7 @@ export default function OrderDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         <Section eyebrow="The score" title="Why this score">
-          <ul className="flex flex-wrap gap-2">
+          <ul className="flex flex-wrap gap-2" aria-label="Risk reasons" data-tour="why-flagged">
             {order.reasons.length ? order.reasons.map((reason) => (
               <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{reason}</li>
             )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
@@ -227,7 +228,7 @@ export default function OrderDetailPage() {
         </Section>
 
         {order.messages ? (
-          <Section eyebrow="Outreach" title="Message draft" action={text ? <CopyButton text={text} /> : null}>
+          <Section eyebrow="Outreach" title="Message draft" action={text ? <CopyButton text={text} /> : null} tour="message-draft">
             <p className="font-hindi text-[15px] leading-7">{text}</p>
             <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-inksoft">Draft from {engineLabel(order.messages.source)}</p>
             <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
@@ -246,10 +247,14 @@ export default function OrderDetailPage() {
             </div>
             {note ? <p className="mt-3 text-sm leading-6 text-ink/70">{note}</p> : null}
           </Section>
-        ) : null}
+        ) : (
+          <Section eyebrow="Outreach" title="Message draft" tour="message-draft">
+            <p className="text-sm text-inksoft">No draft yet.</p>
+          </Section>
+        )}
       </div>
 
-      <Section eyebrow="Thread" title="WhatsApp conversation" pad={false}>
+      <Section eyebrow="Thread" title="WhatsApp conversation" pad={false} tour="conversation">
         <div className="mt-4 px-5 pb-5 sm:px-6 sm:pb-6">
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>

@@ -1,4 +1,4 @@
-import { agentRequestBody, syncElevenAgent } from './agent-sync';
+import { AGENT_TTS_MODEL, AGENT_VOICE_ID, agentRequestBody, syncElevenAgent } from './agent-sync';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -20,6 +20,11 @@ describe('syncElevenAgent', () => {
     expect(result).toEqual({ agentId: 'agent-1', created: false, webhookId: null, webhookSecret: null });
     expect(calls.some((call) => call.includes('/agents/create'))).toBe(false);
     expect(agentRequestBody(null).name).toBe('RTO Shield order desk');
+    const sent = JSON.parse(String((fetchImpl as unknown as jest.Mock).mock.calls[0][1].body));
+    expect(sent.conversation_config.tts.voice_id).toBe(AGENT_VOICE_ID);
+    expect(sent.conversation_config.tts.model_id).toBe(AGENT_TTS_MODEL);
+    expect(sent.conversation_config.agent.prompt.prompt).toContain('[slow]');
+    expect(JSON.stringify(sent)).not.toContain(key);
   });
 
   it('creates an agent when the name is new, then reuses a webhook', async () => {

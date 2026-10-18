@@ -9,6 +9,7 @@ import { OauthState, OauthStateSchema } from './oauth-state.schema';
 import { Order, OrderSchema } from './order.schema';
 import { PincodeCache, PincodeCacheSchema } from './pincode-cache.schema';
 import { PlatformFlag, PlatformSchema } from './platform.schema';
+import { TourNarration, TourNarrationSchema } from './tour-narration.schema';
 import { User, UserSchema } from './user.schema';
 
 @Module({
@@ -24,6 +25,7 @@ import { User, UserSchema } from './user.schema';
       { name: PlatformFlag.name, schema: PlatformSchema },
       { name: DemoSession.name, schema: DemoSessionSchema },
       { name: DemoBaseline.name, schema: DemoBaselineSchema },
+      { name: TourNarration.name, schema: TourNarrationSchema },
     ]),
   ],
   exports: [MongooseModule],

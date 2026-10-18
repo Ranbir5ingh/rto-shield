@@ -166,5 +166,8 @@ test-results/
 playwright-report/
 blob-report/
 
+# Generated tour narration
+var/
+
 # Local mongo / coverage
 coverage/

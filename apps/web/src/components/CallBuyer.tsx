@@ -83,7 +83,7 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
   }
 
   return (
-    <section className="border-2 border-ink bg-paper p-4 shadow-sticker" aria-label="Call the buyer">
+    <section className="border-2 border-ink bg-paper p-4 shadow-sticker" aria-label="Call the buyer" data-tour="call-panel">
       <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em]">Call the buyer</p>
       <p className="mt-2 text-sm leading-6">The call stays in this browser unless an outbound number is configured. The API key never leaves the server.</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -94,7 +94,7 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
             {phase === 'calling' ? 'Connecting…' : phase === 'done' ? 'Call again' : 'Start browser call'}
           </Button>
         )}
-        <Button type="button" tone="ghost" onClick={onClose}>Close</Button>
+        <Button type="button" tone="ghost" data-tour-close="call" onClick={onClose}>Close</Button>
       </div>
       {phase === 'live' ? <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink">On the call</p> : null}
       {notice ? <p className="mt-3 text-sm leading-6">{notice}</p> : null}

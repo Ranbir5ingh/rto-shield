@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { autoUpdate, computePosition, flip, hide, offset, shift, size } from '@floating-ui/dom';
 import type { TourStep } from '@/lib/tours';
 import { cardWidthFor, resolveTourFrame, type Rect, type TourFrame } from '@/components/tour-place';
+import { freshRevealMemory, restoreTourUi, revealStep, stepOnPage, type RevealMemory } from '@/components/tour-reveal';
 
 interface Box {
   top: number;
@@ -80,21 +81,98 @@ export function Tour({
   const titleId = useId();
   const bodyId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const unlocked = useRef(false);
+  const revealMemory = useRef<RevealMemory>(freshRevealMemory());
   const [index, setIndex] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
   const [frame, setFrame] = useState<TourFrame | null>(null);
   const [pin, setPin] = useState(0);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const voiceOnRef = useRef(true);
+  const cleaned = useRef(false);
+  voiceOnRef.current = voiceOn;
   const step = steps[index];
+  const speakId = step?.narrationId || step?.id || '';
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('rto-tour-voice');
+    const quiet = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setVoiceOn(stored ? stored === 'on' : !quiet);
+  }, []);
+
+  function stopVoice() {
+    audioRef.current?.pause();
+    audioRef.current = null;
+  }
+
+  function playVoice(id: string) {
+    if (!voiceOnRef.current || !unlocked.current || !id) {
+      stopVoice();
+      return;
+    }
+    const current = audioRef.current;
+    if (current && current.dataset.step === id && !current.paused) return;
+    stopVoice();
+    const audio = new Audio(`/api/tours/narration/${encodeURIComponent(id)}`);
+    audio.dataset.step = id;
+    audioRef.current = audio;
+    try {
+      void audio.play().catch(() => undefined);
+    } catch {
+      /* playback can fail before the browser returns a promise */
+    }
+  }
+
+  function finish(reason: 'done' | 'skip') {
+    stopVoice();
+    const openedOrder = revealMemory.current.openedOrder;
+    if (!cleaned.current) {
+      cleaned.current = true;
+      restoreTourUi(revealMemory.current);
+      revealMemory.current = freshRevealMemory();
+      if (openedOrder && window.matchMedia('(max-width: 1023px)').matches && window.location.pathname.startsWith('/app/orders/')) {
+        router.push('/app/queue');
+      }
+    }
+    onFinish(reason);
+  }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      onFinish('skip');
+      finish('skip');
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onFinish]);
+  }, [onFinish, router]);
+
+  useEffect(() => {
+    return () => {
+      stopVoice();
+      if (!cleaned.current) {
+        cleaned.current = true;
+        restoreTourUi(revealMemory.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const onGesture = (event: PointerEvent) => {
+      unlocked.current = true;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('#tour-card')) return;
+      playVoice(speakId);
+    };
+    window.addEventListener('pointerdown', onGesture, { once: true });
+    return () => window.removeEventListener('pointerdown', onGesture);
+  }, [speakId, voiceOn]);
+
+  useEffect(() => {
+    if (!unlocked.current) return;
+    playVoice(speakId);
+  }, [speakId, voiceOn]);
 
   useEffect(() => {
     if (!step) return;
@@ -104,6 +182,7 @@ export function Tour({
     let pushed = false;
     let poll = 0;
     const started = performance.now();
+    const memory = revealMemory.current;
 
     const giveUp = () => {
       if (cancelled || locked) return;
@@ -124,12 +203,22 @@ export function Tour({
         const wait = Math.min(80, Math.max(0, stepTimeoutMs - (performance.now() - started)));
         poll = window.setTimeout(seek, wait);
       };
-      if (step.route !== pathname) {
+      const mobile = window.matchMedia('(max-width: 1023px)').matches;
+      if (!stepOnPage(step, pathname || '', mobile)) {
         setBox(null);
         setFrame(null);
         if (!pushed) {
-          pushed = true;
-          router.push(step.route);
+          const row = mobile && step.reveal?.includes('order')
+            ? document.querySelector<HTMLElement>('[data-tour-row="1"]')
+            : null;
+          if (row) {
+            pushed = true;
+            memory.openedOrder = true;
+            row.click();
+          } else if (window.location.pathname !== step.route) {
+            pushed = true;
+            router.push(step.route);
+          }
         }
         again();
         return;
@@ -138,6 +227,7 @@ export function Tour({
         again();
         return;
       }
+      revealStep(step, mobile, memory);
       const node = tourTarget(step.id);
       const next = node ? measure(node) : null;
       if (!node || !next) {
@@ -171,7 +261,7 @@ export function Tour({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['data-tour', 'data-tour-ready', 'class', 'style'],
+      attributeFilter: ['data-tour', 'data-tour-ready', 'class', 'style', 'aria-expanded', 'aria-selected'],
     });
     seek();
 
@@ -183,7 +273,9 @@ export function Tour({
   }, [index, onFinish, pathname, router, step, stepTimeoutMs, steps.length]);
 
   useEffect(() => {
-    if (!step || step.route !== pathname) return;
+    if (!step) return;
+    const mobileNow = window.matchMedia('(max-width: 1023px)').matches;
+    if (!stepOnPage(step, pathname || '', mobileNow)) return;
     const node = tourTarget(step.id);
     const cardEl = cardRef.current;
     if (!node || !cardEl) return;
@@ -254,8 +346,13 @@ export function Tour({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        if (index >= steps.length - 1) onFinish('done');
-        else setIndex(index + 1);
+        unlocked.current = true;
+        if (index >= steps.length - 1) finish('done');
+        else {
+          const next = steps[index + 1];
+          setIndex(index + 1);
+          if (next) playVoice(next.narrationId || next.id);
+        }
         return;
       }
       if (event.key === 'ArrowLeft') {
@@ -281,7 +378,7 @@ export function Tour({
   }, [index, onFinish, steps.length]);
 
   if (!step) return null;
-  const onPage = step.route === pathname;
+  const onPage = stepOnPage(step, pathname || '', typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const spotlight = Boolean(box && frame && onPage);
   const last = index === steps.length - 1;
   const width = frame?.width ?? (typeof window === 'undefined' ? 352 : cardWidthFor(window.innerWidth));
@@ -330,26 +427,60 @@ export function Tour({
           <p id={bodyId} className="mt-2 text-sm leading-6 text-ink/80">
             {step.body}
           </p>
-          <div className="mt-4 flex gap-1.5" aria-hidden="true">
+          <div className="mt-4 flex flex-wrap gap-1.5" aria-hidden="true">
             {steps.map((item, dot) => (
               <span key={`${item.id}-${dot}`} className={`h-2 w-2 border border-ink ${dot === index ? 'bg-ink' : 'bg-paper'}`} />
             ))}
           </div>
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 border-t-2 border-ink px-5 py-3">
-          <button type="button" className="btn-ghost" onClick={() => onFinish('skip')}>
+          <button type="button" className="btn-ghost" onClick={() => finish('skip')}>
             Skip
           </button>
           <div className="flex gap-2">
-            <button type="button" className="btn-ghost" onClick={() => setIndex((current) => Math.max(0, current - 1))} disabled={index === 0}>
+            <button
+              type="button"
+              className="btn-ghost"
+              aria-pressed={!voiceOn}
+              onClick={() => {
+                unlocked.current = true;
+                const next = !voiceOn;
+                voiceOnRef.current = next;
+                setVoiceOn(next);
+                window.localStorage.setItem('rto-tour-voice', next ? 'on' : 'off');
+                if (!next) stopVoice();
+                else playVoice(speakId);
+              }}
+            >
+              {voiceOn ? 'Mute' : 'Voice'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                unlocked.current = true;
+                const nextIndex = Math.max(0, index - 1);
+                const next = steps[nextIndex];
+                setIndex(nextIndex);
+                if (next) playVoice(next.narrationId || next.id);
+              }}
+              disabled={index === 0}
+            >
               Back
             </button>
             <button
               type="button"
               className="btn-go"
               onClick={() => {
-                if (last) onFinish('done');
-                else setIndex((current) => current + 1);
+                unlocked.current = true;
+                if (last) {
+                  stopVoice();
+                  finish('done');
+                  return;
+                }
+                const next = steps[index + 1];
+                setIndex(index + 1);
+                if (next) playVoice(next.narrationId || next.id);
               }}
             >
               {last ? 'Done' : 'Next'}

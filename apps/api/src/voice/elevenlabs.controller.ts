@@ -6,21 +6,24 @@ import {
   Headers,
   HttpCode,
   Inject,
+  Param,
   Post,
   Req,
+  Res,
   UnauthorizedException,
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'crypto';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../common/current-user';
 import { Public, SkipCsrf } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import { elevenKeySchema } from '../common/validation';
 import type { UserDocument } from '../database/user.schema';
 import { OrdersService } from '../orders/orders.service';
+import { NarrationService } from '../tours/narration.service';
 import { ElevenLabsService } from './elevenlabs.service';
 
 type RawRequest = Request & { rawBody?: Buffer };
@@ -36,7 +39,23 @@ export class ElevenLabsController {
     private readonly eleven: ElevenLabsService,
     private readonly config: ConfigService,
     @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
+    private readonly narration: NarrationService,
   ) {}
+
+  /** Cached tour voice. The API key stays on the server. Unknown steps and a missing key are silent. */
+  @Get('tours/narration/:stepId')
+  async narrationAudio(@Param('stepId') stepId: string, @Res() res: Response) {
+    const audio = await this.narration.audio(stepId);
+    if (!audio) {
+      res.status(204).end();
+      return;
+    }
+    res.status(200);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Content-Length', String(audio.length));
+    res.end(audio);
+  }
 
   @Get('elevenlabs')
   status(@CurrentUser() user: UserDocument) {

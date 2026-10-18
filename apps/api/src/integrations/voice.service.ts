@@ -25,8 +25,8 @@ export class VoiceService {
         notice: 'Hindi voice needs ELEVENLABS_API_KEY. The script is ready to read aloud or paste into WhatsApp.',
       };
     }
-    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID') || 'EXAVITQu4vr4xnSDxMaL';
-    const model = this.config.get<string>('ELEVENLABS_MODEL_ID') || 'eleven_multilingual_v2';
+    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID') || '0muxiGNHAVvmM1qWRtyV';
+    const model = this.config.get<string>('ELEVENLABS_MODEL_ID') || 'eleven_v3';
     try {
       const audio = await traceSpan(
         'tts elevenlabs.hindi',

@@ -78,7 +78,7 @@ export default function HistoryPage() {
       }
     >
       <Section eyebrow={`History · ${total}`} title="What already happened" pad={false}>
-        <div className="mt-4 flex flex-col gap-3 border-t-2 border-ink px-5 py-4 sm:px-6">
+        <div className="mt-4 flex flex-col gap-3 border-t-2 border-ink px-5 py-4 sm:px-6" data-tour="history-list">
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Outcome">
             {OUTCOMES.map(([value, label]) => (
               <button

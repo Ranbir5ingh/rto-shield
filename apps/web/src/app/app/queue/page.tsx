@@ -316,6 +316,7 @@ function QueueScreen() {
             <button
               type="button"
               role="tab"
+              data-tour-open="needs-action"
               aria-selected={scope === 'action'}
               className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
                 scope === 'action' ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
@@ -330,6 +331,8 @@ function QueueScreen() {
             <button
               type="button"
               role="tab"
+              data-tour="all-open"
+              data-tour-open="all-open"
               aria-selected={scope === 'open'}
               className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
                 scope === 'open' ? 'bg-lime shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
@@ -346,6 +349,7 @@ function QueueScreen() {
                 key={value}
                 type="button"
                 role="tab"
+                data-tour={value === 'Low' ? 'band-low' : undefined}
                 aria-selected={band === value}
                 className={`border-2 border-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] transition ${
                   band === value ? 'bg-hl shadow-sticker-sm' : 'bg-white hover:bg-hl/40'
@@ -360,6 +364,8 @@ function QueueScreen() {
             <span className="eyebrow text-inksoft">Message</span>
             <Dropdown
               label="Message language"
+              reveal="language"
+              listTour="message-language"
               value={language}
               onChange={(v) => setLanguage(v as PublicUser['messageLanguage'])}
               options={[
@@ -387,6 +393,7 @@ function QueueScreen() {
       <div className="grid min-h-0 flex-1 gap-5 pb-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
         <div
           className="sticker-sm min-h-0 overflow-y-auto overscroll-contain"
+          data-tour="queue-list"
           role="listbox"
           aria-label="Orders waiting for a decision"
           aria-activedescendant={selected ? `queue-row-${selected.id}` : undefined}
@@ -411,11 +418,12 @@ function QueueScreen() {
             </p>
           ) : filtered.map((order, index) => {
             const active = wide && selected?.id === order.id;
-            const tourRow = !wide && index === 0;
             return (
               <div
                 key={order.id}
                 id={`queue-row-${order.id}`}
+                data-order-id={order.id}
+                data-tour-row={index === 0 ? '1' : undefined}
                 role="option"
                 aria-selected={active}
                 tabIndex={0}
@@ -438,9 +446,9 @@ function QueueScreen() {
                   onChange={(event) => setPicked((current) => ({ ...current, [order.id]: event.target.checked }))}
                   className="h-4 w-4 accent-[#1B1712]"
                 />
-                <span className="font-display text-[1.65rem] font-black tabular-nums leading-none" data-tour={tourRow ? 'approve-send' : undefined}>{order.riskScore ?? '—'}</span>
-                <span className="min-w-0" data-tour={tourRow ? 'next-action' : undefined}>
-                  <span className="block truncate font-display text-base font-extrabold uppercase tracking-tight" data-tour={tourRow ? 'risk-reasons' : undefined}>{order.buyerName}</span>
+                <span className="font-display text-[1.65rem] font-black tabular-nums leading-none">{order.riskScore ?? '—'}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-base font-extrabold uppercase tracking-tight">{order.buyerName}</span>
                 </span>
                 <Flag
                   tone={order.riskBand === 'High' ? 'red' : order.riskBand === 'Medium' ? 'banana' : order.riskBand === 'Low' ? 'go' : 'ghost'}
@@ -570,7 +578,7 @@ function QueueDetail({
         <div className="grid gap-x-10 gap-y-8 md:grid-cols-2">
           <div className="border-t-2 border-dashed border-ink/25 pt-5">
             <p className="eyebrow text-inksoft">Why flagged</p>
-            <ul className="mt-3.5 flex flex-wrap gap-1.5" aria-label="Risk reasons" data-tour="risk-reasons">
+            <ul className="mt-3.5 flex flex-wrap gap-1.5" aria-label="Risk reasons" data-tour="why-flagged">
               {order.reasons.map((reason) => (
                 <li key={reason} className="border border-ink/60 bg-hl/70 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.06em]">
                   {reason}
@@ -587,7 +595,7 @@ function QueueDetail({
             </p>
             <p className="mt-3 text-[15px] leading-7 text-ink/75">{order.address}</p>
           </div>
-          <div className="border-t-2 border-dashed border-ink/25 pt-5">
+          <div className="border-t-2 border-dashed border-ink/25 pt-5" data-tour="message-draft">
             <div className="flex items-center justify-between gap-3">
               <p className="eyebrow text-inksoft">Message draft</p>
               {text ? <CopyButton text={text} /> : null}
@@ -613,7 +621,7 @@ function QueueDetail({
           </p>
         ) : null}
 
-        <div className="mt-8 border-t-2 border-dashed border-ink/25 pt-6">
+        <div className="mt-8 border-t-2 border-dashed border-ink/25 pt-6" data-tour="conversation">
           <p className="eyebrow mb-4 text-inksoft">Conversation</p>
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>

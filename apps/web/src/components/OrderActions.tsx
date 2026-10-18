@@ -55,7 +55,7 @@ export function OrderActions({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2" data-tour={tour ? 'next-action' : undefined} data-send={canSend ? '1' : '0'}>
-        <span data-tour={tour ? 'approve-send' : undefined}>
+        <span data-tour={tour ? 'hold-approve' : undefined}>
           <Button type="button" disabled={busy || closed || primary.id === 'hold' || primary.id === 'confirmed'} onClick={onPrimary} className={slim}>
             {busy ? 'Working…' : primary.label}
           </Button>
@@ -66,18 +66,18 @@ export function OrderActions({
           </Button>
         ) : null}
         <div className="relative">
-          <Button type="button" tone="ghost" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)} className={slim}>
+          <Button type="button" tone="ghost" aria-expanded={open} aria-haspopup="menu" data-tour-open={tour ? 'more' : undefined} onClick={() => setOpen((value) => !value)} className={slim}>
             More
           </Button>
           {open ? (
-            <div role="menu" className="absolute left-0 z-20 mt-1 min-w-44 border-2 border-ink bg-paper shadow-sticker">
-              <MenuItem label="Confirmed" onClick={() => { setOpen(false); onOutcome('confirmed'); }} />
-              <MenuItem label="Cancelled" onClick={() => { setOpen(false); onOutcome('cancelled'); }} />
-              <MenuItem label="Skip" onClick={() => { setOpen(false); onOutcome('no_response'); }} />
-              <MenuItem label="Offer prepaid" onClick={() => { setOpen(false); onPrepaid(); }} />
-              {showCallButton ? null : <MenuItem label="Call the buyer" onClick={() => { setOpen(false); onCall(); }} />}
-              <MenuItem label="Play Hindi" onClick={() => { setOpen(false); onVoice(); }} />
-              <MenuItem label="Pincode" onClick={() => { setOpen(false); onPin(); }} />
+            <div role="menu" data-tour={tour ? 'more-menu' : undefined} className="absolute left-0 z-20 mt-1 min-w-44 border-2 border-ink bg-paper shadow-sticker">
+              <MenuItem label="Confirmed" tour={tour ? 'menu-confirmed' : undefined} onClick={() => { setOpen(false); onOutcome('confirmed'); }} />
+              <MenuItem label="Cancelled" tour={tour ? 'menu-cancelled' : undefined} onClick={() => { setOpen(false); onOutcome('cancelled'); }} />
+              <MenuItem label="Skip" tour={tour ? 'menu-skip' : undefined} onClick={() => { setOpen(false); onOutcome('no_response'); }} />
+              <MenuItem label="Offer prepaid" tour={tour ? 'menu-prepaid' : undefined} onClick={() => { setOpen(false); onPrepaid(); }} />
+              {showCallButton ? null : <MenuItem label="Call the buyer" tour={tour ? 'menu-call' : undefined} onClick={() => { setOpen(false); onCall(); }} />}
+              <MenuItem label="Play Hindi" tour={tour ? 'menu-voice' : undefined} onClick={() => { setOpen(false); onVoice(); }} />
+              <MenuItem label="Pincode" tour={tour ? 'menu-pin' : undefined} onClick={() => { setOpen(false); onPin(); }} />
             </div>
           ) : null}
         </div>
@@ -87,9 +87,9 @@ export function OrderActions({
   );
 }
 
-function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
+function MenuItem({ label, onClick, tour }: { label: string; onClick: () => void; tour?: string }) {
   return (
-    <button type="button" role="menuitem" className="block w-full border-b-2 border-ink px-3 py-2 text-left font-mono text-[11px] font-bold uppercase tracking-[0.12em] last:border-b-0 hover:bg-lime" onClick={onClick}>
+    <button type="button" role="menuitem" data-tour={tour} className="block w-full border-b-2 border-ink px-3 py-2 text-left font-mono text-[11px] font-bold uppercase tracking-[0.12em] last:border-b-0 hover:bg-lime" onClick={onClick}>
       {label}
     </button>
   );

@@ -1,6 +1,13 @@
 /** Shared with scripts/elevenlabs-agent.mjs. Never log the API key or webhook secret. */
 
 export const ELEVEN_AGENT_NAME = 'RTO Shield order desk';
+/** Sid — Young Friendly Indian. Same voice as the product tour. */
+export const AGENT_VOICE_ID = '0muxiGNHAVvmM1qWRtyV';
+/**
+ * Eleven v3 Conversational. Expressive mode turns on with this model.
+ * eleven_v3 itself is for one-shot speech. Agents need the realtime model.
+ */
+export const AGENT_TTS_MODEL = 'eleven_v3_conversational';
 const API = 'https://api.elevenlabs.io/v1';
 
 export const AGENT_PROMPT = `You are the order desk for {{shop_name}}. Speak Hindi, Hinglish, or English, matching the buyer.
@@ -8,7 +15,11 @@ The order number is {{order_id}} for Rs {{amount}}. The next step is {{action}}.
 Confirm the order if they agree. If they want to cancel, accept politely.
 If the address is weak, ask for a landmark and a complete address. Never ask for or repeat a phone number, and never ask for a card or an OTP.
 If they want to pay now, say the checkout link will arrive on WhatsApp.
-End with one outcome: confirmed, cancelled, address, prepaid, or no_response.`;
+End with one outcome: confirmed, cancelled, address, prepaid, or no_response.
+Voice: warm, young, and brief. Expressive mode is on.
+When they agree, sound pleased. When they hesitate, slow down. When they cancel, stay kind.
+You may place one tag before a short phrase: [laughs], [sighs], or [slow]. One tag is enough. Do not stack tags.
+Example: "Theek hai, [slow] {{amount}} rupaye ka order confirm ho gaya."`;
 
 export interface SyncResult {
   agentId: string;
@@ -45,6 +56,10 @@ export function agentRequestBody(webhookId: string | null): Record<string, unkno
           },
         },
         prompt: { prompt: AGENT_PROMPT, llm: 'gemini-2.0-flash' },
+      },
+      tts: {
+        voice_id: AGENT_VOICE_ID,
+        model_id: AGENT_TTS_MODEL,
       },
     },
     platform_settings: {

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { vi } from 'vitest';
 import type { TourStep } from '@/lib/tours';
 import { Tour } from './Tour';
@@ -16,17 +17,31 @@ const steps: TourStep[] = [
     route: '/app/start',
     title: 'Connect Shopify',
     body: 'One click. Enter your store domain and Shopify sends the orders.',
+    narrationId: 'shopify-connect',
   },
   {
     id: 'import-alternatives',
     route: '/app/start',
     title: 'Other ways in',
     body: 'A CSV upload or the sample shop works if Shopify is not ready yet.',
+    narrationId: 'import-alternatives',
   },
 ];
 
 describe('product tour', () => {
   beforeEach(() => {
+    HTMLMediaElement.prototype.play = () => Promise.resolve();
+    HTMLMediaElement.prototype.pause = () => undefined;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+      onchange: null,
+    })) as typeof window.matchMedia;
     Element.prototype.getBoundingClientRect = () => ({
       x: 40,
       y: 80,
@@ -99,5 +114,34 @@ describe('product tour', () => {
     render(<Tour steps={steps} onFinish={skip} stepTimeoutMs={5000} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(skip).toHaveBeenCalledWith('skip');
+  });
+
+  it('opens a closed menu before spotlighting what is inside', async () => {
+    const onFinish = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <div>
+          <button type="button" data-tour-open="more" aria-expanded={open} onClick={() => setOpen(true)}>
+            More
+          </button>
+          {open ? <div data-tour="more-menu">Call and prepaid</div> : null}
+          <Tour
+            steps={[{
+              id: 'more-menu',
+              route: '/app/start',
+              title: 'More actions',
+              body: 'The menu is open.',
+              narrationId: 'more-menu',
+              reveal: ['more'],
+            }]}
+            onFinish={onFinish}
+          />
+        </div>
+      );
+    }
+    render(<Harness />);
+    expect(await screen.findByText('Call and prepaid')).toBeTruthy();
+    expect(screen.getByRole('dialog').textContent).toContain('More actions');
   });
 });
