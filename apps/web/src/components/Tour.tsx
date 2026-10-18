@@ -363,7 +363,7 @@ export function Tour({
       }
       revealStep(step, mobileNow, memory);
       const node = tourTarget(step.id);
-      if (!node && mobileNow && (step.id === 'exception-order' || step.id === 'exception-action')) {
+      if (!node && mobileNow && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'call-buyer')) {
         const link = document.querySelector<HTMLAnchorElement>('[data-tour="exceptions"] a');
         if (link && window.location.pathname === '/app/queue') {
           if (!pushed) {

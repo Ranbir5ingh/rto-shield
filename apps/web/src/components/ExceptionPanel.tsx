@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
+import { PincodeCheck, type PincodeStatus, type PincodeView } from '@/components/PincodeCheck';
 import { useToast } from '@/components/Toaster';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button, Flag } from '@/components/ui';
@@ -61,6 +63,13 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
   const client = useQueryClient();
   const [saving, setSaving] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const [pinState, setPinState] = useState<{ status: PincodeStatus; view?: PincodeView } | null>(null);
+
+  useEffect(() => {
+    setCallOpen(false);
+    setPinState(null);
+  }, [order?.id]);
 
   async function mark(outcome: 'confirmed' | 'cancelled') {
     if (!order || saving) return;
@@ -73,6 +82,20 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save');
     } finally {
       setSaving('');
+    }
+  }
+
+  async function pin() {
+    if (!order) return;
+    setPinState({ status: 'loading' });
+    try {
+      const body = await api<PincodeView>(`/pincode/${order.pincode}`);
+      setPinState({ status: 'ready', view: body });
+      const place = body.locality || body.region || 'area on file';
+      toast.info(`${order.pincode}: ${place}. Context only, not a ban.`);
+    } catch (err) {
+      setPinState({ status: 'error' });
+      toast.error(err instanceof ApiError ? err.message : 'Could not check this pincode');
     }
   }
 
@@ -116,6 +139,18 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
             <Button type="button" tone="danger" disabled={Boolean(saving) || order.stage === 'closed'} onClick={() => setConfirmCancel(true)}>Cancel</Button>
             <Link href={`/app/orders/${order.id}`} className="btn-ghost !px-3 !py-2 !text-[11px]">Open</Link>
           </div>
+          {order.stage === 'closed' ? null : (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" tone="ghost" onClick={() => { void pin(); }}>Check pincode</Button>
+              <Button type="button" tone="ghost" data-tour="call-buyer" onClick={() => setCallOpen(true)}>Call the buyer</Button>
+            </div>
+          )}
+          {callOpen && order.stage !== 'closed' ? (
+            <div className="mt-4">
+              <CallBuyer orderId={order.id} open onClose={() => setCallOpen(false)} />
+            </div>
+          ) : null}
+          {pinState ? <PincodeCheck status={pinState.status} view={pinState.view} /> : null}
           <ol className="mt-5 space-y-2">
             {(order.timeline || []).slice(-4).map((step) => (
               <li key={`${step.at}-${step.step}`} className="border-2 border-ink/30 px-3 py-2">

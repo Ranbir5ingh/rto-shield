@@ -336,6 +336,20 @@ const COPY: Record<string, Record<TourLang, Line>> = {
       body: 'Check pincode is address ka area dikhata hai. Pincode ban nahi hai, aur yeh step lookup nahi karta.',
     },
   },
+  'call-buyer': {
+    english: {
+      title: 'Call the buyer',
+      body: 'Call the buyer stays in this browser. Allow the microphone. The number stays on the server.',
+    },
+    hindi: {
+      title: 'Call the buyer',
+      body: 'Call the buyer इस ब्राउज़र में रहता है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
+    },
+    hinglish: {
+      title: 'Call the buyer',
+      body: 'Call the buyer is browser mein rehta hai. Mic allow karo. Number server par rehta hai.',
+    },
+  },
   'call-panel': {
     english: {
       title: 'Call the buyer',

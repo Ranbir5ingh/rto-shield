@@ -53,6 +53,28 @@ describe('tour reveal', () => {
     expect(document.getElementById('prepaid')).toBeTruthy();
   });
 
+  it('presses the visible Call the buyer button and does not open More', () => {
+    const clicks: string[] = [];
+    document.body.innerHTML = `
+      <button id="more" data-tour-open="more" aria-expanded="false">More</button>
+      <button id="call" data-tour="call-buyer">Call the buyer</button>
+    `;
+    document.getElementById('call')!.addEventListener('click', () => {
+      clicks.push('call');
+      const panel = document.createElement('section');
+      panel.id = 'panel';
+      panel.setAttribute('data-tour', 'call-panel');
+      document.body.appendChild(panel);
+    });
+    document.getElementById('more')!.addEventListener('click', () => clicks.push('more'));
+    const memory = freshRevealMemory();
+    const current = step({ id: 'call-buyer', reveal: ['call'] });
+    revealStep(current, false, memory);
+    revealStep(current, false, memory);
+    expect(clicks).toEqual(['call']);
+    expect(document.getElementById('panel')).toBeTruthy();
+  });
+
   it('opens the call panel from More and does not reopen the menu', () => {
     const clicks: string[] = [];
     document.body.innerHTML = `

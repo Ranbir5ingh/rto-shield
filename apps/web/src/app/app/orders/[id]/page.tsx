@@ -132,8 +132,8 @@ export default function OrderDetailPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" disabled={Boolean(saving)} onClick={() => { void mark('confirmed'); }}>Confirm</Button>
             <Button type="button" tone="danger" disabled={Boolean(saving)} onClick={() => setConfirmCancel(true)}>Cancel</Button>
-            <Button type="button" tone="ghost" onClick={() => setCallOpen(true)}>Call the buyer</Button>
             <Button type="button" tone="ghost" onClick={() => { void pin(); }}>Check pincode</Button>
+            <Button type="button" tone="ghost" data-tour="call-buyer" onClick={() => setCallOpen(true)}>Call the buyer</Button>
           </div>
         )}
         {callOpen && !closed ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={() => setCallOpen(false)} /></div> : null}

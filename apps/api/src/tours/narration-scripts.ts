@@ -119,9 +119,9 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hinglish: '[curious] Check pincode. Area dikhata hai. Ban nahi. Score nahi.',
   },
   'call-buyer': {
-    english: '[warm] Calls are included. This panel calls in the browser. Allow the mic.',
-    hindi: '[warm] कॉल शामिल हैं। यह पैनल ब्राउज़र में कॉल करता है। माइक दें।',
-    hinglish: '[warm] Calls included hain. Yeh panel browser mein call karega. Mic allow karo.',
+    english: '[warm] Call the buyer. The call stays in this browser. Allow the mic.',
+    hindi: '[warm] Call the buyer। कॉल इस ब्राउज़र में रहती है। माइक दें।',
+    hinglish: '[warm] Call the buyer. Call is browser mein rehti hai. Mic allow karo.',
   },
   'prepaid-offer': {
     english: '[excited] Offer prepaid makes a checkout link. Cash on delivery stays until they pay.',

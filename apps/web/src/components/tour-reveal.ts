@@ -40,15 +40,16 @@ function tap(memory: RevealMemory, key: string, node: HTMLElement) {
 
 /**
  * Open what this step explains, and close what an earlier step opened.
- * A call step opens More only long enough to press Call the buyer, then leaves
- * the panel up and the menu closed.
+ * A call step presses the visible Call the buyer button. Older menus still
+ * open only long enough to press that same label, then the panel stays up.
  */
 export function revealStep(step: TourStep, mobile: boolean, memory: RevealMemory) {
   const needs = new Set<TourReveal>(step.reveal || []);
   const callPanel = firstVisible('[data-tour="call-panel"]');
+  const directCall = firstVisible('[data-tour="call-buyer"]');
   const more = firstVisible('[data-tour-open="more"]');
   const language = firstVisible('[data-tour-open="language"]');
-  const keepMore = needs.has('more') || (needs.has('call') && !callPanel);
+  const keepMore = needs.has('more') || (needs.has('call') && !callPanel && !directCall);
 
   if (!needs.has('language') && language?.getAttribute('aria-expanded') === 'true') {
     tap(memory, 'language-close', language);
@@ -93,7 +94,7 @@ export function revealStep(step: TourStep, mobile: boolean, memory: RevealMemory
   }
 
   if (needs.has('call') && !callPanel) {
-    const item = firstVisible('[data-tour="menu-call"]');
+    const item = directCall || firstVisible('[data-tour="menu-call"]');
     if (item) tap(memory, 'call', item);
   }
 }
@@ -114,7 +115,7 @@ export function restoreTourUi(memory: RevealMemory) {
 
 export function stepOnPage(step: TourStep, pathname: string, mobile: boolean) {
   if (mobile && step.reveal?.includes('order')) return pathname.startsWith('/app/orders/');
-  if (mobile && (step.id === 'exception-order' || step.id === 'exception-action')) {
+  if (mobile && (step.id === 'exception-order' || step.id === 'exception-action' || step.id === 'call-buyer')) {
     return pathname === step.route || /^\/app\/queue\/[^/]+$/.test(pathname);
   }
   return pathname === step.route;

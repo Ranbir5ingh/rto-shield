@@ -56,6 +56,13 @@ const autopilot = bare({ id: 'autopilot', route: '/app/settings' });
 const exceptions = bare({ id: 'exceptions', route: '/app/queue' });
 const exceptionOrder = bare({ id: 'exception-order', route: '/app/queue' });
 const exceptionAction = bare({ id: 'exception-action', route: '/app/queue' });
+const callBuyer = bare({
+  id: 'call-buyer',
+  route: '/app/queue',
+  narrationId: 'call-buyer',
+  reveal: ['call'],
+  titleFromAnchor: true,
+});
 const activity = bare({ id: 'activity', route: '/app/history' });
 const resultsHome = bare({ id: 'results-home', route: '/app' });
 const shopifyConnect = bare({ id: 'shopify-connect', route: '/app/start' });
@@ -71,7 +78,7 @@ export function toursFor(
 ): TourStep[] {
   const shop = kind === 'demo' || options?.shopifyConnected ? shopifyConnected : shopifyConnect;
   const whatsapp = kind === 'demo' ? demoWhatsapp : sellerWhatsapp;
-  const steps = [impact, autopilot, exceptions, exceptionOrder, exceptionAction, activity, shop, whatsapp, resultsHome];
+  const steps = [impact, autopilot, exceptions, exceptionOrder, exceptionAction, callBuyer, activity, shop, whatsapp, resultsHome];
   return steps.map((step) => {
     const text = tourText(step.id, lang, surface === 'mobile');
     return text ? { ...step, title: text.title, body: text.body } : step;
