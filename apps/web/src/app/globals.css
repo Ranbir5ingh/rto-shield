@@ -940,6 +940,8 @@ body {
   display: block;
   position: fixed;
   z-index: 80;
+  bottom: auto;
+  height: auto;
 }
 
 .dock-indicator {

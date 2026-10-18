@@ -93,19 +93,44 @@ test('exceptions use the results frame, and a phone opens a detail page', async 
   await expect(page).toHaveURL(/\/app\/queue$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Exceptions', exact: true })).toBeVisible();
 
-  const exceptions = page.locator('[data-dock="bottom"]').getByRole('link', { name: 'Exceptions' });
+  const dock = page.locator('[data-dock="bottom"]');
+  const exceptions = dock.getByRole('link', { name: 'Exceptions' });
   await exceptions.evaluate((node) => {
     node.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
   });
   const tip = page.getByRole('tooltip');
   await expect(tip).toHaveText('Exceptions');
   const tipBox = await tip.boundingBox();
-  const iconBox = await exceptions.boundingBox();
-  expect(tipBox && iconBox).toBeTruthy();
-  if (tipBox && iconBox) {
-    expect(tipBox.y + tipBox.height).toBeLessThanOrEqual(iconBox.y + 1);
-    expect(tipBox.width).toBeGreaterThan(20);
-  }
+  const dockBox = await dock.boundingBox();
+  const viewport = page.viewportSize();
+  expect(tipBox && dockBox && viewport).toBeTruthy();
+  if (!tipBox || !dockBox || !viewport) return;
+  const natural = await tip.evaluate((node) => ({
+    bottom: node.style.bottom,
+    clientHeight: node.clientHeight,
+    scrollHeight: node.scrollHeight,
+  }));
+  expect(natural.bottom).toBe('auto');
+  expect(tipBox.height).toBeGreaterThan(22);
+  expect(natural.scrollHeight).toBeLessThanOrEqual(natural.clientHeight + 1);
+  expect(tipBox.y).toBeGreaterThanOrEqual(0);
+  expect(tipBox.x).toBeGreaterThanOrEqual(0);
+  expect(tipBox.x + tipBox.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(tipBox.y + tipBox.height).toBeLessThanOrEqual(dockBox.y);
+  const uncovered = await tip.evaluate((node) => {
+    const previous = node.style.pointerEvents;
+    node.style.pointerEvents = 'auto';
+    const rect = node.getBoundingClientRect();
+    const xs = [rect.left + 4, rect.left + rect.width / 2, rect.right - 4];
+    const ys = [rect.top + 3, rect.top + rect.height / 2, rect.bottom - 3];
+    const clear = ys.every((y) => xs.every((x) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit === node || (hit !== null && node.contains(hit));
+    }));
+    node.style.pointerEvents = previous;
+    return clear;
+  });
+  expect(uncovered).toBe(true);
 
   await page.goto('/app/settings');
   await dismissTour(page);

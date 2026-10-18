@@ -238,6 +238,8 @@ function DockTip({ label, open, tip }: { label: string; open: boolean; tip: { x:
       style={{
         left: tip.x,
         top: tip.y,
+        bottom: 'auto',
+        height: 'auto',
         transform: tip.below ? 'translate(-50%, 8px)' : 'translate(-50%, calc(-100% - 8px))',
       }}
     >
