@@ -576,7 +576,7 @@ export function Tour({
               </p>
               <LanguageRadios lang={lang} onChange={chooseLang} />
             </div>
-            <div className="grid shrink-0 grid-cols-2 gap-1 border-t-2 border-ink p-2">
+            <div className="grid min-w-0 shrink-0 grid-cols-2 gap-1 border-t-2 border-ink p-2">
               <button type="button" className={tourBtn} onClick={() => finish('skip')}>Skip</button>
               <button
                 type="button"
@@ -600,7 +600,7 @@ export function Tour({
                 <p id={bodyId} className="mt-1 text-xs leading-5 text-ink/80">{step.body}</p>
               </div>
             </div>
-            <div data-tour-footer className="grid shrink-0 grid-cols-4 gap-1 border-t-2 border-ink p-2">
+            <div data-tour-footer className="grid min-w-0 shrink-0 grid-cols-4 gap-1 overflow-hidden border-t-2 border-ink p-2">
               <button type="button" className={tourBtn} onClick={() => finish('skip')}>Skip</button>
               <button
                 type="button"

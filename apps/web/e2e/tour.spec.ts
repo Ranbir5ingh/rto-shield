@@ -10,24 +10,28 @@ function surfaceOf(page: Page): TourSurface {
 }
 
 async function footerFits(page: Page) {
-  const footer = page.locator('[data-tour-footer]');
   const card = page.locator('#tour-card');
-  await expect(footer).toBeVisible();
-  const buttons = footer.getByRole('button');
-  await expect(buttons).toHaveCount(4);
-  const viewport = page.viewportSize();
-  const cardBox = await card.boundingBox();
-  expect(viewport && cardBox).toBeTruthy();
-  if (!viewport || !cardBox) return;
-  for (const button of await buttons.all()) {
-    const box = await button.boundingBox();
-    expect(box).toBeTruthy();
-    if (!box) continue;
-    expect(box.x).toBeGreaterThanOrEqual(cardBox.x - 1);
-    expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
-    expect(box.y).toBeGreaterThanOrEqual(-1);
-    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 2);
-  }
+  await expect(card).toHaveAttribute('data-tour-mode', /float|sheet|corner/);
+  await expect(async () => {
+    const fit = await page.evaluate(() => {
+      const node = document.getElementById('tour-card');
+      const footer = document.querySelector('[data-tour-footer]');
+      if (!node || !footer) return { ok: false, reason: 'missing' };
+      const buttons = [...footer.querySelectorAll('button')];
+      if (buttons.length !== 4) return { ok: false, reason: 'count' };
+      const cardBox = node.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      for (const button of buttons) {
+        const box = button.getBoundingClientRect();
+        if (box.left < cardBox.left - 1) return { ok: false, reason: 'left' };
+        if (box.right > cardBox.right + 1) return { ok: false, reason: 'right' };
+        if (box.top < -1) return { ok: false, reason: 'top' };
+        if (box.bottom > viewportHeight + 2) return { ok: false, reason: 'bottom' };
+      }
+      return { ok: true, reason: 'fit' };
+    });
+    expect(fit.ok).toBe(true);
+  }).toPass({ timeout: 5_000 });
 }
 
 async function cardClearsTarget(page: Page, stepId: string) {
