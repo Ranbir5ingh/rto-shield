@@ -5,12 +5,12 @@ export type TourKind = 'seller' | 'demo';
 export type TourSurface = 'desktop' | 'mobile';
 
 /**
- * Try the demo signs into the demo owner, whose stored role is owner.
- * A locked demo session, a disposable demo shop, or that official account
- * all use the demo tour.
+ * A demo session is the judges' Try the demo login (session role demo)
+ * or a throwaway isDemo shop. The official account, logged in as owner,
+ * is a real seller and uses the seller tour.
  */
 export function isDemoSession(user: { role?: string; isDemo?: boolean; officialDemo?: boolean } | null | undefined) {
-  return Boolean(user && (user.role === 'demo' || user.isDemo || user.officialDemo));
+  return Boolean(user && (user.role === 'demo' || user.isDemo));
 }
 
 export interface TourStep {

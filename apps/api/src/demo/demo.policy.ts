@@ -17,6 +17,14 @@ export function effectiveRole(user: ActorCarrier | null | undefined): SessionRol
   return 'owner';
 }
 
+/**
+ * A demo session is the judges' Try the demo login, or a throwaway isDemo shop.
+ * The official account logged in as owner is a real seller.
+ */
+export function isDemoSession(user: (ActorCarrier & { isDemo?: boolean }) | null | undefined): boolean {
+  return effectiveRole(user) === 'demo' || Boolean(user?.isDemo);
+}
+
 export function demoAccountEmail(): string {
   return (process.env.DEMO_ACCOUNT_EMAIL || '').trim().toLowerCase();
 }

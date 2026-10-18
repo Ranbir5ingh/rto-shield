@@ -110,10 +110,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [tour, setTour] = useState<TourKind | null>(null);
   const [tourNonce, setTourNonce] = useState(0);
   const [surface, setSurface] = useState<TourSurface | null>(null);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem('rto-sidebar') === 'collapsed';
-  });
+  // Start open on the server and the first client paint. Reading localStorage
+  // here mismatches the sidebar width and labels (React #418), including on
+  // mobile where the rail is in the tree but hidden.
+  const [collapsed, setCollapsed] = useState(false);
   const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const tourStarted = useRef(false);
@@ -123,8 +123,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    window.localStorage.setItem('rto-sidebar', collapsed ? 'collapsed' : 'open');
-  }, [collapsed]);
+    setCollapsed(window.localStorage.getItem('rto-sidebar') === 'collapsed');
+  }, []);
+
+  function toggleSidebar() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem('rto-sidebar', next ? 'collapsed' : 'open');
+      return next;
+    });
+  }
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
@@ -203,7 +211,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       >
         <button
           type="button"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={toggleSidebar}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           className="absolute -right-[19px] top-1/2 z-30 grid h-9 w-9 -translate-y-1/2 place-items-center border-2 border-ink bg-hl text-ink shadow-sticker-sm transition hover:rotate-[-8deg]"

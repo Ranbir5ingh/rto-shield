@@ -663,6 +663,21 @@ describe('RTO Shield API', () => {
       expect(orderId).toBeTruthy();
 
       process.env.DEMO_ACCOUNT_EMAIL = email;
+      const ownerView = await owner.get('/api/auth/me').expect(200);
+      expect(ownerView.body.user.role).toBe('owner');
+      expect(ownerView.body.user.isDemo).toBe(false);
+      expect(ownerView.body.user.officialDemo).toBe(true);
+      await owner.post('/api/tours/complete').set('x-csrf-token', ownerCsrf).send({ tour: 'seller' }).expect(201);
+      const deniedDemoTour = await owner
+        .post('/api/tours/complete')
+        .set('x-csrf-token', ownerCsrf)
+        .send({ tour: 'demo' })
+        .expect(403);
+      expect(deniedDemoTour.body.error).toMatch(/That tour is for a demo session/);
+      const ownerAfter = await owner.get('/api/auth/me').expect(200);
+      expect(ownerAfter.body.user.tour.sellerSeen).toBe(true);
+      expect(ownerAfter.body.user.tour.demoSeen).toBe(false);
+
       const visitor = request.agent(app.getHttpServer());
       const visitorCsrf = await csrf(visitor);
       const opened = await visitor.post('/api/demo/session').set('x-csrf-token', visitorCsrf).expect(201);
@@ -723,6 +738,14 @@ describe('RTO Shield API', () => {
       await visitor.get('/api/account/export').expect(403);
       await visitor.post('/api/orders/sample').set('x-csrf-token', demoCsrf).expect(403);
       await visitor.post('/api/tours/complete').set('x-csrf-token', demoCsrf).send({ tour: 'seller' }).expect(403);
+      await visitor.post(`/api/orders/${orderId}/extra-call`).set('x-csrf-token', demoCsrf).expect(403);
+      const browserCall = await visitor
+        .post(`/api/orders/${orderId}/call`)
+        .set('x-csrf-token', demoCsrf)
+        .send({ browser: true })
+        .expect(201);
+      expect(browserCall.body.mode).toBe('simulated');
+      expect(browserCall.body.order.extraCall).toBeNull();
 
       const sent = await visitor
         .post('/api/whatsapp/send')
@@ -826,7 +849,7 @@ describe('RTO Shield API', () => {
     const session = opened.body.csrfToken as string;
     expect(opened.body.user.isDemo).toBe(true);
     const denied = await agent.post('/api/whatsapp/test-allowlist').set('x-csrf-token', session).expect(403);
-    expect(denied.body.error).toMatch(/shop owner/i);
+    expect(denied.body.error).toMatch(/not change the shop/i);
     const status = await agent.get('/api/whatsapp').expect(200);
     expect(status.body.verifyTokenSet).toBe(false);
     expect(status.body.callbackUrl).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');

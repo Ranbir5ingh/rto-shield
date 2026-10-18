@@ -6,7 +6,7 @@ import { CurrentUser } from '../common/current-user';
 import { Public, SkipCsrf } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import type { UserDocument } from '../database/user.schema';
-import { effectiveRole } from './demo.policy';
+import { isDemoSession } from './demo.policy';
 import { tourCompleteSchema } from './demo.validation';
 import { DemoService } from './demo.service';
 
@@ -33,7 +33,7 @@ export class DemoController {
   /** The signed-in demo shop can rewind its own baseline. Visitors confirm this in the app. */
   @Post('demo/rewind')
   rewind(@CurrentUser() user: UserDocument) {
-    if (!user?.isDemo && effectiveRole(user) !== 'demo') {
+    if (!isDemoSession(user)) {
       throw new UnauthorizedException('Only the demo shop can reset');
     }
     return this.demo.reset();

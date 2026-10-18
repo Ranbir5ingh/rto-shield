@@ -1,5 +1,5 @@
 import { whatsappAllowlist } from './demo-send';
-import { demoAllows, effectiveRole, isOfficialDemoAccount } from './demo.policy';
+import { demoAllows, effectiveRole, isDemoSession, isOfficialDemoAccount } from './demo.policy';
 
 describe('demo policy', () => {
   const previous = process.env.DEMO_ACCOUNT_EMAIL;
@@ -13,6 +13,15 @@ describe('demo policy', () => {
     expect(effectiveRole({ role: 'owner', $locals: { actor: 'demo' } })).toBe('demo');
     expect(effectiveRole({ role: 'staff' })).toBe('staff');
     expect(effectiveRole({ role: 'owner' })).toBe('owner');
+  });
+
+  it('keeps an owner login out of the demo session, including the official account', () => {
+    expect(isDemoSession({ role: 'owner', $locals: { actor: 'demo' }, isDemo: false })).toBe(true);
+    expect(isDemoSession({ role: 'demo' })).toBe(true);
+    expect(isDemoSession({ role: 'owner', isDemo: true })).toBe(true);
+    expect(isDemoSession({ role: 'owner', isDemo: false })).toBe(false);
+    expect(isDemoSession({ role: 'staff' })).toBe(false);
+    expect(isDemoSession(null)).toBe(false);
   });
 
   it('matches the official demo account only from the env email', () => {
@@ -31,6 +40,7 @@ describe('demo policy', () => {
     expect(demoAllows('POST', '/api/orders/abc/prepaid')).toBe(true);
     expect(demoAllows('POST', '/api/orders/abc/address')).toBe(true);
     expect(demoAllows('POST', '/api/orders/abc/call')).toBe(true);
+    expect(demoAllows('POST', '/api/orders/abc/extra-call')).toBe(false);
     expect(demoAllows('POST', '/api/orders/abc/escalate')).toBe(true);
     expect(demoAllows('POST', '/api/elevenlabs')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp/send')).toBe(true);

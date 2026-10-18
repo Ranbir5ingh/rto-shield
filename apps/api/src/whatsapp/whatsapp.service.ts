@@ -12,7 +12,7 @@ import { PlatformFlag, WHATSAPP_WEBHOOK_VERIFIED_KEY } from '../database/platfor
 import { User, type UserDocument, type WhatsAppLink } from '../database/user.schema';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
-import { demoSendCap, effectiveRole } from '../demo/demo.policy';
+import { demoSendCap, isDemoSession } from '../demo/demo.policy';
 import { pushTimeline, reductionSettings } from '../orders/action';
 import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
@@ -94,8 +94,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async status(user: UserDocument) {
     const link = user.whatsapp;
-    const visitor = effectiveRole(user) === 'demo';
-    const realOwner = user.role === 'owner' && !user.isDemo && !visitor;
+    const visitor = isDemoSession(user);
+    const realOwner = user.role === 'owner' && !visitor;
     const own = usesOwnNumber(link);
     const platform = Boolean(platformWhatsApp());
     const badge = own
@@ -105,7 +105,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       messaging: own ? 'own' : 'platform',
       useOwnNumber: own,
       configured: own || platform,
-      demo: Boolean(user.isDemo) || visitor,
+      demo: visitor,
       phoneNumberId: visitor || !own ? '' : link?.phoneNumberId || '',
       wabaId: visitor || !own ? '' : link?.wabaId || '',
       tokenLast4: visitor || !own ? '' : link?.tokenLast4 || '',
@@ -200,7 +200,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     user: UserDocument,
     input: { useOwnNumber?: boolean; accessToken?: string; phoneNumberId?: string; wabaId?: string; appSecret?: string },
   ) {
-    if (user.role === 'staff' || effectiveRole(user) === 'demo') {
+    if (user.role === 'staff' || isDemoSession(user)) {
       throw new ForbiddenException('Only the shop owner can change connections');
     }
     if (input.useOwnNumber === false) {
@@ -317,7 +317,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   /** The password owner of a real shop. A public demo shop cannot send. Does not touch orders. */
   async sendAllowlistTest(user: UserDocument) {
-    if (user.isDemo || user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo' || user.role !== 'owner') {
+    if (isDemoSession(user) || user.role !== 'owner') {
       throw new ForbiddenException('Only the shop owner can send a test message');
     }
     const allow = whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST);
@@ -356,7 +356,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   async revealVerifyToken(user: UserDocument, password: string) {
-    const visitor = user.isDemo || user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo';
+    const visitor = isDemoSession(user);
     if (visitor || user.role !== 'owner') {
       await this.audit.create({ sellerId: user._id, action: 'whatsapp.verify_token_denied', meta: { demo: visitor } });
       throw new ForbiddenException('Only the shop owner can reveal the verify token');
@@ -374,9 +374,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async sendOrders(user: UserDocument, ids: string[]) {
     if (user.role === 'staff') throw new BadRequestException('Only the shop owner can send WhatsApp messages');
-    const visitor = effectiveRole(user) === 'demo';
-    const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
-    if (!visitor && !synthetic) {
+    const visitor = isDemoSession(user);
+    if (!visitor) {
       if (usesOwnNumber(user.whatsapp)) this.requireLink(user);
       else if (!platformWhatsApp()) throw new BadRequestException('WhatsApp is not ready on this server');
       else await this.refreshPlatformFlow(true);
@@ -404,13 +403,6 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         await this.demoState.note(user, 'demo.whatsapp.simulated', String(order._id), { template: name });
         sent.push(String(order._id));
         simulated += 1;
-        continue;
-      }
-      if (synthetic) {
-        this.markSimulated(order, name);
-        this.stampEscalation(user, order);
-        await order.save();
-        sent.push(String(order._id));
         continue;
       }
       if (visitor) await this.holdDemoSend(user);
@@ -587,11 +579,10 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async dispatchFlow(user: UserDocument, order: OrderDocument, requested: TemplateFlow): Promise<'sent' | 'simulated' | 'fallback' | 'pending' | 'failed'> {
     const phone = this.phoneOf(order);
     if (!phone) return 'failed';
-    const visitor = effectiveRole(user) === 'demo';
-    const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
+    const visitor = isDemoSession(user);
     const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
     const allowlisted = visitor && allow.has(phone) && Boolean(user.whatsapp?.tokenEnvelope);
-    if ((visitor && !allowlisted) || synthetic) {
+    if (visitor && !allowlisted) {
       const name = expectedTemplate(user.messageLanguage, requested).name;
       this.markSimulated(order, name);
       this.stampEscalation(user, order);
@@ -652,7 +643,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     if (!sessionOpen(order.conversation)) return false;
     const phone = this.phoneOf(order);
     if (!phone || !user.whatsapp?.tokenEnvelope) return false;
-    const visitor = effectiveRole(user) === 'demo';
+    const visitor = isDemoSession(user);
     const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
     if (visitor && !allow.has(phone)) return false;
     const body = text.replace(/\s+/g, ' ').trim().slice(0, 900);
@@ -678,7 +669,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async sendCheckoutLink(user: UserDocument, order: OrderDocument, url: string): Promise<{ delivered: boolean; notice: string | null }> {
     const phone = this.phoneOf(order);
-    const visitor = effectiveRole(user) === 'demo';
+    const visitor = isDemoSession(user);
     const note = 'WhatsApp can only send a template on the first message. The checkout link is on the order.';
     if (!phone || !user.whatsapp?.tokenEnvelope || visitor) {
       order.conversation = [
@@ -710,7 +701,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private stampEscalation(user: UserDocument, order: OrderDocument) {
     if (order.riskBand !== 'High' || order.callDueAt) return;
     const minutes = reductionSettings(user).escalationMinutes;
-    const delay = effectiveRole(user) === 'demo' ? 0 : minutes * 60_000;
+    const delay = isDemoSession(user) ? 0 : minutes * 60_000;
     order.callDueAt = new Date(Date.now() + delay);
     order.timeline = pushTimeline(order.timeline, 'whatsapp', 'WhatsApp sent. A call follows if there is no reply.');
   }

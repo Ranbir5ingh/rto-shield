@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, HttpException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, HttpException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -29,7 +29,7 @@ import { User, type UserDocument } from '../database/user.schema';
 import { MlService } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
-import { demoSendCap, effectiveRole, isOfficialDemoAccount } from '../demo/demo.policy';
+import { demoSendCap, effectiveRole, isDemoSession, isOfficialDemoAccount } from '../demo/demo.policy';
 import { shopifyWriteException } from '../shopify/shopify-errors';
 import { ShopifyService } from '../shopify/shopify.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
@@ -1376,7 +1376,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async placeCall(user: UserDocument, id: string, browser: boolean) {
-    if (effectiveRole(user) !== 'demo' || !browser) {
+    if (!isDemoSession(user) || !browser) {
       throw new BadRequestException('RTO Shield places the call. Try one more call is on Exceptions.');
     }
     const order = await this.findOwned(user, id);
@@ -1401,6 +1401,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
    * modes record a Simulated call and do not return a signed URL.
    */
   async tryOneMoreCall(user: UserDocument, id: string) {
+    if (isDemoSession(user)) {
+      throw new ForbiddenException('Demo sessions use the in-browser call.');
+    }
     const order = await this.findOwned(user, id);
     if (order.stage === 'closed') throw new BadRequestException('This order is already closed.');
     if (order.extraCall) throw new BadRequestException('One extra call already used.');
@@ -1427,9 +1430,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       orderId: String(order._id),
       meta: { mode: order.extraCall.mode, outcome: order.extraCall.outcome },
     });
-    if (effectiveRole(user) === 'demo') {
-      await this.demo.note(user, 'demo.call', String(order._id), { mode: order.extraCall.mode });
-    }
     return {
       result: order.extraCall.outcome,
       mode: order.extraCall.mode,
@@ -1841,7 +1841,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
   private async dial(user: UserDocument, order: OrderDocument, prefer: 'phone' | 'browser' | 'auto') {
     const phone = whatsappNumber(this.crypto.decrypt(order.phoneEnc));
-    const visitor = effectiveRole(user) === 'demo';
+    const visitor = isDemoSession(user);
     const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
     const allowPhone = Boolean(phone) && (!visitor || (phone ? allow.has(phone) : false));
     const mode: 'phone' | 'browser' =
@@ -1864,7 +1864,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async holdDemo(user: UserDocument, actions: string[], message: string) {
-    if (effectiveRole(user) !== 'demo') return;
+    if (!isDemoSession(user)) return;
     const used = await this.demo.actionsToday(user, actions);
     if (used >= demoSendCap()) throw new HttpException(message, 429);
   }

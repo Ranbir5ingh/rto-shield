@@ -11,10 +11,10 @@ const spine = [
 ] as const;
 
 describe('demo session tour', () => {
-  it('treats a demo role, a disposable demo, and the official demo account as a demo session', () => {
+  it('treats a judge login and a throwaway demo shop as a demo session', () => {
     expect(isDemoSession({ role: 'demo' })).toBe(true);
     expect(isDemoSession({ role: 'owner', isDemo: true })).toBe(true);
-    expect(isDemoSession({ role: 'owner', officialDemo: true })).toBe(true);
+    expect(isDemoSession({ role: 'owner', officialDemo: true })).toBe(false);
     expect(isDemoSession({ role: 'owner' })).toBe(false);
     expect(isDemoSession(null)).toBe(false);
   });

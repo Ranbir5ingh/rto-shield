@@ -9,6 +9,7 @@ import { useToast } from '@/components/Toaster';
 import { Button, Dropdown, Field, FormGrid, Page, Section, inputClass } from '@/components/ui';
 import { ApiError, api, downloadExport } from '@/lib/api';
 import { qk, useIntegrations, useMe } from '@/lib/queries';
+import { isDemoSession } from '@/lib/tours';
 import type { PublicUser } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -92,8 +93,8 @@ export default function SettingsPage() {
       </Page>
     );
   }
-  const demo = user.role === 'demo';
-  const canResetDemo = Boolean(user.isDemo || user.role === 'demo' || user.officialDemo);
+  const demo = isDemoSession(user);
+  const canResetDemo = demo;
 
   return (
     <Page
@@ -217,7 +218,7 @@ export default function SettingsPage() {
 
       <Section eyebrow="05 · Connections" title="Where orders come from">
         <Connections locked={demo} owner={user.role === 'owner' && !demo} />
-        {user.role === 'owner' && !user.isDemo ? (
+        {user.role === 'owner' && !demo ? (
           <div className="mt-6 border-t-2 border-ink pt-5">
             <p className="font-display text-lg font-extrabold uppercase tracking-tight">Test message</p>
             <p className="mt-2 max-w-xl text-[15px] leading-7 text-ink/70">

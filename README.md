@@ -237,7 +237,7 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `ML_CORS_ORIGINS` | ML | Extra browser origins for `GET /health`, comma-separated. `https://www.rtoshield.tech` and localhost are already allowed. |
 | `TABPFN_TOKEN` | ML | Optional Prior Labs TabPFN. |
 | `TABPFN_MAX_ROWS` | ML | Default 500 in-context rows. |
-| `GEMINI_API_KEY` | ML | Platform only. Optional Gemma via AI Studio. Sellers do not paste a key. Empty, or a Gemini error, falls back to built-in notes and drafts. |
+| `GEMINI_API_KEY` | API and ML | Platform only. Optional Gemma via AI Studio. The API parses address replies. The ML service writes notes and drafts. Sellers do not paste a key. Empty, or a Gemini error, falls back to the built-in templates. |
 | `GEMMA_MODEL` | ML | Default `gemma-4-26b-a4b-it`. A 404 tries the other hosted Gemma ids. |
 | `OLLAMA_BASE_URL` | ML | Optional. If set, preferred over AI Studio. |
 | `OLLAMA_MODEL` | ML | Default `gemma3:4b`. |
@@ -275,7 +275,7 @@ WhatsApp Cloud API (your own number):
 5. Callback URL: `https://api.rtoshield.tech/api/whatsapp/webhook`. Verify token: the value of `WHATSAPP_VERIFY_TOKEN` on Render. Reveal it in Settings with your password. Subscribe to the `messages` field.
 6. In the queue, **Approve & send** uses that template. Confirm and Cancel buttons mark the order and tag it in Shopify. Auto-cancel in Shopify stays off until you turn it on. If WhatsApp is not connected, the queue keeps the `wa.me` link.
 
-The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Address notes and drafts use the platform `GEMINI_API_KEY` on the ML service. Shops do not paste a key. If that key is missing, or Gemini does not answer, the notes fall back to built-in templates.
+The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Address notes and drafts use the platform `GEMINI_API_KEY` on the ML service. Address reply parsing uses the same key on the API. Shops do not paste a key. If that key is missing, or Gemini does not answer, the notes fall back to built-in templates.
 
 See `docs/shopify-production.md` for the public app, Level 2 protected data, and `read_all_orders`.
 

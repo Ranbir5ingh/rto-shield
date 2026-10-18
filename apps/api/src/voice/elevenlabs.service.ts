@@ -5,7 +5,7 @@ import { VaultService } from '../common/vault.service';
 import { AuditEvent } from '../database/audit.schema';
 import { PlatformFlag } from '../database/platform.schema';
 import type { UserDocument } from '../database/user.schema';
-import { effectiveRole } from '../demo/demo.policy';
+import { isDemoSession } from '../demo/demo.policy';
 import { syncElevenAgent, webhookTarget, type SyncResult } from './agent-sync';
 import { callsMode, planCall } from './calls-mode';
 import { parseCallOutcome, verifyElevenSignature, type ParsedCall } from './elevenlabs';
@@ -54,7 +54,7 @@ export class ElevenLabsService implements OnModuleInit {
   }
 
   status(user: UserDocument) {
-    const visitor = effectiveRole(user) === 'demo';
+    const visitor = isDemoSession(user);
     return {
       configured: Boolean(this.keyFor(user)),
       last4: visitor ? '' : user.elevenlabs?.last4 || '',

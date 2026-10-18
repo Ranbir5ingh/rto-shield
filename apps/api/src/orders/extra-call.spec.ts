@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 
 const ORDER_ID = '64b000000000000000000001';
@@ -122,6 +122,28 @@ describe('Try one more call', () => {
   it('refuses a seller browser call', async () => {
     const { service, calls } = harness({ mode: 'browser', notice: null, conversationId: '' });
     await expect(service.placeCall(seller() as never, ORDER_ID, true)).rejects.toBeInstanceOf(BadRequestException);
+    expect(calls.place).not.toHaveBeenCalled();
+  });
+
+  it('lets a throwaway demo shop open the browser call and refuses the extra call', async () => {
+    const { service, calls, current } = harness({
+      mode: 'simulated',
+      notice: 'Simulated call. The buyer was not dialed.',
+      conversationId: 'sim-shop',
+    });
+    const shop = { ...seller(), isDemo: true };
+    const body = await service.placeCall(shop as never, ORDER_ID, true);
+    expect(body.mode).toBe('simulated');
+    expect(current.extraCall).toBeNull();
+    expect(calls.place).toHaveBeenCalledTimes(1);
+    await expect(service.tryOneMoreCall(shop as never, ORDER_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(calls.place).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses an extra call for a judge session', async () => {
+    const { service, calls } = harness({ mode: 'phone', notice: null, conversationId: 'conv-judge' });
+    const judge = { ...seller(), $locals: { actor: 'demo' as const } };
+    await expect(service.tryOneMoreCall(judge as never, ORDER_ID)).rejects.toBeInstanceOf(ForbiddenException);
     expect(calls.place).not.toHaveBeenCalled();
   });
 

@@ -38,7 +38,7 @@ A shop that wants buyers to see its own number turns on **Use my own WhatsApp Bu
 
 ## Platform Gemini
 
-`GEMINI_API_KEY` is a platform env var on the ML service. Sellers do not paste a key, and the app has no Gemini key field. Address notes and confirmation drafts use that key. If it is unset, or Gemini does not answer, those notes fall back to the built-in templates and scoring continues. `OLLAMA_BASE_URL`, when set on the same service, is preferred over the hosted key.
+`GEMINI_API_KEY` is a platform env var on the API and on the ML service. Sellers do not paste a key, and the app has no Gemini key field. The API uses it to parse address replies. The ML service uses it for address notes and confirmation drafts. If it is unset, or Gemini does not answer, those notes and replies fall back to the built-in templates and scoring continues. `OLLAMA_BASE_URL`, when set on the ML service, is preferred over the hosted key for notes and drafts.
 
 ## Render variables
 
@@ -56,4 +56,4 @@ Set these on the API service. Do not commit the values.
 | `ELEVENLABS_PHONE_NUMBER_ID` | Empty | Twilio number id in ElevenLabs |
 | `ELEVENLABS_AGENT_ID` | Optional. Created on boot when empty | Same |
 | `ELEVENLABS_WEBHOOK_SECRET` | Set when call outcomes should close orders | Same |
-| `GEMINI_API_KEY` | ML service only. Platform key. Empty uses templates | Same |
+| `GEMINI_API_KEY` | API and ML service. Platform key. The API parses address replies. The ML service writes notes and drafts. Empty uses templates | Same |
