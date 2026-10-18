@@ -39,5 +39,7 @@ describe('chooseIntervention', () => {
   it('reads seller reduction settings with defaults', () => {
     expect(reductionSettings({})).toEqual(DEFAULT_REDUCTION);
     expect(reductionSettings({ reduction: { prepaidEnabled: false, discountPct: 12, minRisk: 70, escalationMinutes: 30 } }).prepaidEnabled).toBe(false);
+    expect(reductionSettings({}).autopilot).toBe(true);
+    expect(reductionSettings({ reduction: { noReply: 'cancel' } }).noReply).toBe('cancel');
   });
 });

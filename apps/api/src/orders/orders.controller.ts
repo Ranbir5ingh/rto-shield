@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { CurrentUser } from '../common/current-user';
+import { Public } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
 import {
   importSchema,
@@ -80,6 +82,18 @@ export class OrdersController {
     return this.orders.queue(user, scope === 'open' ? 'open' : 'action');
   }
 
+  @Get('activity')
+  activity(@CurrentUser() user: UserDocument) {
+    return this.orders.activity(user);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('pay/:token')
+  pay(@Param('token') token: string) {
+    return this.orders.payTarget(token);
+  }
+
   @Get('orders/:id')
   getOne(@CurrentUser() user: UserDocument, @Param('id') id: string) {
     return this.orders.getOne(user, id);
@@ -103,7 +117,8 @@ export class OrdersController {
   address(
     @CurrentUser() user: UserDocument,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(addressUpdateSchema)) body: { address: string; landmark?: string; source: 'reply' | 'call' | 'seller' },
+    @Body(new ZodValidationPipe(addressUpdateSchema))
+    body: { address?: string; landmark?: string; source: 'reply' | 'call' | 'seller'; useReply?: boolean },
   ) {
     return this.orders.fixAddress(user, id, body);
   }

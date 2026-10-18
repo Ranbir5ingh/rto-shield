@@ -4,14 +4,12 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CallBuyer } from '@/components/CallBuyer';
 import { MessageThread } from '@/components/MessageThread';
-import { OrderActions } from '@/components/OrderActions';
 import { PincodeCheck, type PincodeStatus, type PincodeView } from '@/components/PincodeCheck';
 import { useToast } from '@/components/Toaster';
-import { Button, CopyButton, Page, RiskBadge, Section, Skeleton } from '@/components/ui';
+import { Button, Page, RiskBadge, Section, Skeleton } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { engineLabel, inr, predictorLabel } from '@/lib/format';
+import { inr } from '@/lib/format';
 import { invalidateShop, qk, useOrder } from '@/lib/queries';
 import type { OrderDetail } from '@/lib/types';
 
@@ -22,39 +20,10 @@ export default function OrderDetailPage() {
   const client = useQueryClient();
   const orderQuery = useOrder(id);
   const order = orderQuery.data ?? null;
-  const [note, setNote] = useState('');
   const [pinState, setPinState] = useState<{ status: PincodeStatus; view?: PincodeView } | null>(null);
-  const [sendingWa, setSendingWa] = useState(false);
-  const [voiceState, setVoiceState] = useState<'idle' | 'playing' | 'played'>('idle');
   const [saving, setSaving] = useState('');
-  const [calling, setCalling] = useState(false);
-  const [address, setAddress] = useState('');
-  const [landmark, setLandmark] = useState('');
 
-  async function voice() {
-    if (!order) return;
-    setVoiceState('playing');
-    try {
-      const result = await api<{ audioBase64: string | null; mime: string | null; script: string; notice: string | null }>(
-        `/orders/${order.id}/voice`,
-        { method: 'POST' },
-      );
-      if (result.audioBase64 && result.mime) {
-        await new Audio(`data:${result.mime};base64,${result.audioBase64}`).play();
-        setVoiceState('played');
-      } else if (result.notice) {
-        setVoiceState('idle');
-        setNote(`${result.notice} ${result.script}`);
-      } else {
-        setVoiceState('played');
-      }
-    } catch (err) {
-      setVoiceState('idle');
-      toast.error(err instanceof ApiError ? err.message : 'Voice failed');
-    }
-  }
-
-  async function mark(value: 'confirmed' | 'cancelled' | 'no_response') {
+  async function mark(value: 'confirmed' | 'cancelled') {
     if (!order || order.stage === 'closed' || saving) return;
     const previous = order;
     setSaving(value);
@@ -74,36 +43,19 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function prepaid() {
-    if (!order) return;
-    setSaving('prepaid');
-    try {
-      const next = await api<OrderDetail & { notice?: string | null }>(`/orders/${order.id}/prepaid`, { method: 'POST' });
-      client.setQueryData(qk.order(order.id), next);
-      invalidateShop(client);
-      toast.success(next.notice || 'Prepaid checkout is ready.');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not create the prepaid link');
-    } finally {
-      setSaving('');
-    }
-  }
-
-  async function saveAddress(event: React.FormEvent) {
-    event.preventDefault();
-    if (!order || !address.trim()) return;
+  async function useReply() {
+    if (!order || saving) return;
     setSaving('address');
     try {
       const next = await api<OrderDetail>(`/orders/${order.id}/address`, {
         method: 'POST',
-        body: JSON.stringify({ address, landmark, source: 'seller' }),
+        body: JSON.stringify({ source: 'reply', useReply: true }),
       });
       client.setQueryData(qk.order(order.id), next);
-      setAddress('');
-      setLandmark('');
-      toast.success('Address updated.');
+      invalidateShop(client);
+      toast.success('Address saved.');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not update the address');
+      toast.error(err instanceof ApiError ? err.message : 'Could not use this reply');
     } finally {
       setSaving('');
     }
@@ -120,26 +72,6 @@ export default function OrderDetailPage() {
     } catch (err) {
       setPinState({ status: 'error' });
       toast.error(err instanceof ApiError ? err.message : 'Could not check this pincode');
-    }
-  }
-
-  async function sendWhatsapp() {
-    if (!order || sendingWa) return;
-    setSendingWa(true);
-    try {
-      const body = await api<{ sent: string[]; notice?: string }>('/whatsapp/send', {
-        method: 'POST',
-        body: JSON.stringify({ ids: [order.id] }),
-      });
-      if (body.notice) toast.info(body.notice);
-      else toast.success('WhatsApp sent.');
-      const next = await api<OrderDetail>(`/orders/${order.id}`);
-      client.setQueryData(qk.order(order.id), next);
-      invalidateShop(client);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'WhatsApp did not send');
-    } finally {
-      setSendingWa(false);
     }
   }
 
@@ -162,9 +94,8 @@ export default function OrderDetailPage() {
     );
   }
 
-  const text = order.messages?.hinglish || '';
-  const wa = order.waUrl && text ? `${order.waUrl.split('?')[0]}?text=${encodeURIComponent(text)}` : null;
   const closed = order.stage === 'closed';
+  const stopped = exceptionLabel(order);
 
   return (
     <Page
@@ -179,54 +110,37 @@ export default function OrderDetailPage() {
       }
     >
       <Link href="/app/queue" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
-        ← Back to queue
+        ← Exceptions
       </Link>
 
-      <Section eyebrow="Next action" title="Decide">
-        <OrderActions
-          order={order}
-          busy={Boolean(saving)}
-          canSend
-          tour
-          onPrimary={() => {
-            if (order.intervention === 'offer_prepaid') void prepaid();
-            else if (order.intervention === 'request_address') document.getElementById('address')?.focus();
-            else void mark('confirmed');
-          }}
-          onOutcome={(value) => mark(value)}
-          onPrepaid={() => prepaid()}
-          onCall={() => setCalling(true)}
-          onVoice={() => voice()}
-          onPin={() => pin()}
-        />
-        {calling ? <div className="mt-4"><CallBuyer orderId={order.id} open onClose={() => setCalling(false)} /></div> : null}
-        {closed ? <p className="mt-4 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">Closed as {order.outcome}</p> : null}
+      <Section eyebrow={stopped || 'Running'} title={closed ? `Closed as ${order.outcome}` : 'This order'}>
+        <p className="text-[15px] leading-7">{order.interventionWhy || 'Autopilot is handling this order.'}</p>
+        {order.exception === 'address' ? (
+          <div className="mt-4 border-2 border-ink bg-hl/40 p-4">
+            <p className="eyebrow">Buyer reply</p>
+            <p className="mt-2 text-[15px] leading-7">{order.addressReply || 'The reply is stored on the order.'}</p>
+            <Button type="button" className="mt-4" disabled={Boolean(saving)} onClick={() => { void useReply(); }}>
+              {saving === 'address' ? 'Saving…' : 'Use this'}
+            </Button>
+          </div>
+        ) : null}
+        {closed ? null : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" disabled={Boolean(saving)} onClick={() => { void mark('confirmed'); }}>Confirm</Button>
+            <Button type="button" tone="danger" disabled={Boolean(saving)} onClick={() => { void mark('cancelled'); }}>Cancel</Button>
+            <Button type="button" tone="ghost" onClick={() => { void pin(); }}>Check pincode</Button>
+          </div>
+        )}
+        {pinState ? <div className="mt-4"><PincodeCheck status={pinState.status} view={pinState.view} /></div> : null}
       </Section>
 
-      {order.prepaid?.invoiceUrl ? (
-        <div className="border-2 border-ink bg-lime/40 p-5 shadow-sticker-sm sm:p-6">
-          <p className="eyebrow">Prepaid {order.prepaid.status}</p>
-          <p className="mt-2 text-[15px] leading-7">{order.prepaid.discountPct}% off. Unpaid drafts expire and the cash on delivery order stays.</p>
-          <a className="btn-go mt-4 inline-flex !px-5 !py-3 !text-[11px]" href={order.prepaid.invoiceUrl} target="_blank" rel="noreferrer">Open checkout</a>
-        </div>
-      ) : null}
-
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <Section eyebrow="The score" title="Why this score">
-          <ul className="flex flex-wrap gap-2" aria-label="Risk reasons" data-tour="why-flagged">
+        <Section eyebrow="The score" title="Why it stopped">
+          <ul className="flex flex-wrap gap-2" aria-label="Risk reasons">
             {order.reasons.length ? order.reasons.map((reason) => (
               <li key={reason} className="border-2 border-ink bg-hl px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{reason}</li>
             )) : <li className="text-sm text-inksoft">Not scored yet.</li>}
           </ul>
-          {pinState ? <PincodeCheck status={pinState.status} view={pinState.view} /> : null}
-          <p className="mt-4 font-mono text-[11px] font-bold uppercase leading-5 tracking-[0.08em] text-inksoft">
-            Reasons from the order facts. Score from {predictorLabel(order.model)}.
-          </p>
-          {order.addressQuality ? (
-            <p className="mt-2 text-sm leading-6 text-ink/70">
-              Address notes from {engineLabel(order.addressQuality.source)}. Quality {order.addressQuality.quality_score}.
-            </p>
-          ) : null}
           <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-[15px] leading-7">{order.address}</p>
         </Section>
 
@@ -242,58 +156,21 @@ export default function OrderDetailPage() {
         </Section>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <Section eyebrow="Fix it" title="Update address">
-          <form onSubmit={saveAddress} className="space-y-4">
-            <div>
-              <label htmlFor="address" className="eyebrow text-inksoft">Address</label>
-              <input id="address" className="input-paper mt-2" value={address} onChange={(event) => setAddress(event.target.value)} />
-            </div>
-            <div>
-              <label htmlFor="landmark" className="eyebrow text-inksoft">Landmark</label>
-              <input id="landmark" className="input-paper mt-2" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
-            </div>
-            <Button type="submit" disabled={saving === 'address'}>Save address</Button>
-          </form>
-        </Section>
-
-        <Section eyebrow="Outreach" title="Message draft" tour="message-draft">
-          {text ? <p className="font-hindi text-[15px] leading-7">{text}</p> : <p className="text-sm text-inksoft">No draft yet.</p>}
-          {order.messages ? (
-            <>
-              <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-inksoft">Draft from {engineLabel(order.messages.source)}</p>
-              <p className="mt-3 border-t-2 border-dashed border-ink/20 pt-3 text-sm leading-6 text-ink/70">Prepaid nudge: {order.messages.prepaid_nudge}</p>
-            </>
-          ) : null}
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
-            <CopyButton text={text} tour="copy-draft" />
-            <button
-              type="button"
-              data-tour="send-whatsapp"
-              className="btn-go !px-3 !py-2.5 !text-[11px] !tracking-[0.08em] !shadow-[3px_3px_0_#1B1712]"
-              disabled={sendingWa}
-              onClick={() => { void sendWhatsapp(); }}
-            >
-              {sendingWa ? 'Sending…' : 'Send on WhatsApp'}
-            </button>
-            {wa ? (
-              <a className="btn-ghost !px-3 !py-2.5 !text-[11px] !tracking-[0.08em]" href={wa} target="_blank" rel="noreferrer">
-                Open WhatsApp
-              </a>
-            ) : null}
-            <Button type="button" tone="ghost" className="!px-3 !py-2.5 !text-[11px]" onClick={voice} disabled={voiceState === 'playing'}>
-              {voiceState === 'playing' ? 'Playing…' : voiceState === 'played' ? 'Played' : 'Play Hindi script'}
-            </Button>
-          </div>
-          {note ? <p className="mt-3 text-sm leading-6 text-ink/70">{note}</p> : null}
-        </Section>
-      </div>
-
-      <Section eyebrow="Thread" title="WhatsApp conversation" pad={false} tour="conversation">
+      <Section eyebrow="Thread" title="WhatsApp" pad={false}>
         <div className="mt-4 px-5 pb-5 sm:px-6 sm:pb-6">
           <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
         </div>
       </Section>
     </Page>
   );
+}
+
+function exceptionLabel(order: OrderDetail) {
+  if (order.exception === 'template_pending' || order.exceptionWhy === 'template pending') return 'template pending';
+  if (order.whatsappStatus === 'failed' || order.exception === 'send') return 'not sent';
+  if (order.exception === 'address') return 'address';
+  if (order.exception === 'shopify') return 'shopify';
+  if (order.exception === 'call' || order.callState === 'due') return 'call';
+  if (order.intervention === 'hold_review') return 'hold';
+  return '';
 }

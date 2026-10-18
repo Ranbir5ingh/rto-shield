@@ -25,16 +25,20 @@ export class AccountService {
     if (input.rtoCostInr !== undefined) user.rtoCostInr = input.rtoCostInr;
     if (input.messageLanguage !== undefined) user.messageLanguage = input.messageLanguage;
     const reduction = {
+      autopilot: input.autopilot ?? user.reduction?.autopilot ?? true,
       prepaidEnabled: input.prepaidEnabled ?? user.reduction?.prepaidEnabled ?? true,
       discountPct: input.discountPct ?? user.reduction?.discountPct ?? 5,
       minRisk: input.minRisk ?? user.reduction?.minRisk ?? 60,
       escalationMinutes: input.escalationMinutes ?? user.reduction?.escalationMinutes ?? 120,
+      noReply: input.noReply ?? user.reduction?.noReply ?? 'hold',
     };
     if (
       input.prepaidEnabled !== undefined ||
       input.discountPct !== undefined ||
       input.minRisk !== undefined ||
-      input.escalationMinutes !== undefined
+      input.escalationMinutes !== undefined ||
+      input.autopilot !== undefined ||
+      input.noReply !== undefined
     ) {
       user.reduction = reduction;
     }

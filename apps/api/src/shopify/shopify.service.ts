@@ -344,6 +344,31 @@ export class ShopifyService {
     await this.audit.create({ sellerId: user._id, action: 'shopify.cancel', meta: { gid } });
   }
 
+  async tag(user: UserDocument, gid: string, tags: string[]) {
+    const token = this.tokenOf(user);
+    const shop = user.shopify?.shopDomain;
+    const clean = tags.map((tag) => tag.slice(0, 40)).filter(Boolean);
+    if (!token || !shop || !gid || !clean.length || user.shopify?.demo) return;
+    await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`, {
+      id: gid,
+      tags: clean,
+    });
+  }
+
+  async cancelForPolicy(user: UserDocument, gid: string) {
+    const token = this.tokenOf(user);
+    const shop = user.shopify?.shopDomain;
+    if (!token || !shop || !gid || user.shopify?.demo) return;
+    await this.graphql(
+      shop,
+      token,
+      `mutation($orderId: ID!, $reason: OrderCancelReason!, $refund: Boolean!, $restock: Boolean!, $notifyCustomer: Boolean) {
+        orderCancel(orderId: $orderId, reason: $reason, refund: $refund, restock: $restock, notifyCustomer: $notifyCustomer) { userErrors { message } }
+      }`,
+      { orderId: gid, reason: 'CUSTOMER', refund: false, restock: true, notifyCustomer: false },
+    );
+  }
+
   async tagDecision(user: UserDocument, gid: string, decision: 'confirmed' | 'cancelled') {
     const token = this.tokenOf(user);
     const shop = user.shopify?.shopDomain;
@@ -563,7 +588,7 @@ export class ShopifyService {
     if (!token || !shop || user.shopify?.demo) {
       return {
         draftGid: '',
-        invoiceUrl: `https://www.rtoshield.tech/pay/demo?order=${encodeURIComponent(input.externalOrderId)}`,
+        invoiceUrl: '',
         simulated: true,
       };
     }

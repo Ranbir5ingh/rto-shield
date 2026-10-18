@@ -27,6 +27,7 @@ export interface WhatsAppLink {
   templateName: string;
   templateStatus: string;
   templateLanguage: string;
+  flowStatus?: Record<string, string>;
 }
 
 export interface GeminiLink {
@@ -36,10 +37,12 @@ export interface GeminiLink {
 }
 
 export interface ReductionSettings {
+  autopilot?: boolean;
   prepaidEnabled: boolean;
   discountPct: number;
   minRisk: number;
   escalationMinutes: number;
+  noReply?: 'hold' | 'cancel';
 }
 
 export interface ElevenLabsLink {

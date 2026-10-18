@@ -143,6 +143,36 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hindi: '[curious] Delivered, RTO, और cancelled मॉडल को सिखाते हैं। ऐप का कन्फर्म ट्रेनिंग नहीं है।',
     hinglish: '[curious] Delivered, RTO, aur cancelled model ko sikhate hain. App ka confirm training nahi hai.',
   },
+  autopilot: {
+    english: '[warm] Autopilot is on. Address, payment link, then confirm. Hold if nobody replies.',
+    hindi: '[warm] ऑटोपायलट चालू है। पता, पेमेंट लिंक, फिर कन्फर्म। जवाब न आए तो होल्ड।',
+    hinglish: '[warm] Autopilot on hai. Address, payment link, phir confirm. Reply na aaye to hold.',
+  },
+  exceptions: {
+    english: '[curious] Only orders that stopped. Waiting on the buyer is not an exception.',
+    hindi: '[curious] सिर्फ रुके हुए ऑर्डर। खरीदार के जवाब का इंतज़ार अपवाद नहीं है।',
+    hinglish: '[curious] Sirf ruke hue orders. Buyer ke reply ka intezaar exception nahi hai.',
+  },
+  'exception-order': {
+    english: '[matter] One stopped order. Template pending is not the same as not sent.',
+    hindi: '[matter] एक रुका ऑर्डर। Template pending और not sent अलग हैं।',
+    hinglish: '[matter] Ek ruka order. Template pending aur not sent alag hain.',
+  },
+  'exception-action': {
+    english: '[warm] Confirm, cancel, or use this reply as the address.',
+    hindi: '[warm] कन्फर्म करें, रद्द करें, या इस जवाब को पता बनाएँ।',
+    hinglish: '[warm] Confirm karo, cancel karo, ya is reply ko address banao.',
+  },
+  activity: {
+    english: '[curious] The log of what the shop already did.',
+    hindi: '[curious] शॉप जो कर चुकी है उसकी सूची।',
+    hinglish: '[curious] Shop jo kar chuki hai uski list.',
+  },
+  'results-home': {
+    english: '[excited] Back to results. This is the morning view.',
+    hindi: '[excited] नतीजों पर वापस। यही सुबह का नज़ारा है।',
+    hinglish: '[excited] Results pe wapas. Yahi subah ka view hai.',
+  },
   impact: {
     english: '[excited] Rupees that did not go back. Prepaid, address fixes, and confirmations.',
     hindi: '[excited] जो रुपये वापस नहीं गए। प्रीपेड, पता, और कन्फर्मेशन।',

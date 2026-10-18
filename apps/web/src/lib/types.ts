@@ -10,7 +10,14 @@ export interface PublicUser {
   officialDemo?: boolean;
   sellerGemini?: boolean;
   tour?: { sellerSeen: boolean; demoSeen: boolean };
-  reduction?: { prepaidEnabled: boolean; discountPct: number; minRisk: number; escalationMinutes: number };
+  reduction?: {
+    autopilot: boolean;
+    prepaidEnabled: boolean;
+    discountPct: number;
+    minRisk: number;
+    escalationMinutes: number;
+    noReply: 'hold' | 'cancel';
+  };
   elevenlabsConfigured?: boolean;
   elevenlabsLast4?: string;
 }
@@ -20,7 +27,7 @@ export type Intervention = 'auto_confirm' | 'request_address' | 'offer_prepaid' 
 export interface PrepaidOffer {
   invoiceUrl: string;
   discountPct: number;
-  status: 'offered' | 'paid' | 'expired' | 'converted';
+  status: 'offered' | 'paid' | 'expired' | 'converted' | 'declined';
   linkedOrderId: string;
   expiresAt: string;
 }
@@ -72,6 +79,10 @@ export interface OrderSummary {
   callState?: 'idle' | 'due' | 'called' | 'held';
   callDueAt?: string | null;
   addressFixedAt?: string | null;
+  exception?: 'address' | 'template_pending' | 'send' | 'call' | 'shopify' | null;
+  exceptionWhy?: string;
+  addressReply?: string;
+  addressDraft?: { street: string; landmark: string; city: string; state: string; pin: string } | null;
   prepaid?: PrepaidOffer | null;
 }
 

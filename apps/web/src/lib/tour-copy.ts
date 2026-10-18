@@ -392,6 +392,90 @@ const COPY: Record<string, Record<TourLang, Line>> = {
       body: 'Delivered, RTO, aur cancelled orders model ko sikhate hain. App ka confirm training label nahi hai.',
     },
   },
+  autopilot: {
+    english: {
+      title: 'Autopilot',
+      body: 'It is on. The shop asks for the address, sends the payment link, and confirms. Hold is the default if nobody replies.',
+    },
+    hindi: {
+      title: 'ऑटोपायलट',
+      body: 'यह चालू है। शॉप पता पूछती है, पेमेंट लिंक भेजती है, और कन्फर्म करती है। जवाब न आए तो होल्ड।',
+    },
+    hinglish: {
+      title: 'Autopilot',
+      body: 'Yeh on hai. Shop address maangti hai, payment link bhejti hai, aur confirm karti hai. Koi reply na ho to hold.',
+    },
+  },
+  exceptions: {
+    english: {
+      title: 'Exceptions',
+      body: 'Only the orders that stopped. A sent message waiting on the buyer is not in this list.',
+    },
+    hindi: {
+      title: 'अपवाद',
+      body: 'सिर्फ वही ऑर्डर जो रुक गए। भेजा हुआ मैसेज, जिसका जवाब आना बाकी है, यहाँ नहीं है।',
+    },
+    hinglish: {
+      title: 'Exceptions',
+      body: 'Sirf woh orders jo ruk gaye. Bheja hua message, jiska jawab baaki hai, yahan nahi.',
+    },
+  },
+  'exception-order': {
+    english: {
+      title: 'One stopped order',
+      body: 'The reason is on the card. Template pending means Meta has not approved it yet. Not sent means the message failed.',
+    },
+    hindi: {
+      title: 'एक रुका ऑर्डर',
+      body: 'वजह कार्ड पर है। Template pending का मतलब Meta ने अभी मंज़ूरी नहीं दी। Not sent का मतलब मैसेज फेल हुआ।',
+    },
+    hinglish: {
+      title: 'One stopped order',
+      body: 'Wajah card pe hai. Template pending matlab Meta ne abhi approve nahi kiya. Not sent matlab message fail hua.',
+    },
+  },
+  'exception-action': {
+    english: {
+      title: 'The next action',
+      body: 'Confirm, cancel, or use the buyer reply as the address. The rest stays on autopilot.',
+    },
+    hindi: {
+      title: 'अगला कदम',
+      body: 'कन्फर्म करें, रद्द करें, या खरीदार के जवाब को पता बनाएँ। बाकी ऑटोपायलट पर है।',
+    },
+    hinglish: {
+      title: 'The next action',
+      body: 'Confirm karo, cancel karo, ya buyer ke reply ko address banao. Baaki autopilot pe hai.',
+    },
+  },
+  activity: {
+    english: {
+      title: 'Activity',
+      body: 'A log of what the shop already did. Uploads stay on the start page.',
+    },
+    hindi: {
+      title: 'गतिविधि',
+      body: 'शॉप जो कर चुकी है उसकी सूची। अपलोड स्टार्ट पेज पर रहते हैं।',
+    },
+    hinglish: {
+      title: 'Activity',
+      body: 'Shop jo kar chuki hai uski list. Uploads start page pe rehte hain.',
+    },
+  },
+  'results-home': {
+    english: {
+      title: 'Back to results',
+      body: 'Rupees prevented, conversions, address fixes, and confirmations. That is the morning view.',
+    },
+    hindi: {
+      title: 'नतीजों पर वापस',
+      body: 'बचे रुपये, कन्वर्ज़न, पता सुधार, और कन्फर्मेशन। यही सुबह का नज़ारा है।',
+    },
+    hinglish: {
+      title: 'Back to results',
+      body: 'Bache rupaye, conversions, address fixes, aur confirmations. Yahi subah ka view hai.',
+    },
+  },
   impact: {
     english: {
       title: 'Impact',

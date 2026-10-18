@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, ScanLine, Search, Settings } from 'lucide-react';
+import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Search, Settings } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import { Tour } from '@/components/Tour';
 import { Notice, Skeleton } from '@/components/ui';
@@ -16,11 +16,10 @@ import { isDemoSession, toursFor, type TourKind, type TourSurface } from '@/lib/
 import type { Integrations, PublicUser } from '@/lib/types';
 
 const links = [
-  ['/app', 'Dashboard', 'Shop overview', LayoutDashboard],
-  ['/app/queue', 'Queue', 'Confirm risky orders', ListChecks],
-  ['/app/orders', 'Scanner', 'Score orders', ScanLine],
-  ['/app/history', 'History', 'Training orders', History],
-  ['/app/settings', 'Settings', 'Shop & keys', Settings],
+  ['/app', 'Results', 'What the shop saved', LayoutDashboard],
+  ['/app/queue', 'Exceptions', 'Orders that stopped', ListChecks],
+  ['/app/history', 'Activity', 'What the shop did', History],
+  ['/app/settings', 'Settings', 'Policy and keys', Settings],
 ] as const;
 
 function activeNav(pathname: string, href: string) {
@@ -424,7 +423,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         {/* ------- mobile bottom nav ------- */}
         <nav aria-label="Primary" className="shrink-0 border-t-2 border-ink bg-paper lg:hidden">
-          <div className="grid grid-cols-5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="grid grid-cols-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             {links.map(([href, label, , Icon]) => {
               const active = activeNav(pathname || '', href);
               return (
@@ -443,7 +442,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     </span>
                   ) : null}
                   <Icon size={19} aria-hidden="true" />
-                  <span className="font-mono text-[9px] font-bold uppercase tracking-[0.1em]">{label}</span>
+                  <span className="sr-only">{label}</span>
                 </Link>
               );
             })}

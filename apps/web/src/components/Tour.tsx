@@ -21,7 +21,7 @@ const PAD = 8;
 const LANG_KEY = 'rto-tour-lang';
 
 const tourBtn =
-  'inline-flex w-full min-w-0 items-center justify-center gap-1 whitespace-nowrap border-2 border-ink bg-paper px-1 py-2 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.04em] text-ink shadow-[2px_2px_0_0_#1B1712] disabled:opacity-40';
+  'inline-flex w-full min-w-0 items-center justify-center gap-0.5 overflow-hidden border-2 border-ink bg-paper px-0.5 py-2 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.02em] text-ink shadow-[2px_2px_0_0_#1B1712] disabled:opacity-40';
 const tourNext = `${tourBtn} bg-lime`;
 
 function visible(node: HTMLElement) {
@@ -58,6 +58,10 @@ function measure(node: HTMLElement): Box | null {
     height: rect.height + PAD * 2,
     radius,
   };
+}
+
+function moved(a: Box, b: Box) {
+  return Math.abs(a.top - b.top) > 1 || Math.abs(a.left - b.left) > 1 || Math.abs(a.width - b.width) > 1 || Math.abs(a.height - b.height) > 1;
 }
 
 function targetRect(node: HTMLElement): Rect {
@@ -108,7 +112,7 @@ export function Tour({
 }: {
   steps: TourStep[];
   onFinish: (reason: 'done' | 'skip') => void;
-  /** How long a step may wait for its route or anchor before moving on. The card stays up the whole time. */
+  /** How long a step may wait for its route and a stable anchor before the guide appears. */
   stepTimeoutMs?: number;
 }) {
   const pathname = usePathname();
@@ -126,6 +130,7 @@ export function Tour({
   const [audioReady, setAudioReady] = useState(false);
   const [liveTitle, setLiveTitle] = useState('');
   const [index, setIndex] = useState(0);
+  const [readyId, setReadyId] = useState('');
   const [box, setBox] = useState<Box | null>(null);
   const [frame, setFrame] = useState<TourFrame | null>(null);
   const [pin, setPin] = useState(0);
@@ -252,20 +257,17 @@ export function Tour({
   }, []);
 
   useEffect(() => {
-    const onGesture = (event: PointerEvent) => {
+    const onGesture = () => {
       unlocked.current = true;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('#tour-card')) return;
-      playVoice(speakId);
     };
     window.addEventListener('pointerdown', onGesture, { once: true });
     return () => window.removeEventListener('pointerdown', onGesture);
-  }, [speakId, voiceOn]);
+  }, []);
 
   useEffect(() => {
-    if (phase !== 'run' || !unlocked.current) return;
+    if (phase !== 'run' || !unlocked.current || !step || readyId !== step.id) return;
     playVoice(speakId);
-  }, [speakId, voiceOn, lang, phase]);
+  }, [speakId, voiceOn, lang, phase, readyId, step]);
 
   useEffect(() => {
     setLiveTitle('');
@@ -280,6 +282,9 @@ export function Tour({
     let poll = 0;
     const started = performance.now();
     const memory = revealMemory.current;
+    setBox(null);
+    setFrame(null);
+    setReadyId('');
 
     const giveUp = () => {
       if (cancelled || locked) return;
@@ -342,17 +347,25 @@ export function Tour({
         inline: 'nearest',
         behavior: 'auto',
       });
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (cancelled) return;
-        const settled = measure(node);
-        if (!settled) {
-          locked = false;
-          poll = window.setTimeout(seek, 80);
-          return;
-        }
-        setBox(settled);
-        setPin((n) => n + 1);
-      }));
+      const finish = (previous: Box | null, tries: number) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (cancelled) return;
+          const settled = measure(node);
+          if (!settled) {
+            locked = false;
+            poll = window.setTimeout(seek, 80);
+            return;
+          }
+          if (!previous || (moved(previous, settled) && tries < 6)) {
+            finish(settled, tries + 1);
+            return;
+          }
+          setReadyId(step.id);
+          setBox(settled);
+          setPin((n) => n + 1);
+        }));
+      };
+      finish(null, 0);
     };
 
     const observer = new MutationObserver(() => {
@@ -381,11 +394,12 @@ export function Tour({
     const cardEl = cardRef.current;
     if (!node || !cardEl) return;
     let last = '';
+    let live = true;
 
     const place = () => {
       const next = measure(node);
       if (!next) return;
-      const width = cardWidthFor(window.innerWidth);
+      const width = Math.min(320, cardWidthFor(window.innerWidth));
       const inset = chromeInset();
       const boundary = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
       const apply = (nextFrame: TourFrame) => {
@@ -401,7 +415,7 @@ export function Tour({
           viewport: { width: window.innerWidth, height: window.innerHeight },
           inset,
           target: targetRect(node),
-          card: { width, height: Math.max(rect.height, cardEl.scrollHeight, 220) },
+          card: { width, height: Math.max(rect.height, cardEl.scrollHeight, 96) },
           placed,
           referenceHidden,
           mobile: window.innerWidth < 768,
@@ -430,13 +444,21 @@ export function Tour({
           hide({ strategy: 'referenceHidden', boundary, rootBoundary: 'viewport' }),
         ],
       }).then((pos) => {
+        if (!live) return;
         finishPlace({ x: pos.x, y: pos.y }, Boolean(pos.middlewareData.hide?.referenceHidden));
       }).catch(() => {
+        if (!live) return;
         finishPlace(null, false);
       });
     };
 
-    return autoUpdate(node, cardEl, place);
+    const stop = autoUpdate(node, cardEl, () => {
+      if (live) place();
+    });
+    return () => {
+      live = false;
+      stop();
+    };
   }, [index, pathname, phase, pin, step]);
 
   useEffect(() => {
@@ -450,11 +472,7 @@ export function Tour({
         event.preventDefault();
         unlocked.current = true;
         if (index >= shown.length - 1) finish('done');
-        else {
-          const next = shown[index + 1];
-          setIndex(index + 1);
-          if (next) playVoice(next.narrationId || next.id);
-        }
+        else setIndex(index + 1);
         return;
       }
       if (event.key === 'ArrowLeft') {
@@ -481,9 +499,12 @@ export function Tour({
 
   if (!step) return null;
   const onPage = phase === 'run' && stepOnPage(step, pathname || '', typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
-  const spotlight = Boolean(box && frame && onPage);
+  const settled = phase === 'choose' || (readyId === step.id && Boolean(frame));
+  const spotlight = Boolean(settled && box && frame && onPage);
   const last = index === shown.length - 1;
-  const width = frame?.width ?? (typeof window === 'undefined' ? 352 : cardWidthFor(window.innerWidth));
+  const width = phase === 'choose'
+    ? 352
+    : (frame?.width ?? 320);
   const heading = (step.titleFromAnchor && liveTitle) || step.title;
 
   return (
@@ -513,7 +534,7 @@ export function Tour({
         aria-describedby={bodyId}
         data-tour-mode={phase === 'choose' ? 'sheet' : (frame?.mode || 'pending')}
         data-tour-audio={phase === 'run' ? (audioReady ? 'ready' : 'loading') : 'idle'}
-        className="sticker pointer-events-auto fixed flex flex-col overflow-hidden p-0 opacity-100"
+        className={`sticker fixed flex flex-col overflow-hidden p-0 ${settled ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
         style={{
           top: phase === 'choose' ? 16 : (frame?.top ?? 16),
           left: phase === 'choose' ? 16 : (frame?.left ?? 16),
@@ -548,17 +569,11 @@ export function Tour({
           </>
         ) : (
           <>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-2">
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-inksoft">
-                Step {index + 1} of {shown.length}
-              </p>
-              <h2 id={titleId} className="mt-2 font-display text-2xl">{heading}</h2>
-              <p id={bodyId} className="mt-2 text-sm leading-6 text-ink/80">{step.body}</p>
-              <LanguageRadios lang={lang} onChange={chooseLang} />
-              <div className="mt-4 flex flex-wrap gap-1.5" aria-hidden="true">
-                {shown.map((item, dot) => (
-                  <span key={`${item.id}-${dot}`} className={`h-2 w-2 border border-ink ${dot === index ? 'bg-ink' : 'bg-paper'}`} />
-                ))}
+            <div className="flex min-h-0 flex-1 items-start gap-2 overflow-y-auto p-2 pb-1">
+              <Robot />
+              <div className="min-w-0 flex-1 border-2 border-ink bg-paper px-2 py-1.5 shadow-[2px_2px_0_0_#1B1712]">
+                <h2 id={titleId} className="font-display text-sm font-black uppercase leading-tight">{heading}</h2>
+                <p id={bodyId} className="mt-1 text-xs leading-5 text-ink/80">{step.body}</p>
               </div>
             </div>
             <div data-tour-footer className="grid shrink-0 grid-cols-4 gap-1 border-t-2 border-ink p-2">
@@ -574,7 +589,6 @@ export function Tour({
                   setVoiceOn(next);
                   window.localStorage.setItem('rto-tour-voice', next ? 'on' : 'off');
                   if (!next) stopVoice();
-                  else playVoice(speakId);
                 }}
               >
                 {voiceOn ? <Volume2 aria-hidden="true" size={12} /> : <VolumeX aria-hidden="true" size={12} />}
@@ -585,10 +599,7 @@ export function Tour({
                 className={tourBtn}
                 onClick={() => {
                   unlocked.current = true;
-                  const nextIndex = Math.max(0, index - 1);
-                  const next = shown[nextIndex];
-                  setIndex(nextIndex);
-                  if (next) playVoice(next.narrationId || next.id);
+                  setIndex((current) => Math.max(0, current - 1));
                 }}
                 disabled={index === 0}
               >
@@ -604,9 +615,7 @@ export function Tour({
                     finish('done');
                     return;
                   }
-                  const next = shown[index + 1];
                   setIndex(index + 1);
-                  if (next) playVoice(next.narrationId || next.id);
                 }}
               >
                 {last ? 'Done' : 'Next'}
@@ -616,6 +625,19 @@ export function Tour({
         )}
       </div>
     </div>
+  );
+}
+
+function Robot() {
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true" className="shrink-0 border-2 border-ink bg-lime shadow-[2px_2px_0_0_#1B1712]">
+      <rect x="16" y="2" width="4" height="6" fill="#1B1712" />
+      <rect x="7" y="8" width="22" height="16" fill="#FAF6EE" stroke="#1B1712" strokeWidth="2" />
+      <rect x="11" y="13" width="4" height="4" fill="#1B1712" />
+      <rect x="21" y="13" width="4" height="4" fill="#1B1712" />
+      <rect x="12" y="26" width="4" height="6" fill="#1B1712" />
+      <rect x="20" y="26" width="4" height="6" fill="#1B1712" />
+    </svg>
   );
 }
 

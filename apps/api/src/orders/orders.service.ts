@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, HttpException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -33,7 +34,15 @@ import { demoSendCap, effectiveRole } from '../demo/demo.policy';
 import { ShopifyService } from '../shopify/shopify.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { sessionOpen } from '../whatsapp/whatsapp-templates';
 import { buyerReplied, chooseIntervention, pushTimeline, reductionSettings } from './action';
+import {
+  askGeminiForAddress,
+  fetchIndiaPost,
+  matchPostOffices,
+  stripReplyPhones,
+  type ParsedAddress,
+} from './address-intake';
 import { toMlOrder } from '../ml/payload';
 import type { AddressQuality, PredictResponse, Prediction } from '../ml/ml.types';
 import {
@@ -61,7 +70,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     private readonly ml: MlService,
     @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
     @Inject(forwardRef(() => ElevenLabsService)) private readonly calls: ElevenLabsService,
-    private readonly whatsapp: WhatsAppService,
+    @Inject(forwardRef(() => WhatsAppService)) private readonly whatsapp: WhatsAppService,
     private readonly demo: DemoService,
   ) {}
 
@@ -350,10 +359,40 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async queue(user: UserDocument, scope: 'action' | 'open' = 'action') {
-    const filter: Record<string, unknown> = { sellerId: user._id, stage: 'pending' };
-    if (scope !== 'open') filter.riskBand = { $in: ['High', 'Medium'] };
+    const filter: Record<string, unknown> = scope === 'open'
+      ? { sellerId: user._id, stage: 'pending' }
+      : {
+          sellerId: user._id,
+          $or: [
+            { stage: 'pending', intervention: 'hold_review' },
+            { whatsappStatus: 'failed' },
+            { exception: { $in: ['address', 'template_pending', 'send', 'call', 'shopify'] } },
+            { stage: 'pending', callState: 'due' },
+          ],
+        };
     const items = await this.orders.find(filter).sort({ riskScore: -1, orderedAt: -1 }).limit(200);
     return { orders: items.map((order) => this.toDetail(user, order)) };
+  }
+
+  async activity(user: UserDocument) {
+    const items = await this.orders.find({ sellerId: user._id, 'timeline.0': { $exists: true } }).sort({ updatedAt: -1 }).limit(40);
+    const events = items.flatMap((order) => (order.timeline || []).map((step) => ({
+      at: step.at,
+      step: step.step,
+      detail: step.detail,
+      orderId: String(order._id),
+      externalOrderId: order.externalOrderId,
+    })));
+    events.sort((a, b) => (a.at < b.at ? 1 : -1));
+    return { events: events.slice(0, 80) };
+  }
+
+  async payTarget(token: string) {
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(token)) return { url: '', discountPct: 0 };
+    const order = await this.orders.findOne({ 'prepaid.payToken': token }).select('prepaid.invoiceUrl prepaid.discountPct');
+    const invoice = order?.prepaid?.invoiceUrl || '';
+    const url = invoice.startsWith('https://') && !invoice.includes('/pay/') ? invoice : '';
+    return { url, discountPct: order?.prepaid?.discountPct ?? 0 };
   }
 
   async markOutcome(user: UserDocument, id: string, outcome: 'confirmed' | 'cancelled' | 'no_response') {
@@ -675,6 +714,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     }
     if (writes.length) await this.orders.bulkWrite(writes, { ordered: false });
     this.writeShopify(user, pending);
+    if (reductionSettings(user).autopilot) {
+      await this.runAutopilot(user, pending);
+    }
 
     if (effectiveRole(user) === 'demo') {
       await this.demo.note(user, 'demo.score', '', { scored: result.predictions.length });
@@ -937,6 +979,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       callState: order.callState || 'idle',
       callDueAt: order.callDueAt,
       addressFixedAt: order.addressFixedAt,
+      exception: order.exception,
+      exceptionWhy: order.exceptionWhy || '',
+      addressReply: this.openText(order.addressReplyEnc),
+      addressDraft: order.addressDraft,
       prepaid: order.prepaid
         ? {
             invoiceUrl: order.prepaid.invoiceUrl,
@@ -978,65 +1024,168 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const settings = reductionSettings(user);
     if (!settings.prepaidEnabled) throw new BadRequestException('Prepaid offers are off for this shop');
     if (order.paymentType !== 'cod') throw new BadRequestException('This order is already prepaid');
-    if (order.prepaid?.status === 'offered' && order.prepaid.invoiceUrl) return this.toDetail(user, order);
     if (order.prepaid?.status === 'converted') return this.toDetail(user, order);
+    const retry = order.exception === 'template_pending' || order.exception === 'send' || order.whatsappStatus === 'failed';
+    if (order.prepaid?.status === 'offered' && order.prepaid.payToken && !retry) return this.toDetail(user, order);
     await this.holdDemo(user, ['demo.prepaid'], 'The demo has offered enough prepaid checkouts for today.');
-    const draft = await this.shopify.createPrepaidDraft(user, {
-      externalOrderId: order.externalOrderId,
-      productName: order.productName,
-      orderValue: order.orderValue,
-      discountPct: settings.discountPct,
-      buyerName: this.crypto.decrypt(order.buyerNameEnc),
-      address1: this.crypto.decrypt(order.addressEnc),
-      city: order.city,
-      province: order.state,
-      zip: order.pincode,
-    });
-    const offeredAt = new Date();
-    order.prepaid = {
-      draftGid: draft.draftGid,
-      invoiceUrl: draft.invoiceUrl,
-      discountPct: settings.discountPct,
-      status: 'offered',
-      linkedOrderId: '',
-      offeredAt: offeredAt.toISOString(),
-      expiresAt: new Date(offeredAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-    };
-    order.intervention = 'offer_prepaid';
-    order.interventionWhy = `Prepaid checkout is ready at ${settings.discountPct}% off.`;
-    order.timeline = pushTimeline(order.timeline, 'prepaid', draft.simulated ? 'Prepaid link saved on the order.' : 'Shopify draft invoice created.');
-    await order.save();
-    const sent = await this.whatsapp.sendCheckoutLink(user, order, draft.invoiceUrl);
-    if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.prepaid', String(order._id), { simulated: draft.simulated });
-    const detail = this.toDetail(user, order);
-    return { ...detail, notice: sent.notice };
-  }
-
-  async fixAddress(user: UserDocument, id: string, input: { address: string; landmark?: string; source: 'reply' | 'call' | 'seller' }) {
-    const order = await this.findOwned(user, id);
-    await this.holdDemo(user, ['demo.address'], 'The demo has updated enough addresses for today.');
-    const line = [input.address.trim(), input.landmark?.trim()].filter(Boolean).join(', ').slice(0, 300);
-    order.addressEnc = this.crypto.encrypt(line);
-    order.addressFixedAt = new Date();
-    order.timeline = pushTimeline(order.timeline, 'address', `Address updated from ${input.source}`);
-    if (order.intervention === 'request_address') {
-      order.intervention = 'confirm';
-      order.interventionWhy = 'Address updated. Confirm before it ships.';
-    }
-    await order.save();
-    try {
-      await this.shopify.updateShippingAddress(user, order.shopifyGid, {
-        address1: input.address.trim().slice(0, 200),
-        address2: input.landmark?.trim() || '',
+    if (!(order.prepaid?.payToken && order.prepaid.status === 'offered')) {
+      const draft = await this.shopify.createPrepaidDraft(user, {
+        externalOrderId: order.externalOrderId,
+        productName: order.productName,
+        orderValue: order.orderValue,
+        discountPct: settings.discountPct,
+        buyerName: this.crypto.decrypt(order.buyerNameEnc),
+        address1: this.crypto.decrypt(order.addressEnc),
         city: order.city,
         province: order.state,
         zip: order.pincode,
       });
-    } catch (error) {
-      this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+      const offeredAt = new Date();
+      order.prepaid = {
+        draftGid: draft.draftGid,
+        invoiceUrl: draft.invoiceUrl,
+        discountPct: settings.discountPct,
+        status: 'offered',
+        linkedOrderId: '',
+        offeredAt: offeredAt.toISOString(),
+        expiresAt: new Date(offeredAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        payToken: randomBytes(18).toString('base64url'),
+      };
+      order.intervention = 'offer_prepaid';
+      order.interventionWhy = `Prepaid checkout is ready at ${settings.discountPct}% off.`;
+      order.timeline = pushTimeline(order.timeline, 'prepaid', draft.simulated ? 'Prepaid link saved on the order.' : 'Shopify draft invoice created.');
+      await order.save();
+      if (order.shopifyGid) {
+        try {
+          await this.shopify.tag(user, order.shopifyGid, ['rto-prepaid-offered']);
+        } catch (error) {
+          this.logger.warn(`Prepaid tag missed: ${error instanceof Error ? error.name : 'error'}`);
+        }
+      }
+    }
+    const result = await this.whatsapp.dispatchFlow(user, order, 'payment_link_request');
+    await this.noteDispatch(order, result, 'Offered a payment link.');
+    const token = order.prepaid?.payToken || '';
+    if (result === 'fallback' && token && sessionOpen(order.conversation)) {
+      await this.whatsapp.sendSessionLine(user, order, `Pay here: https://www.rtoshield.tech/pay/${token}`);
+    }
+    if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.prepaid', String(order._id), { simulated: result === 'simulated' });
+    return this.toDetail(user, order);
+  }
+
+  async fixAddress(
+    user: UserDocument,
+    id: string,
+    input: { address?: string; landmark?: string; source: 'reply' | 'call' | 'seller'; useReply?: boolean },
+  ) {
+    const order = await this.findOwned(user, id);
+    await this.holdDemo(user, ['demo.address'], 'The demo has updated enough addresses for today.');
+    if (input.useReply) {
+      const draft = order.addressDraft;
+      if (draft?.street && draft.pin && draft.city && draft.state) {
+        await this.writeStructuredAddress(user, order, draft, input.source);
+      } else {
+        const raw = stripReplyPhones(this.openText(order.addressReplyEnc));
+        const pin = raw.match(/\d{6}/)?.[0] || order.pincode;
+        let city = order.city;
+        let state = order.state;
+        try {
+          const offices = await fetchIndiaPost(pin);
+          if (offices[0]) {
+            city = offices[0].District || offices[0].Name || city;
+            state = offices[0].State || state;
+          }
+        } catch (error) {
+          this.logger.warn(`India Post missed: ${error instanceof Error ? error.name : 'error'}`);
+        }
+        const street = raw.replace(/\d{6}/, '').trim() || (input.address || '').trim();
+        await this.writeStructuredAddress(user, order, {
+          street: street.slice(0, 160),
+          landmark: '',
+          city,
+          state,
+          pin,
+        }, input.source);
+      }
+    } else {
+      await this.writeStructuredAddress(user, order, {
+        street: (input.address || '').trim(),
+        landmark: (input.landmark || '').trim(),
+        city: order.city,
+        state: order.state,
+        pin: order.pincode,
+      }, input.source);
     }
     if (effectiveRole(user) === 'demo') await this.demo.note(user, 'demo.address', String(order._id), { source: input.source });
     return this.toDetail(user, order);
+  }
+
+  async ingestAddressReply(user: UserDocument, order: OrderDocument, raw: string) {
+    if (order.stage !== 'pending') return;
+    const stripped = stripReplyPhones(raw);
+    order.conversation = [
+      ...(order.conversation || []),
+      { at: new Date().toISOString(), direction: 'in', kind: 'text', text: 'Address reply' },
+    ];
+    order.addressReplyEnc = stripped ? this.crypto.encrypt(stripped) : '';
+    const key = this.addressKey(user);
+    let parsed: ParsedAddress | null = null;
+    try {
+      parsed = await askGeminiForAddress(key, stripped);
+    } catch (error) {
+      this.logger.warn(`Address parse missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+    if (!parsed) {
+      order.addressDraft = null;
+      order.exception = 'address';
+      order.exceptionWhy = 'Could not read the address';
+      order.timeline = pushTimeline(order.timeline, 'address', 'The reply could not be read as an address.');
+      await order.save();
+      return;
+    }
+    let offices: Awaited<ReturnType<typeof fetchIndiaPost>> = [];
+    try {
+      offices = await fetchIndiaPost(parsed.pin);
+    } catch (error) {
+      this.logger.warn(`India Post missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+    const matched = matchPostOffices(parsed, offices);
+    order.addressDraft = matched.ok ? matched.address : parsed;
+    if (!matched.ok) {
+      order.exception = 'address';
+      order.exceptionWhy = matched.why;
+      order.timeline = pushTimeline(order.timeline, 'address', matched.why);
+      await order.save();
+      return;
+    }
+    await this.writeStructuredAddress(user, order, matched.address, 'reply');
+  }
+
+  async confirmAddress(user: UserDocument, order: OrderDocument) {
+    if (order.exception === 'address') {
+      order.exception = null;
+      order.exceptionWhy = '';
+    }
+    order.intervention = 'confirm';
+    order.interventionWhy = 'Buyer said the address is correct.';
+    order.timeline = pushTimeline(order.timeline, 'address', 'Buyer said the address is correct.');
+    await order.save();
+    if (reductionSettings(user).autopilot && order.stage === 'pending') {
+      const result = await this.whatsapp.dispatchFlow(user, order, 'order_reminder');
+      await this.noteDispatch(order, result, 'Asked the buyer to confirm the order.');
+    }
+  }
+
+  async keepCod(user: UserDocument, order: OrderDocument) {
+    if (order.prepaid) order.prepaid = { ...order.prepaid, status: 'declined' };
+    order.intervention = 'confirm';
+    order.interventionWhy = 'Buyer kept cash on delivery.';
+    order.timeline = pushTimeline(order.timeline, 'prepaid', 'Buyer kept cash on delivery');
+    await order.save();
+    if (reductionSettings(user).autopilot && order.stage === 'pending') {
+      const result = await this.whatsapp.dispatchFlow(user, order, 'order_reminder');
+      await this.noteDispatch(order, result, 'Asked the buyer to confirm the order.');
+    }
   }
 
   async placeCall(user: UserDocument, id: string, browser: boolean) {
@@ -1158,12 +1307,178 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async holdUnconfirmed(user: UserDocument, order: OrderDocument) {
+    const settings = reductionSettings(user);
+    if (settings.noReply === 'cancel') {
+      order.callState = 'held';
+      order.outcome = 'cancelled';
+      order.stage = 'closed';
+      order.timeline = pushTimeline(order.timeline, 'cancel', 'No reply. Cancelled because the shop chose cancel.');
+      await order.save();
+      if (order.shopifyGid) {
+        try {
+          await this.shopify.cancelForPolicy(user, order.shopifyGid);
+          await this.shopify.tagDecision(user, order.shopifyGid, 'cancelled');
+        } catch (error) {
+          this.logger.warn(`Policy cancel missed: ${error instanceof Error ? error.name : 'error'}`);
+          order.exception = 'shopify';
+          order.exceptionWhy = 'Shopify did not cancel the order';
+          await order.save();
+        }
+      }
+      return this.toDetail(user, order);
+    }
     order.callState = 'held';
     order.intervention = 'hold_review';
     order.interventionWhy = 'No confirmation after WhatsApp and a call. Hold for the seller.';
     order.timeline = pushTimeline(order.timeline, 'hold', order.interventionWhy);
     await order.save();
     return this.toDetail(user, order);
+  }
+
+  private async runAutopilot(user: UserDocument, pending: OrderDocument[]) {
+    try {
+      await this.whatsapp.rememberFlows(user);
+    } catch (error) {
+      this.logger.warn(`Template refresh missed: ${error instanceof Error ? error.name : 'error'}`);
+    }
+    for (const order of pending) {
+      try {
+        if (order.intervention === 'auto_confirm') {
+          await this.tagConfirmed(user, order);
+          continue;
+        }
+        if (order.stage !== 'pending') continue;
+        const waiting = order.whatsappStatus === 'sent' || order.whatsappStatus === 'delivered' || order.whatsappStatus === 'read';
+        if (waiting && order.exception !== 'template_pending') continue;
+        if (order.intervention === 'request_address') {
+          const result = await this.whatsapp.dispatchFlow(user, order, 'address_update_request');
+          await this.noteDispatch(order, result, 'Asked the buyer to confirm the address.');
+        } else if (order.intervention === 'offer_prepaid') {
+          await this.offerPrepaid(user, String(order._id));
+        } else if (order.intervention === 'confirm') {
+          const result = await this.whatsapp.dispatchFlow(user, order, 'order_reminder');
+          await this.noteDispatch(order, result, 'Asked the buyer to confirm the order.');
+        }
+      } catch (error) {
+        this.logger.warn(`Autopilot missed: ${error instanceof Error ? error.name : 'error'}`);
+        order.exception = 'send';
+        order.exceptionWhy = 'not sent';
+        order.whatsappStatus = 'failed';
+        await order.save().catch(() => undefined);
+      }
+    }
+  }
+
+  private async tagConfirmed(user: UserDocument, order: OrderDocument) {
+    if ((order.timeline || []).some((step) => step.step === 'tagged')) return;
+    if (order.shopifyGid) {
+      try {
+        await this.shopify.tag(user, order.shopifyGid, ['rto-confirmed']);
+      } catch (error) {
+        this.logger.warn(`Confirm tag missed: ${error instanceof Error ? error.name : 'error'}`);
+        order.exception = 'shopify';
+        order.exceptionWhy = 'Shopify did not take the tag';
+        await order.save();
+        return;
+      }
+    }
+    order.timeline = pushTimeline(order.timeline, 'tagged', 'Tagged rto-confirmed.');
+    await order.save();
+  }
+
+  private async writeStructuredAddress(user: UserDocument, order: OrderDocument, address: ParsedAddress, source: string) {
+    const line = [address.street, address.landmark].filter(Boolean).join(', ').slice(0, 300);
+    order.addressEnc = this.crypto.encrypt(line || address.street || 'Address');
+    if (address.city) order.city = address.city;
+    if (address.state) order.state = address.state;
+    if (address.pin) order.pincode = address.pin;
+    order.addressFixedAt = new Date();
+    if (order.exception === 'address') {
+      order.exception = null;
+      order.exceptionWhy = '';
+    }
+    order.timeline = pushTimeline(order.timeline, 'address', `Address checked and saved from ${source}.`);
+    if (order.intervention === 'request_address') {
+      order.intervention = 'confirm';
+      order.interventionWhy = 'Address updated. Confirm before it ships.';
+    }
+    await order.save();
+    try {
+      await this.shopify.updateShippingAddress(user, order.shopifyGid, {
+        address1: (address.street || line).slice(0, 200),
+        address2: address.landmark || '',
+        city: order.city,
+        province: order.state,
+        zip: order.pincode,
+      });
+      if (order.shopifyGid) await this.shopify.tag(user, order.shopifyGid, ['rto-address-fixed']);
+    } catch (error) {
+      this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+      order.exception = 'shopify';
+      order.exceptionWhy = 'Shopify did not take the address';
+      await order.save();
+    }
+    const spoken = [line, order.city, order.state, order.pincode].filter(Boolean).join(', ');
+    const result = await this.whatsapp.dispatchFlow(user, order, 'address_updated_confirmation');
+    if (result === 'pending' && sessionOpen(order.conversation)) {
+      const sent = await this.whatsapp.sendSessionLine(user, order, `Address updated: ${spoken}`.slice(0, 900));
+      if (sent) {
+        if (order.exception === 'template_pending') {
+          order.exception = null;
+          order.exceptionWhy = '';
+        }
+        await order.save();
+      } else {
+        await this.noteDispatch(order, result, 'Told the buyer the address was updated.');
+      }
+    } else {
+      await this.noteDispatch(order, result, 'Told the buyer the address was updated.');
+    }
+    const told = result === 'sent' || result === 'simulated' || result === 'fallback';
+    if (reductionSettings(user).autopilot && order.stage === 'pending' && told) {
+      const reminder = await this.whatsapp.dispatchFlow(user, order, 'order_reminder');
+      await this.noteDispatch(order, reminder, 'Asked the buyer to confirm the order.');
+    }
+  }
+
+  private async noteDispatch(order: OrderDocument, result: 'sent' | 'simulated' | 'fallback' | 'pending' | 'failed', detail: string) {
+    if (result === 'sent' || result === 'simulated' || result === 'fallback') {
+      if (order.exception === 'template_pending' || order.exception === 'send') {
+        order.exception = null;
+        order.exceptionWhy = '';
+      }
+      const last = order.timeline?.[order.timeline.length - 1];
+      if (result === 'fallback') {
+        order.timeline = pushTimeline(order.timeline, 'whatsapp', 'The flow template is not approved yet. Sent the confirmation template.');
+      } else if (last?.step !== 'whatsapp') {
+        order.timeline = pushTimeline(order.timeline, 'whatsapp', detail);
+      }
+    } else if (result === 'pending') {
+      order.exception = 'template_pending';
+      order.exceptionWhy = 'template pending';
+      order.timeline = pushTimeline(order.timeline, 'whatsapp', 'template pending');
+    } else {
+      order.exception = 'send';
+      order.exceptionWhy = 'not sent';
+      order.whatsappStatus = 'failed';
+      order.timeline = pushTimeline(order.timeline, 'whatsapp', 'not sent');
+    }
+    await order.save();
+  }
+
+  private addressKey(user: UserDocument) {
+    const call = this.geminiCall(user);
+    if (call?.mode === 'seller') return call.key || '';
+    return process.env.GEMINI_API_KEY || '';
+  }
+
+  private openText(enc: string | null | undefined) {
+    if (!enc) return '';
+    try {
+      return this.crypto.decrypt(enc);
+    } catch {
+      return '';
+    }
   }
 
   private async dial(user: UserDocument, order: OrderDocument, prefer: 'phone' | 'browser' | 'auto') {

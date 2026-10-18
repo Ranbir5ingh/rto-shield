@@ -15,6 +15,7 @@ export const qk = {
   me: ['me'] as const,
   dashboard: ['dashboard'] as const,
   queue: ['queue'] as const,
+  activity: ['activity'] as const,
   whatsapp: ['whatsapp'] as const,
   shopify: ['shopify'] as const,
   gemini: ['gemini'] as const,
@@ -137,6 +138,14 @@ export function useDashboard() {
   });
 }
 
+export function useActivity() {
+  return useQuery({
+    queryKey: qk.activity,
+    staleTime: 15_000,
+    queryFn: () => api<{ events: Array<{ at: string; step: string; detail: string; orderId: string; externalOrderId: string }> }>('/activity'),
+  });
+}
+
 export function useQueue(scope: 'action' | 'open' = 'action') {
   return useQuery({
     queryKey: [...qk.queue, scope],
@@ -227,6 +236,8 @@ export function prefetchRoute(client: QueryClient, href: string) {
       queryFn: () => fetchOrders('pending', 0, 12),
       staleTime: 20_000,
     });
+  } else if (href === '/app/history') {
+    void client.prefetchQuery({ queryKey: qk.activity, queryFn: () => api('/activity'), staleTime: 15_000 });
   } else if (href === '/app/settings') {
     void client.prefetchQuery({ queryKey: qk.me, queryFn: fetchMe, staleTime: 60_000 });
     void client.prefetchQuery({ queryKey: qk.integrations, queryFn: fetchIntegrations, staleTime: 0 });
@@ -236,5 +247,6 @@ export function prefetchRoute(client: QueryClient, href: string) {
 export function invalidateShop(client: QueryClient) {
   void client.invalidateQueries({ queryKey: qk.dashboard });
   void client.invalidateQueries({ queryKey: qk.queue });
+  void client.invalidateQueries({ queryKey: qk.activity });
   void client.invalidateQueries({ queryKey: ['orders'] });
 }

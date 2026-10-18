@@ -9,7 +9,7 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
-  imports: [DatabaseModule, DemoModule, MlModule, WhatsAppModule, forwardRef(() => ShopifyModule), forwardRef(() => VoiceModule)],
+  imports: [DatabaseModule, DemoModule, MlModule, forwardRef(() => WhatsAppModule), forwardRef(() => ShopifyModule), forwardRef(() => VoiceModule)],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

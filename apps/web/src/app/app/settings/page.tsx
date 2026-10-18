@@ -39,10 +39,12 @@ export default function SettingsPage() {
           shopName: user.shopName,
           rtoCostInr: Number(user.rtoCostInr),
           messageLanguage: user.messageLanguage,
+          autopilot: user.reduction?.autopilot !== false,
           prepaidEnabled: user.reduction?.prepaidEnabled !== false,
           discountPct: Number(user.reduction?.discountPct ?? 5),
           minRisk: Number(user.reduction?.minRisk ?? 60),
           escalationMinutes: Number(user.reduction?.escalationMinutes ?? 120),
+          noReply: user.reduction?.noReply === 'cancel' ? 'cancel' : 'hold',
         }),
       });
       setUser(body.user);
@@ -100,8 +102,45 @@ export default function SettingsPage() {
         </Button>
       )}
     >
-      <form id="shop-settings" onSubmit={save} className="space-y-6 lg:space-y-8">
-        <Section eyebrow="01 · Profile" title="The shop">
+      <form id="shop-settings" onSubmit={save} className="space-y-6 lg:space-y-8" data-tour-ready="true">
+        <Section eyebrow="01 · Autopilot" title="Policy" tour="autopilot">
+          <p className="-mt-2 mb-5 max-w-xl text-[15px] leading-7 text-ink/70">
+            On by default. The shop sends the address ask, the payment link, and the reminder. You only see what stops.
+          </p>
+          <FormGrid>
+            <div className="sm:col-span-2">
+              <Field label="Autopilot">
+                <label className="flex items-center gap-3 border-2 border-ink bg-white px-4 py-3.5 shadow-sticker-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[#1B1712]"
+                    checked={user.reduction?.autopilot !== false}
+                    disabled={demo}
+                    onChange={(event) => setUser(patchReduction(user, { autopilot: event.target.checked }))}
+                  />
+                  <span className="text-[15px]">Run the shop without a morning queue</span>
+                </label>
+              </Field>
+            </div>
+            <Field label="If nobody replies">
+              {demo ? (
+                <p className="font-mono text-sm font-bold uppercase tracking-[0.12em]">{user.reduction?.noReply === 'cancel' ? 'Cancel' : 'Hold'}</p>
+              ) : (
+                <Dropdown
+                  label="If nobody replies"
+                  value={user.reduction?.noReply === 'cancel' ? 'cancel' : 'hold'}
+                  onChange={(value) => setUser(patchReduction(user, { noReply: value === 'cancel' ? 'cancel' : 'hold' }))}
+                  options={[
+                    { value: 'hold', label: 'Hold' },
+                    { value: 'cancel', label: 'Cancel' },
+                  ]}
+                />
+              )}
+            </Field>
+          </FormGrid>
+        </Section>
+
+        <Section eyebrow="02 · Profile" title="The shop">
           <FormGrid>
             <Field label="Your name">
               <input className={inputClass} value={user.name} readOnly={demo} onChange={(event) => setUser({ ...user, name: event.target.value })} />
@@ -131,7 +170,7 @@ export default function SettingsPage() {
           </FormGrid>
         </Section>
 
-        <Section eyebrow="02 · Automation" title="Risk playbook">
+        <Section eyebrow="03 · Prepaid" title="Payment link">
           <FormGrid>
             <div className="sm:col-span-2">
               <Field label="Prepaid offers">
@@ -141,30 +180,30 @@ export default function SettingsPage() {
                     className="h-4 w-4 accent-[#1B1712]"
                     checked={user.reduction?.prepaidEnabled !== false}
                     disabled={demo}
-                    onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: event.target.checked, discountPct: user.reduction?.discountPct ?? 5, minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })}
+                    onChange={(event) => setUser(patchReduction(user, { prepaidEnabled: event.target.checked }))}
                   />
-                  <span className="text-[15px]">Offer prepaid checkout on high-risk COD orders</span>
+                  <span className="text-[15px]">Send a payment link on high-risk COD. The discount is on the pay page.</span>
                 </label>
               </Field>
             </div>
-            <Field label="Prepaid discount %" hint="Sweetener on the prepaid checkout link.">
-              <input className={inputClass} type="number" min={0} max={50} readOnly={demo} value={user.reduction?.discountPct ?? 5} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: Number(event.target.value), minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })} />
+            <Field label="Prepaid discount %" hint="Shown on the pay page, not in the WhatsApp template.">
+              <input className={inputClass} type="number" min={0} max={50} readOnly={demo} value={user.reduction?.discountPct ?? 5} onChange={(event) => setUser(patchReduction(user, { discountPct: Number(event.target.value) }))} />
             </Field>
-            <Field label="Minimum risk for prepaid" hint="Only orders scoring above this get the offer.">
-              <input className={inputClass} type="number" min={0} max={100} readOnly={demo} value={user.reduction?.minRisk ?? 60} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: user.reduction?.discountPct ?? 5, minRisk: Number(event.target.value), escalationMinutes: user.reduction?.escalationMinutes ?? 120 } })} />
+            <Field label="Minimum risk for prepaid" hint="Only orders scoring above this get the link.">
+              <input className={inputClass} type="number" min={0} max={100} readOnly={demo} value={user.reduction?.minRisk ?? 60} onChange={(event) => setUser(patchReduction(user, { minRisk: Number(event.target.value) }))} />
             </Field>
-            <Field label="Call if no WhatsApp reply" hint="Minutes before the buyer gets a voice call instead.">
-              <input className={inputClass} type="number" min={0} max={1440} readOnly={demo} value={user.reduction?.escalationMinutes ?? 120} onChange={(event) => setUser({ ...user, reduction: { prepaidEnabled: user.reduction?.prepaidEnabled !== false, discountPct: user.reduction?.discountPct ?? 5, minRisk: user.reduction?.minRisk ?? 60, escalationMinutes: Number(event.target.value) } })} />
+            <Field label="Minutes before a call" hint="After WhatsApp, if the buyer has not replied.">
+              <input className={inputClass} type="number" min={0} max={1440} readOnly={demo} value={user.reduction?.escalationMinutes ?? 120} onChange={(event) => setUser(patchReduction(user, { escalationMinutes: Number(event.target.value) }))} />
             </Field>
           </FormGrid>
         </Section>
       </form>
 
-      <Section eyebrow="03 · Voice" title="ElevenLabs">
+      <Section eyebrow="04 · Voice" title="ElevenLabs">
         <ElevenLabsKey demo={demo} configured={Boolean(user.elevenlabsConfigured)} last4={user.elevenlabsLast4 || ''} onSaved={(last4) => setUser({ ...user, elevenlabsConfigured: true, elevenlabsLast4: last4 })} />
       </Section>
 
-      <Section eyebrow="04 · Connections" title="Where orders come from">
+      <Section eyebrow="05 · Connections" title="Where orders come from">
         <Connections locked={demo} />
       </Section>
 
@@ -228,6 +267,21 @@ export default function SettingsPage() {
       )}
     </Page>
   );
+}
+
+function patchReduction(user: PublicUser, patch: Partial<NonNullable<PublicUser['reduction']>>): PublicUser {
+  return {
+    ...user,
+    reduction: {
+      autopilot: user.reduction?.autopilot !== false,
+      prepaidEnabled: user.reduction?.prepaidEnabled !== false,
+      discountPct: user.reduction?.discountPct ?? 5,
+      minRisk: user.reduction?.minRisk ?? 60,
+      escalationMinutes: user.reduction?.escalationMinutes ?? 120,
+      noReply: user.reduction?.noReply === 'cancel' ? 'cancel' : 'hold',
+      ...patch,
+    },
+  };
 }
 
 function ElevenLabsKey({ demo, configured, last4, onSaved }: { demo: boolean; configured: boolean; last4: string; onSaved: (last4: string) => void }) {

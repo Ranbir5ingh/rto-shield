@@ -13,15 +13,25 @@ import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
 import { demoSendCap, effectiveRole } from '../demo/demo.policy';
 import { pushTimeline, reductionSettings } from '../orders/action';
+import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
   ORDER_CONFIRMATION_EN,
+  TEMPLATE_FLOWS,
   TEMPLATE_REJECTED,
+  chooseApprovedFlow,
   expectedTemplate,
   explainMetaTemplateError,
+  flowComponents,
   pickTemplateStatus,
+  readButtonChoice,
+  sessionOpen,
+  templateKey,
+  templateText,
+  type FlowFields,
   type ListedTemplate,
+  type TemplateFlow,
 } from './whatsapp-templates';
 
 const GRAPH = process.env.META_GRAPH_VERSION || 'v23.0';
@@ -40,6 +50,7 @@ export class WhatsAppService {
     @InjectModel(AuditEvent.name) private readonly audit: Model<AuditEvent>,
     @InjectModel(PlatformFlag.name) private readonly platform: Model<PlatformFlag>,
     private readonly demoState: DemoService,
+    @Inject(forwardRef(() => OrdersService)) private readonly orderDesk: OrdersService,
   ) {}
 
   verifyToken() {
@@ -353,6 +364,124 @@ export class WhatsAppService {
     );
   }
 
+  async rememberFlows(user: UserDocument) {
+    const link = user.whatsapp;
+    if (!link?.tokenEnvelope || !link.wabaId) return;
+    const token = this.vault.open(link.tokenEnvelope);
+    const flowStatus: Record<string, string> = { ...(link.flowStatus || {}) };
+    let changed = false;
+    for (const flow of TEMPLATE_FLOWS) {
+      const identity = expectedTemplate(user.messageLanguage, flow);
+      const listed = await this.templateState(link, token, identity);
+      if (listed === null) continue;
+      const key = templateKey(identity);
+      if (flowStatus[key] !== listed) {
+        flowStatus[key] = listed;
+        changed = true;
+      }
+      if (flow === 'order_confirmation') {
+        link.templateName = identity.name;
+        link.templateLanguage = identity.language;
+        link.templateStatus = listed || 'missing';
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    user.whatsapp = { ...link, flowStatus };
+    await user.save();
+  }
+
+  async dispatchFlow(user: UserDocument, order: OrderDocument, requested: TemplateFlow): Promise<'sent' | 'simulated' | 'fallback' | 'pending' | 'failed'> {
+    const phone = this.phoneOf(order);
+    if (!phone) return 'failed';
+    const visitor = effectiveRole(user) === 'demo';
+    const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
+    const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
+    const allowlisted = visitor && allow.has(phone) && Boolean(user.whatsapp?.tokenEnvelope);
+    if ((visitor && !allowlisted) || synthetic) {
+      const name = expectedTemplate(user.messageLanguage, requested).name;
+      this.markSimulated(order, name);
+      this.stampEscalation(user, order);
+      await order.save();
+      return 'simulated';
+    }
+    const chosen = chooseApprovedFlow(requested, (flow) => this.flowApproved(user, flow));
+    if (!chosen) {
+      if (!user.whatsapp?.tokenEnvelope) return 'failed';
+      return 'pending';
+    }
+    if (visitor) {
+      try {
+        await this.holdDemoSend(user);
+      } catch {
+        return 'failed';
+      }
+    }
+    const identity = expectedTemplate(user.messageLanguage, chosen.flow);
+    try {
+      const result = await this.graphSend(user, {
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'template',
+        template: {
+          name: identity.name,
+          language: { code: identity.language },
+          components: flowComponents(chosen.flow, this.flowFields(user, order)),
+        },
+      });
+      order.whatsappStatus = 'sent';
+      order.whatsappMessageId = result.messages?.[0]?.id || '';
+      order.conversation = [
+        ...(order.conversation || []),
+        { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${identity.name} ${order.externalOrderId}` },
+      ];
+      this.stampEscalation(user, order);
+      await order.save();
+      if (visitor) {
+        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: identity.name });
+      } else {
+        await this.audit.create({
+          sellerId: user._id,
+          action: 'whatsapp.send',
+          orderId: String(order._id),
+          meta: { template: identity.name },
+        });
+      }
+      return chosen.fallback ? 'fallback' : 'sent';
+    } catch (error) {
+      this.logger.warn(`WhatsApp send missed: ${error instanceof Error ? error.name : 'error'}`);
+      return 'failed';
+    }
+  }
+
+  async sendSessionLine(user: UserDocument, order: OrderDocument, text: string) {
+    if (!sessionOpen(order.conversation)) return false;
+    const phone = this.phoneOf(order);
+    if (!phone || !user.whatsapp?.tokenEnvelope) return false;
+    const visitor = effectiveRole(user) === 'demo';
+    const allow = new Set(whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST));
+    if (visitor && !allow.has(phone)) return false;
+    const body = text.replace(/\s+/g, ' ').trim().slice(0, 900);
+    if (!body) return false;
+    try {
+      await this.graphSend(user, {
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'text',
+        text: { body },
+      });
+      order.conversation = [
+        ...(order.conversation || []),
+        { at: new Date().toISOString(), direction: 'out', kind: 'text', text: 'Session note' },
+      ];
+      await order.save();
+      return true;
+    } catch (error) {
+      this.logger.warn(`Session line missed: ${error instanceof Error ? error.name : 'error'}`);
+      return false;
+    }
+  }
+
   async sendCheckoutLink(user: UserDocument, order: OrderDocument, url: string): Promise<{ delivered: boolean; notice: string | null }> {
     const phone = this.phoneOf(order);
     const visitor = effectiveRole(user) === 'demo';
@@ -392,46 +521,66 @@ export class WhatsAppService {
     order.timeline = pushTimeline(order.timeline, 'whatsapp', 'WhatsApp sent. A call follows if there is no reply.');
   }
 
+  private flowApproved(user: UserDocument, flow: TemplateFlow) {
+    const identity = expectedTemplate(user.messageLanguage, flow);
+    const stored = user.whatsapp?.flowStatus?.[templateKey(identity)] || '';
+    if (stored === 'APPROVED') return true;
+    if (flow !== 'order_confirmation' || user.whatsapp?.templateStatus !== 'APPROVED') return false;
+    return user.whatsapp.templateName === identity.name && user.whatsapp.templateLanguage === identity.language;
+  }
+
+  private flowFields(user: UserDocument, order: OrderDocument): FlowFields {
+    let address = '';
+    try {
+      address = this.crypto.decrypt(order.addressEnc);
+    } catch {
+      address = '';
+    }
+    return {
+      firstName: this.firstName(order),
+      orderNo: order.externalOrderId.slice(0, 30),
+      amount: String(Math.round(order.orderValue)),
+      store: templateText(user.shopName, 'the shop'),
+      address,
+      discount: String(order.prepaid?.discountPct ?? reductionSettings(user).discountPct),
+      payToken: order.prepaid?.payToken || '',
+    };
+  }
+
   private async applyText(user: UserDocument, message: Record<string, unknown>) {
     const context = (message.context || {}) as { id?: string };
     const text = String((message.text as { body?: string } | undefined)?.body || '').trim();
     if (!context.id || text.length < 8 || /^(confirm|cancel|haan|nahi|ok|yes|no)$/i.test(text)) return;
     const order = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
     if (!order || order.stage !== 'pending') return;
-    order.addressEnc = this.crypto.encrypt(text.slice(0, 300));
-    order.addressFixedAt = new Date();
-    order.timeline = pushTimeline(order.timeline, 'address', 'Buyer reply updated the address');
-    order.conversation = [
-      ...(order.conversation || []),
-      { at: new Date().toISOString(), direction: 'in', kind: 'text', text: 'Address reply' },
-    ];
-    await order.save();
-    void this.shopify
-      .updateShippingAddress(user, order.shopifyGid, {
-        address1: text.slice(0, 200),
-        city: order.city,
-        province: order.state,
-        zip: order.pincode,
-      })
-      .catch((error: unknown) => {
-        this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
-      });
+    await this.orderDesk.ingestAddressReply(user, order, text);
   }
 
   private async applyButton(user: UserDocument, message: Record<string, unknown>) {
     const context = (message.context || {}) as { id?: string };
     const button = (message.button || message.interactive || {}) as { text?: string; payload?: string };
-    const text = String(button.text || button.payload || '').toLowerCase();
-    const decision = text.includes('cancel') ? 'cancelled' : text.includes('confirm') ? 'confirmed' : '';
-    if (!decision || !context.id) return;
+    const text = String(button.text || button.payload || '');
+    const choice = readButtonChoice(text);
+    if (!choice || !context.id) return;
     const order = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
     if (!order || order.stage !== 'pending') return;
-    order.outcome = decision;
-    order.stage = 'closed';
     order.conversation = [
       ...(order.conversation || []),
-      { at: new Date().toISOString(), direction: 'in', kind: 'button', text: decision },
+      { at: new Date().toISOString(), direction: 'in', kind: 'button', text: choice },
     ];
+    await order.save();
+    if (choice === 'address_ok') {
+      await this.orderDesk.confirmAddress(user, order);
+      return;
+    }
+    if (choice === 'keep_cod') {
+      await this.orderDesk.keepCod(user, order);
+      return;
+    }
+    const decision = choice === 'cancelled' ? 'cancelled' : 'confirmed';
+    order.outcome = decision;
+    order.stage = 'closed';
+    order.timeline = pushTimeline(order.timeline, decision, decision === 'confirmed' ? 'Buyer confirmed the order.' : 'Buyer cancelled the order.');
     await order.save();
     await this.audit.create({
       sellerId: user._id,

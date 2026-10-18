@@ -1,17 +1,21 @@
 export type Intervention = 'auto_confirm' | 'request_address' | 'offer_prepaid' | 'hold_review' | 'confirm';
 
 export interface ReductionSettings {
+  autopilot: boolean;
   prepaidEnabled: boolean;
   discountPct: number;
   minRisk: number;
   escalationMinutes: number;
+  noReply: 'hold' | 'cancel';
 }
 
 export const DEFAULT_REDUCTION: ReductionSettings = {
+  autopilot: true,
   prepaidEnabled: true,
   discountPct: 5,
   minRisk: 60,
   escalationMinutes: 120,
+  noReply: 'hold',
 };
 
 export interface TimelineEvent {
@@ -26,10 +30,12 @@ const WEAK_ADDRESS = /incomplete address|address looks incomplete|landmark|junk 
 export function reductionSettings(user: { reduction?: Partial<ReductionSettings> | null }): ReductionSettings {
   const raw = user.reduction;
   return {
+    autopilot: raw?.autopilot !== false,
     prepaidEnabled: raw?.prepaidEnabled !== false,
     discountPct: clamp(raw?.discountPct, 0, 50, DEFAULT_REDUCTION.discountPct),
     minRisk: clamp(raw?.minRisk, 0, 100, DEFAULT_REDUCTION.minRisk),
     escalationMinutes: clamp(raw?.escalationMinutes, 0, 24 * 60, DEFAULT_REDUCTION.escalationMinutes),
+    noReply: raw?.noReply === 'cancel' ? 'cancel' : 'hold',
   };
 }
 

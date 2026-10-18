@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { toursFor, type TourStep, type TourSurface } from '../src/lib/tours';
 
 const OWNER = { email: 'e2e-owner@shop.test', password: 'e2e-owner-pass' };
-const SHOTS = new Set(['all-open', 'band-low', 'message-language', 'lang-hindi', 'why-flagged', 'copy-draft', 'send-whatsapp', 'more-menu', 'menu-pin', 'call-panel']);
+const SHOTS = new Set(['impact', 'exceptions', 'exception-action', 'activity', 'results-home']);
 
 function surfaceOf(page: Page): TourSurface {
   return (page.viewportSize()?.width ?? 1280) < 1024 ? 'mobile' : 'desktop';
@@ -131,15 +131,6 @@ async function startTour(page: Page, title: string) {
   await expect(card.getByRole('heading', { level: 2, name: title, exact: true })).toBeVisible();
 }
 
-async function advanceTo(page: Page, title: string) {
-  const card = page.locator('#tour-card');
-  for (let guard = 0; guard < 40; guard += 1) {
-    if (await card.getByRole('heading', { level: 2, name: title, exact: true }).isVisible().catch(() => false)) return;
-    await card.getByRole('button', { name: 'Next', exact: true }).click();
-  }
-  await expect(card.getByRole('heading', { level: 2, name: title, exact: true })).toBeVisible();
-}
-
 async function loginOwner(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(OWNER.email);
@@ -181,27 +172,21 @@ test('owner walks every tour step, including menus the tour opens', async ({ pag
   await startTour(page, steps[0]!.title);
   await expect(page.locator('#tour-card').getByRole('button', { name: 'Mute' })).toBeVisible();
   await walk(page, steps, true, requested);
-
-  await startTour(page, steps[0]!.title);
-  await advanceTo(page, 'More');
-  await expect(page.getByRole('menu')).toBeVisible();
-  await expect(page.locator('[data-tour="menu-prepaid"]')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await assertTourClosed(page);
-
-  if (surfaceOf(page) === 'mobile') {
-    await startTour(page, steps[0]!.title);
-    await advanceTo(page, 'Why it was flagged');
-    await expect(page).toHaveURL(/\/app\/orders\//);
-    await page.keyboard.press('Escape');
-    await assertTourClosed(page);
-    await expect(page).toHaveURL(/\/app\/queue/);
-  }
 });
 
-test('try the demo starts on the connected store', async ({ page }) => {
+test('try the demo reaches the connected store', async ({ page }) => {
   await openDemo(page);
-  await startTour(page, 'Shopify, connected');
+  const steps = toursFor('demo', surfaceOf(page));
+  await startTour(page, steps[0]!.title);
+  await expect(page.locator('[data-tour="results-home"]').first()).toBeVisible();
+  const card = page.locator('#tour-card');
+  for (let guard = 0; guard < 12; guard += 1) {
+    const heading = card.getByRole('heading', { level: 2, name: 'Shopify, connected', exact: true });
+    if (await heading.isVisible().catch(() => false)) break;
+    await expect(card.getByRole('heading', { level: 2 })).toBeVisible();
+    await card.getByRole('button', { name: 'Next', exact: true }).click();
+  }
+  await expect(card.getByRole('heading', { level: 2, name: 'Shopify, connected', exact: true })).toBeVisible();
   await expect(page.locator('[data-tour="shopify-connected"]').first()).toBeVisible();
   await expect(page.locator('[data-tour="shopify-connect"]')).toHaveCount(0);
 });
@@ -238,11 +223,17 @@ test('every screen renders without a sideways scroll', async ({ page }) => {
   }
   await page.setViewportSize({ width: 360, height: 700 });
   await page.goto('/app/queue');
-  if (!(await page.locator('#tour-card').isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Help' }).click();
-    await page.getByRole('menuitem', { name: 'Take the tour' }).click();
-  }
   const narrowCard = page.locator('#tour-card');
+  await expect(async () => {
+    if (await narrowCard.isVisible().catch(() => false)) return;
+    if (await page.locator('[data-tour-overlay]').isVisible().catch(() => false)) {
+      await expect(narrowCard).toBeVisible({ timeout: 1500 });
+      return;
+    }
+    await page.getByRole('button', { name: 'Help' }).click({ timeout: 2000 });
+    await page.getByRole('menuitem', { name: 'Take the tour' }).click({ timeout: 2000 });
+    await expect(narrowCard).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
   if (await narrowCard.getByRole('button', { name: 'Start', exact: true }).isVisible().catch(() => false)) {
     await narrowCard.getByRole('button', { name: 'Start', exact: true }).click();
   }
@@ -250,54 +241,13 @@ test('every screen renders without a sideways scroll', async ({ page }) => {
   await page.keyboard.press('Escape');
   await assertTourClosed(page);
   await page.goto('/app/queue');
-  await expect(page.getByRole('heading', { level: 1, name: /confirmation queue/i })).toBeVisible();
-  const row = page.locator('[data-tour-row="1"]');
-  await expect(row).toBeVisible();
-  await row.locator('input[type="checkbox"]').check();
-  const bar = page.locator('[data-selection-bar="true"]');
-  await expect(bar).toBeVisible();
-  const barBox = await bar.boundingBox();
-  const narrow = page.viewportSize();
-  expect(barBox && narrow).toBeTruthy();
-  if (barBox && narrow) {
-    expect(barBox.height).toBeLessThan(56);
-    expect(barBox.x).toBeGreaterThanOrEqual(-1);
-    expect(barBox.x + barBox.width).toBeLessThanOrEqual(narrow.width + 1);
-    const centers: number[] = [];
-    for (const button of await bar.getByRole('button').all()) {
-      const box = await button.boundingBox();
-      expect(box).toBeTruthy();
-      if (!box) continue;
-      expect(box.x + box.width).toBeLessThanOrEqual(narrow.width + 1);
-      centers.push(box.y + box.height / 2);
-    }
-    const mid = centers[0] ?? 0;
-    for (const center of centers) expect(Math.abs(center - mid)).toBeLessThan(8);
-  }
-  await bar.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(bar).toHaveCount(0);
-  await row.click();
-  await expect(page).toHaveURL(/\/app\/orders\//);
-  await page.getByRole('button', { name: 'More', exact: true }).click();
-  const menu = page.getByRole('menu');
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: 'Check pincode' })).toBeVisible();
-  const menuBox = await menu.boundingBox();
-  const menuViewport = page.viewportSize();
-  expect(menuBox && menuViewport).toBeTruthy();
-  if (menuBox && menuViewport) {
-    expect(menuBox.x).toBeGreaterThanOrEqual(-1);
-    expect(menuBox.y).toBeGreaterThanOrEqual(-1);
-    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(menuViewport.width + 1);
-    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(menuViewport.height + 2);
-  }
-  await page.getByRole('button', { name: 'Close menu' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Exceptions', exact: true })).toBeVisible();
+  await expect(page.locator('[data-tour="exceptions"]')).toBeVisible();
+  await expect(page.locator('[data-tour="exception-order"]')).toBeVisible();
+  await expect(page.locator('[data-tour="exception-action"]')).toBeVisible();
+  await expect(page.locator('[data-selection-bar="true"]')).toHaveCount(0);
 
   await page.goto('/app/history');
-  await expect(page.getByRole('heading', { name: /order history/i })).toBeVisible();
-  const historyLink = page.locator('article a[href^="/app/orders/"]').first();
-  await expect(historyLink).toBeVisible();
-  await historyLink.click();
-  await expect(page).toHaveURL(/\/app\/orders\//);
-  await expect(page.getByText(/Reasons from the order facts/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible();
+  await expect(page.locator('[data-tour="activity"]')).toBeVisible();
 });

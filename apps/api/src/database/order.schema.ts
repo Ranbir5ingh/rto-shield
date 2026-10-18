@@ -113,11 +113,24 @@ export class Order {
     draftGid: string;
     invoiceUrl: string;
     discountPct: number;
-    status: 'offered' | 'paid' | 'expired' | 'converted';
+    status: 'offered' | 'paid' | 'expired' | 'converted' | 'declined';
     linkedOrderId: string;
     offeredAt: string;
     expiresAt: string;
+    payToken?: string;
   } | null;
+
+  @Prop({ type: String, default: null })
+  exception!: 'address' | 'template_pending' | 'send' | 'call' | 'shopify' | null;
+
+  @Prop({ default: '' })
+  exceptionWhy!: string;
+
+  @Prop({ default: '' })
+  addressReplyEnc!: string;
+
+  @Prop({ type: Object, default: null })
+  addressDraft!: { street: string; landmark: string; city: string; state: string; pin: string } | null;
 
   @Prop({ type: [Object], default: [] })
   timeline!: Array<{ at: string; step: string; detail: string }>;
@@ -137,5 +150,6 @@ export class Order {
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
 OrderSchema.index({ sellerId: 1, externalOrderId: 1 }, { unique: true });
+OrderSchema.index({ 'prepaid.payToken': 1 }, { sparse: true });
 OrderSchema.index({ sellerId: 1, stage: 1, riskScore: -1 });
 OrderSchema.index({ sellerId: 1, orderedAt: -1 });

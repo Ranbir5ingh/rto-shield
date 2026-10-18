@@ -123,7 +123,15 @@ export class DashboardService {
   private async action(user: UserDocument) {
     const sellerId = user._id;
     const [actionToday, confirmed, declined, pins, fresh, repeatBuyers] = await Promise.all([
-      this.orders.countDocuments({ sellerId, stage: 'pending', riskBand: { $in: ['High', 'Medium'] } }),
+      this.orders.countDocuments({
+        sellerId,
+        $or: [
+          { stage: 'pending', intervention: 'hold_review' },
+          { whatsappStatus: 'failed' },
+          { exception: { $in: ['address', 'template_pending', 'send', 'call', 'shopify'] } },
+          { stage: 'pending', callState: 'due' },
+        ],
+      }),
       this.orders.countDocuments({ sellerId, outcome: 'confirmed' }),
       this.orders.countDocuments({ sellerId, outcome: { $in: ['cancelled', 'no_response'] } }),
       this.orders.aggregate<{ _id: string; orders: number; rto: number }>([

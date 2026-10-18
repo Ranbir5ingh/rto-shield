@@ -27,7 +27,14 @@ export interface PublicUser {
   officialDemo: boolean;
   sellerGemini: boolean;
   tour: { sellerSeen: boolean; demoSeen: boolean };
-  reduction: { prepaidEnabled: boolean; discountPct: number; minRisk: number; escalationMinutes: number };
+  reduction: {
+    autopilot: boolean;
+    prepaidEnabled: boolean;
+    discountPct: number;
+    minRisk: number;
+    escalationMinutes: number;
+    noReply: 'hold' | 'cancel';
+  };
   elevenlabsConfigured: boolean;
   elevenlabsLast4: string;
 }

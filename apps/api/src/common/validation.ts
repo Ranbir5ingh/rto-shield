@@ -115,10 +115,11 @@ export const elevenKeySchema = z.object({
 });
 
 export const addressUpdateSchema = z.object({
-  address: z.string().trim().min(3).max(300),
+  address: z.string().trim().max(300).optional(),
   landmark: z.string().trim().max(160).optional(),
   source: z.enum(['reply', 'call', 'seller']),
-});
+  useReply: z.boolean().optional(),
+}).refine((value) => value.useReply || (value.address || '').trim().length >= 3, { message: 'Address is required' });
 
 export const callSchema = z
   .object({
@@ -164,6 +165,8 @@ export const settingsSchema = z
     discountPct: z.number().min(0).max(50).optional(),
     minRisk: z.number().min(0).max(100).optional(),
     escalationMinutes: z.number().min(0).max(24 * 60).optional(),
+    autopilot: z.boolean().optional(),
+    noReply: z.enum(['hold', 'cancel']).optional(),
   })
   .refine((value) => Object.values(value).some((item) => item !== undefined), {
     message: 'No changes',

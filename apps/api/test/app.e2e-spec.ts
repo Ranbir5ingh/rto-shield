@@ -629,7 +629,7 @@ describe('RTO Shield API', () => {
       const restored = await owner.get(`/api/orders/${orderId}`).expect(200);
       expect(restored.body.stage).toBe('pending');
       expect(restored.body.outcome).toBeNull();
-      expect(restored.body.whatsappStatus == null || restored.body.whatsappStatus === '').toBe(true);
+      expect(restored.body.whatsappStatus == null || restored.body.whatsappStatus === '' || restored.body.whatsappStatus === 'failed').toBe(true);
 
       const stillOwner = await owner.get('/api/auth/me').expect(200);
       expect(stillOwner.body.user.role).toBe('owner');
