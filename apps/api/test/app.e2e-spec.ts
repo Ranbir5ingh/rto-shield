@@ -478,8 +478,26 @@ describe('RTO Shield API', () => {
       .expect(201);
     const session = created.body.csrfToken as string;
     const status = await agent.get('/api/whatsapp').expect(200);
-    expect(status.body.verifyToken).toBe('whatsapp-verify-test');
+    expect(status.body.verifyToken).toBe('');
+    expect(status.body.verifyTokenSet).toBe(true);
+    expect(status.body.callbackUrl).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');
+    expect(JSON.stringify(status.body)).not.toContain('whatsapp-verify-test');
     expect(status.body.webhookVerified).toBe(false);
+    const wrong = await agent
+      .post('/api/whatsapp/verify-token')
+      .set('x-csrf-token', session)
+      .send({ password: 'wrong-password' })
+      .expect(401);
+    expect(JSON.stringify(wrong.body)).not.toContain('whatsapp-verify-test');
+    const revealed = await agent
+      .post('/api/whatsapp/verify-token')
+      .set('x-csrf-token', session)
+      .send({ password: 'supersecret' })
+      .expect(200);
+    expect(revealed.body.value).toBe('whatsapp-verify-test');
+    expect(String(revealed.headers['cache-control'])).toContain('no-store');
+    const allowlist = await agent.post('/api/whatsapp/test-allowlist').set('x-csrf-token', session).expect(400);
+    expect(allowlist.body.error).toMatch(/test number|approved/i);
     expect(String(status.headers['cache-control'])).toContain('no-store');
 
     const early = await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(200);
@@ -545,6 +563,12 @@ describe('RTO Shield API', () => {
     await users.updateOne({ email: 'wa-guide@shop.test' }, { $set: { role: 'staff' } });
     const hidden = await agent.get('/api/whatsapp').expect(200);
     expect(hidden.body.verifyToken).toBe('');
+    expect(hidden.body.verifyTokenSet).toBe(false);
+    await agent
+      .post('/api/whatsapp/verify-token')
+      .set('x-csrf-token', session)
+      .send({ password: 'supersecret' })
+      .expect(403);
     await agent.post('/api/whatsapp/test-connection').set('x-csrf-token', session).expect(403);
 
     const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
@@ -552,6 +576,11 @@ describe('RTO Shield API', () => {
     const auditDump = JSON.stringify(rows);
     expect(auditDump).not.toContain(accessToken);
     expect(auditDump).not.toContain('whatsapp-verify-test');
+    const tokenAudits = await audits.find({ action: { $in: ['whatsapp.verify_token_reveal', 'whatsapp.verify_token_denied'] } }).lean();
+    const tokenDump = JSON.stringify(tokenAudits);
+    expect(tokenDump).not.toContain('whatsapp-verify-test');
+    expect(tokenDump).not.toContain('supersecret');
+    expect(tokenAudits.some((row) => row.action === 'whatsapp.verify_token_reveal')).toBe(true);
   });
 
   it('rejects a bad login with the same message', async () => {
@@ -625,7 +654,9 @@ describe('RTO Shield API', () => {
       );
       const ownerWa = await owner.get('/api/whatsapp').expect(200);
       expect(ownerWa.body.tokenLast4).toBe('c3D4');
-      expect(ownerWa.body.verifyToken).toBe('whatsapp-verify-test');
+      expect(ownerWa.body.verifyToken).toBe('');
+      expect(ownerWa.body.verifyTokenSet).toBe(true);
+      expect(JSON.stringify(ownerWa.body)).not.toContain('whatsapp-verify-test');
 
       const blocked = await owner.post('/api/orders/sample').set('x-csrf-token', ownerCsrf).expect(400);
       expect(blocked.body.error).toMatch(/connected to Shopify/);
@@ -789,5 +820,39 @@ describe('RTO Shield API', () => {
     expect(log?.meta.users).toBe(1);
     expect(JSON.stringify(log?.meta)).not.toContain(email);
     await agent.get('/api/auth/me').expect(401);
+  });
+
+  it('blocks the allowlist test on a public demo shop and clears the demo outcome stamp', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const token = await csrf(agent);
+    const opened = await agent.post('/api/auth/demo').set('x-csrf-token', token).expect(201);
+    const session = opened.body.csrfToken as string;
+    expect(opened.body.user.isDemo).toBe(true);
+    const denied = await agent.post('/api/whatsapp/test-allowlist').set('x-csrf-token', session).expect(403);
+    expect(denied.body.error).toMatch(/shop owner/i);
+    const status = await agent.get('/api/whatsapp').expect(200);
+    expect(status.body.verifyTokenSet).toBe(false);
+    expect(status.body.callbackUrl).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');
+    expect(JSON.stringify(status.body)).not.toContain('whatsapp-verify-test');
+    const reveal = await agent
+      .post('/api/whatsapp/verify-token')
+      .set('x-csrf-token', session)
+      .send({ password: 'supersecret' })
+      .expect(403);
+    expect(JSON.stringify(reveal.body)).not.toContain('whatsapp-verify-test');
+
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
+    const user = await users.findOne({ email: opened.body.user.email });
+    expect(user).toBeTruthy();
+    await audits.create({ sellerId: user?._id, action: 'demo.outcomes', meta: { addressFixes: 1 } });
+    await audits.create({ sellerId: user?._id, action: 'demo.tour', meta: {} });
+    const reset = await request(app.getHttpServer())
+      .post('/api/demo/reset')
+      .set('x-inbox-secret', 'inbox-test-secret')
+      .expect(200);
+    expect(reset.body.clearedOutcomes).toBeGreaterThan(0);
+    expect(await audits.countDocuments({ action: 'demo.outcomes' })).toBe(0);
+    expect(await audits.countDocuments({ sellerId: user?._id, action: 'demo.tour' })).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,4 @@
-import { WHATSAPP_GUIDE_STEPS, guideProgress } from './whatsapp-guide';
+import { WHATSAPP_CALLBACK_URL, WHATSAPP_GUIDE_STEPS, guideProgress } from './whatsapp-guide';
 
 describe('whatsapp guide', () => {
   it('ticks a step only after the matching field is saved or verified', () => {
@@ -33,6 +33,8 @@ describe('whatsapp guide', () => {
     expect(text).toMatch(/developers\.facebook\.com\/apps\/creation/);
     expect(text).toMatch(/business\.facebook\.com\/latest\/settings\/system_users/);
     expect(text).toMatch(/not published on the public guide/);
+    expect(text).toMatch(/confirm your password/);
+    expect(WHATSAPP_CALLBACK_URL).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');
     expect(text).toMatch(/Optional/);
     expect(text).not.toMatch(/WHATSAPP_VERIFY_TOKEN|EAA[A-Za-z0-9]/);
   });

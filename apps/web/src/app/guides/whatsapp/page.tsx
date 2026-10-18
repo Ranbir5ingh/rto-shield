@@ -47,7 +47,7 @@ export default function WhatsAppGuidePage() {
         </p>
         <WhatsAppGuideBody mode="public" callbackUrl={WHATSAPP_CALLBACK_URL} />
         <p className="mt-10 text-sm leading-7 text-ink/80">
-          The verify token is shown only after you log in, in Settings, inside Setup guide. This page never prints it.
+          The verify token stays hidden until you log in and confirm your password in Settings. This page never prints it.
           <Link href="/login" className="underline">Log in</Link>, open Settings, and choose Test connection once the fields are saved.
         </p>
       </article>

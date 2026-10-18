@@ -1,4 +1,4 @@
-import { platformWhatsApp, usesOwnNumber } from './platform-whatsapp';
+import { platformWhatsApp, usesOwnNumber, whatsappCallbackUrl } from './platform-whatsapp';
 
 describe('platform WhatsApp', () => {
   const env = {
@@ -17,6 +17,19 @@ describe('platform WhatsApp', () => {
     });
     expect(platformWhatsApp({ ...env, WHATSAPP_PLATFORM_TOKEN: '  ' })).toBeNull();
     expect(platformWhatsApp({})).toBeNull();
+  });
+
+  it('points the webhook at the API host', () => {
+    expect(whatsappCallbackUrl({})).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');
+    expect(whatsappCallbackUrl({ SHOPIFY_APP_URL: 'https://www.rtoshield.tech' })).toBe(
+      'https://api.rtoshield.tech/api/whatsapp/webhook',
+    );
+    expect(whatsappCallbackUrl({ WHATSAPP_WEBHOOK_URL: 'https://api.rtoshield.tech/api/whatsapp/webhook' })).toBe(
+      'https://api.rtoshield.tech/api/whatsapp/webhook',
+    );
+    expect(whatsappCallbackUrl({ WHATSAPP_WEBHOOK_URL: 'http://127.0.0.1:4000/' })).toBe(
+      'http://127.0.0.1:4000/api/whatsapp/webhook',
+    );
   });
 
   it('keeps a shop on its own number until the owner switches off', () => {

@@ -1,4 +1,4 @@
-export const WHATSAPP_CALLBACK_URL = 'https://www.rtoshield.tech/api/whatsapp/webhook';
+export const WHATSAPP_CALLBACK_URL = 'https://api.rtoshield.tech/api/whatsapp/webhook';
 
 export interface GuideLink {
   label: string;
@@ -67,7 +67,7 @@ export const WHATSAPP_GUIDE_STEPS: GuideStep[] = [
   {
     id: 'webhook',
     title: 'Set the webhook and subscribe to messages',
-    body: 'In the app, open WhatsApp, then Configuration. Paste the callback URL and the verify token, choose Verify and save, and subscribe to the messages field. The verify token is shown in Settings after you log in. It is not published on the public guide.',
+    body: 'In the app, open WhatsApp, then Configuration. Paste the callback URL and the verify token, choose Verify and save, and subscribe to the messages field. The verify token stays hidden until you confirm your password in Settings. It is not published on the public guide.',
     links: [{ label: 'Webhook setup', href: 'https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks' }],
   },
   {

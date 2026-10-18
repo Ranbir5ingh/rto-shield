@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
-import { CopyButton } from '@/components/ui';
+import { ApiError, api } from '@/lib/api';
+import { Button, CopyButton, Field, inputClass } from '@/components/ui';
 import {
   WHATSAPP_CALLBACK_URL,
   WHATSAPP_GUIDE_STEPS,
@@ -13,11 +14,11 @@ import {
 
 export function WhatsAppSetupGuide({
   callbackUrl,
-  verifyToken,
+  canReveal = false,
   progress,
 }: {
   callbackUrl: string;
-  verifyToken: string;
+  canReveal?: boolean;
   progress: GuideProgressInput;
 }) {
   const [open, setOpen] = useState(false);
@@ -95,7 +96,7 @@ export function WhatsAppSetupGuide({
             <WhatsAppGuideBody
               mode="drawer"
               callbackUrl={callbackUrl || WHATSAPP_CALLBACK_URL}
-              verifyToken={verifyToken}
+              canReveal={canReveal}
               done={done}
             />
             <p className="mt-6 text-sm leading-6 text-ink/75">
@@ -103,7 +104,7 @@ export function WhatsAppSetupGuide({
               <Link href="/guides/whatsapp" className="underline decoration-hl decoration-2 underline-offset-4">
                 public WhatsApp guide
               </Link>
-              . The verify token stays in this panel.
+              . The verify token stays hidden until you confirm your password.
             </p>
           </div>
         </div>
@@ -115,15 +116,14 @@ export function WhatsAppSetupGuide({
 export function WhatsAppGuideBody({
   mode,
   callbackUrl,
-  verifyToken = '',
+  canReveal = false,
   done,
 }: {
   mode: 'public' | 'drawer';
   callbackUrl: string;
-  verifyToken?: string;
+  canReveal?: boolean;
   done?: Partial<Record<(typeof WHATSAPP_GUIDE_STEPS)[number]['id'], boolean>>;
 }) {
-  const token = mode === 'drawer' ? verifyToken : '';
   return (
     <ol className={mode === 'public' ? 'mt-10 space-y-8' : 'mt-6 space-y-5'}>
       {WHATSAPP_GUIDE_STEPS.map((step, index) => {
@@ -165,14 +165,9 @@ export function WhatsAppGuideBody({
                   <div className="mt-3 space-y-2">
                     <p className="break-all font-mono text-xs text-ink/80">{callbackUrl}</p>
                     <CopyButton text={callbackUrl} label="Copy callback URL" />
-                    {mode === 'drawer' && token ? (
-                      <div className="space-y-2">
-                        <p className="break-all font-mono text-xs text-ink">{token}</p>
-                        <CopyButton text={token} label="Copy verify token" />
-                      </div>
-                    ) : null}
-                    {mode === 'drawer' && !token ? (
-                      <p className="text-sm leading-6 text-ink/70">The shop owner can copy the verify token here after logging in.</p>
+                    {mode === 'drawer' && canReveal ? <VerifyTokenControl /> : null}
+                    {mode === 'drawer' && !canReveal ? (
+                      <p className="text-sm leading-6 text-ink/70">The shop owner can reveal the verify token here after logging in.</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -182,5 +177,73 @@ export function WhatsAppGuideBody({
         );
       })}
     </ol>
+  );
+}
+
+function VerifyTokenControl() {
+  const [value, setValue] = useState('');
+  const [password, setPassword] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
+
+  if (value) {
+    return (
+      <div className="space-y-2">
+        <p className="break-all font-mono text-xs text-ink" data-testid="verify-token-value">{value}</p>
+        <div className="flex flex-wrap gap-3">
+          <CopyButton text={value} label="Copy verify token" />
+          <button type="button" className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] underline" onClick={() => setValue('')}>
+            Hide verify token
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!asking) {
+    return (
+      <div className="space-y-2">
+        <p className="font-mono text-xs tracking-[0.2em] text-ink/70">••••••••••••</p>
+        <Button type="button" tone="ghost" onClick={() => setAsking(true)}>
+          Reveal verify token
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!password || pending) return;
+        setPending(true);
+        setError('');
+        api<{ value: string }>('/whatsapp/verify-token', { method: 'POST', body: JSON.stringify({ password }) })
+          .then((body) => {
+            setValue(body.value);
+            setPassword('');
+            setAsking(false);
+          })
+          .catch((err: unknown) => {
+            setError(err instanceof ApiError ? err.message : 'Could not reveal the verify token');
+          })
+          .finally(() => setPending(false));
+      }}
+    >
+      <Field label="Account password" error={error}>
+        <input
+          className={inputClass}
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </Field>
+      <Button type="submit" disabled={pending}>
+        {pending ? 'Checking…' : 'Show verify token'}
+      </Button>
+    </form>
   );
 }

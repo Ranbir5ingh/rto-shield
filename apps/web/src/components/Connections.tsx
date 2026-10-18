@@ -230,7 +230,7 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
         guide={
           <WhatsAppSetupGuide
             callbackUrl={whatsapp?.callbackUrl || ''}
-            verifyToken={whatsapp?.verifyToken || ''}
+            canReveal={Boolean(whatsapp?.verifyTokenSet)}
             progress={{
               phoneNumberId: whatsapp?.phoneNumberId,
               wabaId: whatsapp?.wabaId,

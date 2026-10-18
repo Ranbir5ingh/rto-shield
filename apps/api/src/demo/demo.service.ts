@@ -140,11 +140,12 @@ export class DemoService {
       sellers.add(String(row.sellerId));
     }
     if (rows.length) await this.baselines.deleteMany({ _id: { $in: rows.map((row) => row._id) } });
+    const cleared = await this.audit.deleteMany({ action: 'demo.outcomes' });
     for (const sellerId of sellers) {
       await this.audit.create({ sellerId, action: 'demo.reset', meta: { restored: rows.length } });
     }
     await this.platform.updateOne({ key: RESET_KEY }, { $set: { value: new Date().toISOString() } }, { upsert: true });
     this.logger.log(`Demo baseline restored ${rows.length} orders`);
-    return { restored: rows.length, skipped: false };
+    return { restored: rows.length, skipped: false, clearedOutcomes: cleared.deletedCount };
   }
 }

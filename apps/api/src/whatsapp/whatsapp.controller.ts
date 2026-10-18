@@ -22,7 +22,7 @@ import type { Request, Response } from 'express';
 import { CurrentUser } from '../common/current-user';
 import { Public, SkipCsrf } from '../common/guards';
 import { ZodValidationPipe } from '../common/zod.pipe';
-import { whatsappSaveSchema, whatsappSendSchema, whatsappTestSchema } from '../common/validation';
+import { passwordConfirmSchema, whatsappSaveSchema, whatsappSendSchema, whatsappTestSchema } from '../common/validation';
 import type { UserDocument } from '../database/user.schema';
 import { InboxService } from '../inbox/inbox.service';
 import { WhatsAppService } from './whatsapp.service';
@@ -98,6 +98,18 @@ export class WhatsAppController {
   @Post('whatsapp/test-allowlist')
   allowlistTest(@CurrentUser() user: UserDocument) {
     return this.whatsapp.sendAllowlistTest(user);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Pragma', 'no-cache')
+  @HttpCode(200)
+  @Post('whatsapp/verify-token')
+  revealVerifyToken(
+    @CurrentUser() user: UserDocument,
+    @Body(new ZodValidationPipe(passwordConfirmSchema)) body: { password: string },
+  ) {
+    return this.whatsapp.revealVerifyToken(user, body.password);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

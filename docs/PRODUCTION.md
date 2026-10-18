@@ -17,7 +17,7 @@ WHATSAPP_PLATFORM_APP_SECRET
 WHATSAPP_VERIFY_TOKEN
 ```
 
-The webhook URL is `https://api.rtoshield.tech/api/whatsapp/webhook`. Templates live on that WABA. Each message already carries the shop name and the order. Sellers do not paste a token.
+The webhook URL is `https://api.rtoshield.tech/api/whatsapp/webhook`. Settings and the setup guide show that same API host. Templates live on that WABA. Each message already carries the shop name and the order. Sellers do not paste a token. The verify token stays masked until the shop owner confirms their password.
 
 ## WhatsApp live
 

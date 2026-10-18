@@ -104,6 +104,7 @@ async function main() {
     RATE_LIMIT_MAX: '5000',
     DEMO_ACCOUNT_EMAIL: DEMO.email,
     ML_SERVICE_URL: `http://127.0.0.1:${ML_PORT}`,
+    WHATSAPP_VERIFY_TOKEN: 'e2e-webhook-verify-secret',
     ELEVENLABS_API_KEY: '',
     ELEVENLABS_AGENT_ID: '',
   };

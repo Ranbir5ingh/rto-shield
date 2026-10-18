@@ -208,7 +208,7 @@ export default function SettingsPage() {
 
       <Section eyebrow="05 · Connections" title="Where orders come from">
         <Connections locked={demo} owner={user.role === 'owner' && !demo} />
-        {user.role === 'owner' ? (
+        {user.role === 'owner' && !user.isDemo ? (
           <div className="mt-6 border-t-2 border-ink pt-5">
             <p className="font-display text-lg font-extrabold uppercase tracking-tight">Test message</p>
             <p className="mt-2 max-w-xl text-[15px] leading-7 text-ink/70">

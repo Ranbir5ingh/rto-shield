@@ -272,7 +272,7 @@ WhatsApp Cloud API (your own number):
 2. Create a System User token with `whatsapp_business_messaging` and `whatsapp_business_management`.
 3. In Settings, paste the permanent token, Phone Number ID, WABA ID, and the app secret. Press **Send test message** (the `hello_world` template) to a number allowed on the test app.
 4. Press **Submit template** for `order_confirmation` (English and Hindi) and `order_confirmation_hinglish`. Wait until the status is `APPROVED`.
-5. Callback URL: `https://www.rtoshield.tech/api/whatsapp/webhook`. Verify token: the value of `WHATSAPP_VERIFY_TOKEN` (set the same value on Vercel and Render). Subscribe to the `messages` field.
+5. Callback URL: `https://api.rtoshield.tech/api/whatsapp/webhook`. Verify token: the value of `WHATSAPP_VERIFY_TOKEN` on Render. Reveal it in Settings with your password. Subscribe to the `messages` field.
 6. In the queue, **Approve & send** uses that template. Confirm and Cancel buttons mark the order and tag it in Shopify. Auto-cancel in Shopify stays off until you turn it on. If WhatsApp is not connected, the queue keeps the `wa.me` link.
 
 The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Gemini notes for a real shop use that seller's key. The platform `GEMINI_API_KEY` is only the demo fallback.

@@ -129,7 +129,7 @@ function StartForm() {
           action={
             <WhatsAppSetupGuide
               callbackUrl={whatsapp?.callbackUrl || ''}
-              verifyToken={whatsapp?.verifyToken || ''}
+              canReveal={Boolean(whatsapp?.verifyTokenSet)}
               progress={whatsapp || {}}
             />
           }

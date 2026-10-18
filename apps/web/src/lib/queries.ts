@@ -47,7 +47,8 @@ export interface WhatsAppLink {
   templateStatus: string;
   callbackUrl: string;
   verifyTokenName: string;
-  verifyToken: string;
+  verifyToken?: string;
+  verifyTokenSet?: boolean;
   webhookVerified: boolean;
 }
 

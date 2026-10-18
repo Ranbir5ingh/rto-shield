@@ -136,6 +136,10 @@ export const secretRevealSchema = z.object({
   password: z.string().min(1).max(72),
 });
 
+export const passwordConfirmSchema = z.object({
+  password: z.string().min(1).max(72),
+});
+
 export const listQuerySchema = z.object({
   stage: z.enum(['history', 'pending', 'closed']).optional(),
   outcome: z.enum(['delivered', 'rto', 'cancelled', 'confirmed', 'converted', 'no_response']).optional(),

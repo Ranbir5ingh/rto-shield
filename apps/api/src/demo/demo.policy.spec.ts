@@ -34,6 +34,8 @@ describe('demo policy', () => {
     expect(demoAllows('POST', '/api/orders/abc/escalate')).toBe(true);
     expect(demoAllows('POST', '/api/elevenlabs')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp/send')).toBe(true);
+    expect(demoAllows('POST', '/api/whatsapp/test-allowlist')).toBe(false);
+    expect(demoAllows('POST', '/api/whatsapp/verify-token')).toBe(false);
     expect(demoAllows('POST', '/api/settings/secrets/reveal')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp')).toBe(false);
     expect(demoAllows('POST', '/api/whatsapp/test-connection')).toBe(false);

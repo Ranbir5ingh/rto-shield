@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, UnauthorizedException, forwardRef, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
+import bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
 import { CryptoService } from '../common/crypto.service';
 import { whatsappNumber } from '../common/phone';
@@ -16,7 +17,7 @@ import { pushTimeline, reductionSettings } from '../orders/action';
 import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
 import { latestOpenAddressRequest } from './address-match';
-import { platformWhatsApp, usesOwnNumber } from './platform-whatsapp';
+import { platformWhatsApp, usesOwnNumber, whatsappCallbackUrl } from './platform-whatsapp';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
   CONFIRMATION_LANGUAGES,
@@ -88,13 +89,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   callbackUrl() {
-    const app = (this.config.get<string>('SHOPIFY_APP_URL') || 'https://www.rtoshield.tech').replace(/\/$/, '');
-    return `${app}/api/whatsapp/webhook`;
+    return whatsappCallbackUrl();
   }
 
   async status(user: UserDocument) {
     const link = user.whatsapp;
     const visitor = effectiveRole(user) === 'demo';
+    const realOwner = user.role === 'owner' && !user.isDemo && !visitor;
     const own = usesOwnNumber(link);
     const platform = Boolean(platformWhatsApp());
     const badge = own
@@ -114,7 +115,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       templateLanguage: badge?.status ? badge.identity.language : link?.templateLanguage || user.messageLanguage,
       callbackUrl: this.callbackUrl(),
       verifyTokenName: 'WHATSAPP_VERIFY_TOKEN',
-      verifyToken: visitor || user.role === 'staff' ? '' : this.verifyToken(),
+      verifyToken: '',
+      verifyTokenSet: realOwner && Boolean(this.verifyToken()),
       webhookVerified: Boolean(await this.webhookVerifiedAt()),
     };
   }
@@ -313,12 +315,11 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     return this.status(user);
   }
 
-  /** Password owners only. Sends the approved confirmation template to the allowlist. Does not touch orders. */
+  /** The password owner of a real shop. A public demo shop cannot send. Does not touch orders. */
   async sendAllowlistTest(user: UserDocument) {
-    if (user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo') {
-      throw new ForbiddenException('Sign in with your password to send a test message');
+    if (user.isDemo || user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo' || user.role !== 'owner') {
+      throw new ForbiddenException('Only the shop owner can send a test message');
     }
-    if (user.role !== 'owner') throw new ForbiddenException('Only the shop owner can send a test message');
     const allow = whatsappAllowlist(process.env.DEMO_WHATSAPP_ALLOWLIST);
     const to = allow[0];
     if (!to) throw new BadRequestException('No test number is configured');
@@ -352,6 +353,23 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       meta: { template: chosen.identity.name, toLast4: to.slice(-4), wamid },
     });
     return { sent: true, wamid };
+  }
+
+  async revealVerifyToken(user: UserDocument, password: string) {
+    const visitor = user.isDemo || user.$locals?.actor === 'demo' || effectiveRole(user) === 'demo';
+    if (visitor || user.role !== 'owner') {
+      await this.audit.create({ sellerId: user._id, action: 'whatsapp.verify_token_denied', meta: { demo: visitor } });
+      throw new ForbiddenException('Only the shop owner can reveal the verify token');
+    }
+    const ok = await bcrypt.compare(password, user.passwordHash || '');
+    if (!ok) {
+      await this.audit.create({ sellerId: user._id, action: 'whatsapp.verify_token_denied', meta: { demo: false } });
+      throw new UnauthorizedException('Password did not match');
+    }
+    const value = this.verifyToken();
+    if (!value) throw new BadRequestException('The verify token is not set on this server');
+    await this.audit.create({ sellerId: user._id, action: 'whatsapp.verify_token_reveal', meta: {} });
+    return { value };
   }
 
   async sendOrders(user: UserDocument, ids: string[]) {
