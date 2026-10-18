@@ -936,6 +936,12 @@ body {
   }
 }
 
+.dock-tip-fixed {
+  display: block;
+  position: fixed;
+  z-index: 80;
+}
+
 .dock-indicator {
   position: absolute;
   z-index: 0;

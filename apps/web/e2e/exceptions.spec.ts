@@ -93,6 +93,20 @@ test('exceptions use the results frame, and a phone opens a detail page', async 
   await expect(page).toHaveURL(/\/app\/queue$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Exceptions', exact: true })).toBeVisible();
 
+  const exceptions = page.locator('[data-dock="bottom"]').getByRole('link', { name: 'Exceptions' });
+  await exceptions.evaluate((node) => {
+    node.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+  });
+  const tip = page.getByRole('tooltip');
+  await expect(tip).toHaveText('Exceptions');
+  const tipBox = await tip.boundingBox();
+  const iconBox = await exceptions.boundingBox();
+  expect(tipBox && iconBox).toBeTruthy();
+  if (tipBox && iconBox) {
+    expect(tipBox.y + tipBox.height).toBeLessThanOrEqual(iconBox.y + 1);
+    expect(tipBox.width).toBeGreaterThan(20);
+  }
+
   await page.goto('/app/settings');
   await dismissTour(page);
   await expect(page.getByRole('button', { name: 'Send test message to my number' })).toBeVisible();

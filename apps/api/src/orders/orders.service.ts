@@ -376,23 +376,28 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Demo shops open with seeded orders and no buyer replies, so Results stays at ₹0.
-   * Walk those open sample orders once: validate a few addresses with India Post,
-   * record prepaid conversions, confirmations, and holds. Counts come from the rows written.
+   * Demo shops open with orders and no buyer replies, so Results stays at ₹0.
+   * Walk open orders once: sample rows for an isolated demo, otherwise the official
+   * demo shop's open Shopify orders. Validate a few addresses with India Post,
+   * record prepaid conversions, confirmations, and holds. A stamp stops a second pass.
+   * Real shops never enter.
    */
   async creditDemoOutcomes(user: UserDocument) {
-    if (!user.isDemo && !user.shopify?.demo && !isOfficialDemoAccount(user.email)) return;
+    const shopifyDemo = Boolean(user.shopify?.demo || isOfficialDemoAccount(user.email));
+    if (!user.isDemo && !shopifyDemo) return;
     const id = String(user._id);
     if (this.crediting.has(id)) return;
     this.crediting.add(id);
     try {
       if (await this.demo.outcomeStamp(user)) return;
-      const seeded = await this.orders.countDocuments({ sellerId: user._id, source: 'sample' });
-      if (!seeded) return;
+      const sample = await this.orders.countDocuments({ sellerId: user._id, source: 'sample' });
+      const source = sample > 0 ? 'sample' : 'shopify';
+      if (source === 'shopify' && !shopifyDemo) return;
       const pending = await this.orders
-        .find({ sellerId: user._id, stage: 'pending', source: 'sample' })
+        .find({ sellerId: user._id, stage: 'pending', source })
         .sort({ externalOrderId: 1 })
         .limit(40);
+      if (!pending.length) return;
       const counts = { conversions: 0, confirmations: 0, addressFixes: 0, holds: 0 };
       const offices = new Map<string, Awaited<ReturnType<typeof fetchIndiaPost>> | null>();
       const lookup = async (pin: string) => {

@@ -274,6 +274,90 @@ describe('RTO Shield API', () => {
     );
     expect(convertedIds.size).toBe(dashboard.body.impact.conversions);
     expect(dashboard.body.distribution.High + dashboard.body.distribution.Medium + dashboard.body.distribution.Low).toBeGreaterThan(0);
+
+    const shop = request.agent(app.getHttpServer());
+    const shopToken = await csrf(shop);
+    await shop
+      .post('/api/auth/signup')
+      .set('x-csrf-token', shopToken)
+      .send({ email: 'official-demo@shop.test', password: 'supersecret', name: 'Official', shopName: 'Official Demo' })
+      .expect(201);
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const orderModel = app.get<Model<Order>>(getModelToken(Order.name));
+    const owner = await users.findOne({ email: 'official-demo@shop.test' });
+    owner!.shopify = {
+      shopDomain: 'official-demo.myshopify.com',
+      demo: true,
+      scopes: 'read_orders',
+      tokenEnvelope: null,
+      installedAt: new Date().toISOString(),
+      uninstalledAt: null,
+      backfill: { status: 'done', processed: 4, total: 4, error: null },
+      riskTags: { high: 'rto-high', medium: 'rto-medium', low: 'rto-low' },
+      rtoTag: 'RTO',
+      autoCancelOnBuyerCancel: false,
+    };
+    await owner!.save();
+    for (let index = 0; index < 4; index += 1) {
+      await orderModel.create({
+        sellerId: owner!._id,
+        externalOrderId: `SHOP-${index}`,
+        buyerNameEnc: 'enc',
+        phoneEnc: 'enc',
+        phoneMasked: '98••••01',
+        addressEnc: 'enc',
+        city: 'Jaipur',
+        state: 'RJ',
+        pincode: '302001',
+        orderValue: 800,
+        paymentType: 'cod',
+        orderedAt: new Date(),
+        hour: 10,
+        stage: 'pending',
+        outcome: null,
+        source: 'shopify',
+      });
+    }
+    const live = await shop.get('/api/dashboard').expect(200);
+    expect(live.body.impact.preventedInr).toBeGreaterThan(0);
+    expect(live.body.impact.conversions).toBeGreaterThan(0);
+    const shopActivity = await shop.get('/api/activity').expect(200);
+    const shopConverted = (shopActivity.body.events as Array<{ step: string }>).filter((event) => event.step === 'converted');
+    expect(shopConverted.length).toBe(live.body.impact.conversions);
+    const repeat = await shop.get('/api/dashboard').expect(200);
+    expect(repeat.body.impact.conversions).toBe(live.body.impact.conversions);
+    expect(repeat.body.impact.preventedInr).toBe(live.body.impact.preventedInr);
+
+    const real = request.agent(app.getHttpServer());
+    const realToken = await csrf(real);
+    await real
+      .post('/api/auth/signup')
+      .set('x-csrf-token', realToken)
+      .send({ email: 'real-shop@shop.test', password: 'supersecret', name: 'Real', shopName: 'Real Shop' })
+      .expect(201);
+    const realUser = await users.findOne({ email: 'real-shop@shop.test' });
+    await orderModel.create({
+      sellerId: realUser!._id,
+      externalOrderId: 'REAL-1',
+      buyerNameEnc: 'enc',
+      phoneEnc: 'enc',
+      phoneMasked: '98••••02',
+      addressEnc: 'enc',
+      city: 'Pune',
+      state: 'MH',
+      pincode: '411001',
+      orderValue: 900,
+      paymentType: 'cod',
+      orderedAt: new Date(),
+      hour: 11,
+      stage: 'pending',
+      outcome: null,
+      source: 'shopify',
+    });
+    await real.get('/api/dashboard').expect(200);
+    const untouched = await orderModel.findOne({ sellerId: realUser!._id, externalOrderId: 'REAL-1' });
+    expect(untouched?.stage).toBe('pending');
+    expect(untouched?.outcome).toBeNull();
     expect(dashboard.body.liveWire.length).toBeGreaterThan(0);
     expect(orders.body.total).toBeGreaterThan(20);
     const stranger = request.agent(app.getHttpServer());

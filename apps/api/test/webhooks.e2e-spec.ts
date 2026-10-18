@@ -1,14 +1,17 @@
 import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import { shopifyOauthHmac } from '@rto/vault';
+import { metaSignature, seal, shopifyOauthHmac } from '@rto/vault';
 import { createHmac } from 'crypto';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { Model } from 'mongoose';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/configure-app';
+import { AuditEvent } from '../src/database/audit.schema';
 import { InboxEvent } from '../src/database/inbox.schema';
+import { Order } from '../src/database/order.schema';
+import { User } from '../src/database/user.schema';
 import { OauthState } from '../src/database/oauth-state.schema';
 import { MlService } from '../src/ml/ml.service';
 
@@ -91,6 +94,71 @@ describe('webhook inbox', () => {
       .expect(302);
     expect(response.headers.location).toContain('shopify=error');
     expect(await app.get<Model<OauthState>>(getModelToken(OauthState.name)).countDocuments()).toBe(0);
+  });
+
+  it('logs a Confirm tap on the TEST message and does not create an order', async () => {
+    const secret = 'wa-app-secret-test';
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const orders = app.get<Model<Order>>(getModelToken(Order.name));
+    const audits = app.get<Model<AuditEvent>>(getModelToken(AuditEvent.name));
+    const user = await users.create({
+      email: 'wa-test@shop.test',
+      passwordHash: 'not-used',
+      name: 'WA',
+      shopName: 'WA Shop',
+      whatsapp: {
+        tokenEnvelope: null,
+        tokenLast4: '',
+        phoneNumberId: 'phone-test-1',
+        wabaId: 'waba-1',
+        appSecretEnvelope: seal(secret, process.env.KEY_ENCRYPTION_KEY || ''),
+        appSecretLast4: 'test',
+        templateName: 'order_confirmation_hinglish',
+        templateStatus: 'APPROVED',
+        templateLanguage: 'en',
+      },
+    });
+    const raw = JSON.stringify({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: 'phone-test-1' },
+                messages: [
+                  {
+                    from: '919800000000',
+                    id: 'wamid.IN',
+                    type: 'button',
+                    button: { text: 'Confirm', payload: 'Confirm' },
+                    context: { id: 'wamid.TEST' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const accepted = await request(app.getHttpServer())
+      .post('/api/whatsapp/webhook')
+      .set('x-hub-signature-256', metaSignature(raw, secret))
+      .set('content-type', 'application/json')
+      .send(raw)
+      .expect(200);
+    expect(accepted.body.ok).toBe(true);
+    let logged = 0;
+    for (let attempt = 0; attempt < 20 && !logged; attempt += 1) {
+      logged = await audits.countDocuments({ sellerId: user._id, action: 'whatsapp.test_reply' });
+      if (!logged) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(logged).toBe(1);
+    const row = await audits.findOne({ sellerId: user._id, action: 'whatsapp.test_reply' });
+    expect(row?.meta).toMatchObject({ wamid: 'wamid.TEST', choice: 'confirmed', orderNo: 'TEST' });
+    expect(await orders.countDocuments({ sellerId: user._id })).toBe(0);
+    const stored = await inbox.findOne({ provider: 'whatsapp', shop: 'phone-test-1' });
+    expect(stored?.status).toBe('done');
+    expect(stored?.error || '').toBe('');
   });
 
   it('refuses an inbox drain without the shared secret', async () => {

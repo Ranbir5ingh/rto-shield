@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface DockItem {
   id: string;
@@ -99,7 +100,7 @@ export function Dock({
             />
           ) : null}
           {items.map((item) => (
-            <DockEntry key={item.id} item={item} />
+            <DockEntry key={item.id} item={item} placement={placement} />
           ))}
         </div>
       </nav>
@@ -107,9 +108,12 @@ export function Dock({
   );
 }
 
-function DockEntry({ item }: { item: DockItem }) {
+function DockEntry({ item, placement }: { item: DockItem; placement: 'bottom' | 'responsive' }) {
   const held = useRef(false);
   const timer = useRef(0);
+  const anchor = useRef<HTMLElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState<{ x: number; y: number; below: boolean } | null>(null);
   const Icon = item.icon;
   const className = `dock-item ${item.current ? 'text-ink' : 'text-inksoft'}`;
   const inner = (
@@ -117,33 +121,49 @@ function DockEntry({ item }: { item: DockItem }) {
       {item.mark ? item.mark : null}
       {Icon ? <Icon size={16} aria-hidden="true" /> : null}
       <span className="dock-label">{item.label}</span>
-      <span className="dock-tip" role="tooltip">
-        {item.label}
-      </span>
+      <DockTip label={item.label} open={open} tip={tip} />
     </>
   );
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const node = anchor.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const below = placement === 'responsive' && window.matchMedia('(min-width: 768px)').matches;
+      setTip({ x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, placement]);
 
   function pointerDown(event: PointerEvent<HTMLElement>) {
     if (event.pointerType === 'mouse') return;
     held.current = false;
-    const node = event.currentTarget;
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       held.current = true;
-      node.dataset.held = '1';
+      setOpen(true);
     }, 420);
   }
 
   function pointerEnd(event: PointerEvent<HTMLElement>) {
     window.clearTimeout(timer.current);
-    const node = event.currentTarget;
-    if (node.dataset.held === '1') {
+    if (event.pointerType === 'mouse') return;
+    if (held.current) {
       window.setTimeout(() => {
-        delete node.dataset.held;
+        held.current = false;
+        setOpen(false);
       }, 1200);
       return;
     }
-    delete node.dataset.held;
+    setOpen(false);
   }
 
   function click(event: MouseEvent) {
@@ -155,9 +175,28 @@ function DockEntry({ item }: { item: DockItem }) {
     item.onSelect?.();
   }
 
+  const handlers = {
+    onPointerDown: pointerDown,
+    onPointerUp: pointerEnd,
+    onPointerCancel: pointerEnd,
+    onMouseEnter: () => {
+      item.onPrefetch?.();
+      setOpen(true);
+    },
+    onMouseLeave: () => {
+      if (!held.current) setOpen(false);
+    },
+    onFocus: () => {
+      item.onPrefetch?.();
+      setOpen(true);
+    },
+    onBlur: () => setOpen(false),
+    onClick: click,
+  };
+
   if (!item.href) {
     return (
-      <button type="button" className={className} aria-label={item.label} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClick={click}>
+      <button type="button" ref={(node) => { anchor.current = node; }} className={className} aria-label={item.label} {...handlers}>
         {inner}
       </button>
     );
@@ -166,13 +205,11 @@ function DockEntry({ item }: { item: DockItem }) {
     return (
       <a
         href={item.href}
+        ref={(node) => { anchor.current = node; }}
         aria-label={item.label}
         aria-current={item.current ? 'page' : undefined}
         className={className}
-        onPointerDown={pointerDown}
-        onPointerUp={pointerEnd}
-        onPointerCancel={pointerEnd}
-        onClick={click}
+        {...handlers}
       >
         {inner}
       </a>
@@ -181,17 +218,31 @@ function DockEntry({ item }: { item: DockItem }) {
   return (
     <Link
       href={item.href}
+      ref={(node) => { anchor.current = node; }}
       aria-label={item.label}
       aria-current={item.current ? 'page' : undefined}
       className={className}
-      onMouseEnter={item.onPrefetch}
-      onFocus={item.onPrefetch}
-      onPointerDown={pointerDown}
-      onPointerUp={pointerEnd}
-      onPointerCancel={pointerEnd}
-      onClick={click}
+      {...handlers}
     >
       {inner}
     </Link>
+  );
+}
+
+function DockTip({ label, open, tip }: { label: string; open: boolean; tip: { x: number; y: number; below: boolean } | null }) {
+  if (!open || !tip || typeof document === 'undefined') return null;
+  return createPortal(
+    <span
+      role="tooltip"
+      className="dock-tip dock-tip-fixed"
+      style={{
+        left: tip.x,
+        top: tip.y,
+        transform: tip.below ? 'translate(-50%, 8px)' : 'translate(-50%, calc(-100% - 8px))',
+      }}
+    >
+      {label}
+    </span>,
+    document.body,
   );
 }

@@ -275,7 +275,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     await this.refreshTemplate(user, true);
     const identity = this.approvedConfirmation(user);
     if (!identity) throw new BadRequestException('The confirmation template is not approved yet');
-    await this.graphSend(user, {
+    const result = await this.graphSend(user, {
       messaging_product: 'whatsapp',
       to,
       type: 'template',
@@ -293,13 +293,15 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         }),
       },
     });
+    const wamid = result.messages?.[0]?.id || '';
+    if (!wamid) throw new BadRequestException('WhatsApp did not accept the message');
     await this.audit.create({
       sellerId: user._id,
       action: 'whatsapp.allowlist_test',
       orderId: '',
-      meta: { template: identity.name, toLast4: to.slice(-4) },
+      meta: { template: identity.name, toLast4: to.slice(-4), wamid },
     });
-    return { sent: true };
+    return { sent: true, wamid };
   }
 
   async sendOrders(user: UserDocument, ids: string[]) {
@@ -670,14 +672,30 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     await this.orderDesk.ingestAddressReply(user, order, text);
   }
 
+  /** A button with no order is the allowlist TEST send. Record it and leave every order alone. */
+  private async noteTestReply(user: UserDocument, wamid: string, choice: string) {
+    this.logger.log('WhatsApp test reply');
+    await this.audit.create({
+      sellerId: user._id,
+      action: 'whatsapp.test_reply',
+      orderId: '',
+      meta: { wamid, choice, orderNo: 'TEST' },
+    });
+  }
+
   private async applyButton(user: UserDocument, message: Record<string, unknown>) {
     const context = (message.context || {}) as { id?: string };
-    const button = (message.button || message.interactive || {}) as { text?: string; payload?: string };
-    const text = String(button.text || button.payload || '');
+    const button = (message.button || {}) as { text?: string; payload?: string };
+    const reply = (message.interactive as { button_reply?: { title?: string; id?: string } } | undefined)?.button_reply;
+    const text = String(button.text || button.payload || reply?.title || reply?.id || '');
     const choice = readButtonChoice(text);
     if (!choice || !context.id) return;
     const order = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
-    if (!order || order.stage !== 'pending') return;
+    if (!order) {
+      await this.noteTestReply(user, context.id, choice);
+      return;
+    }
+    if (order.stage !== 'pending') return;
     order.conversation = [
       ...(order.conversation || []),
       { at: new Date().toISOString(), direction: 'in', kind: 'button', text: choice },
