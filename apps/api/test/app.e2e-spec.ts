@@ -849,7 +849,7 @@ describe('RTO Shield API', () => {
     const session = opened.body.csrfToken as string;
     expect(opened.body.user.isDemo).toBe(true);
     const denied = await agent.post('/api/whatsapp/test-allowlist').set('x-csrf-token', session).expect(403);
-    expect(denied.body.error).toMatch(/not change the shop/i);
+    expect(denied.body.error).toMatch(/shop owner/i);
     const status = await agent.get('/api/whatsapp').expect(200);
     expect(status.body.verifyTokenSet).toBe(false);
     expect(status.body.callbackUrl).toBe('https://api.rtoshield.tech/api/whatsapp/webhook');

@@ -4,7 +4,7 @@ import type { Request } from 'express';
 import { Model } from 'mongoose';
 import { AuditEvent } from '../database/audit.schema';
 import type { AuthedRequest } from '../common/guards';
-import { demoAllows, isDemoSession } from './demo.policy';
+import { demoAllows, effectiveRole } from './demo.policy';
 
 @Injectable()
 export class DemoWriteGuard implements CanActivate {
@@ -12,7 +12,7 @@ export class DemoWriteGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthedRequest & Request>();
-    if (!req.user || !isDemoSession(req.user)) return true;
+    if (!req.user || effectiveRole(req.user) !== 'demo') return true;
     const path = req.originalUrl || req.url || '';
     if (demoAllows(req.method, path)) return true;
     await this.audit.create({
