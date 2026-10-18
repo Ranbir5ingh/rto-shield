@@ -195,6 +195,18 @@ export class ShopifyService {
     return this.status(user);
   }
 
+  async disconnect(user: UserDocument) {
+    this.assertOwner(user);
+    if (!user.shopify || user.shopify.demo || user.shopify.uninstalledAt || !user.shopify.tokenEnvelope) {
+      throw new BadRequestException('There is no live Shopify shop to disconnect');
+    }
+    const shop = user.shopify.shopDomain;
+    user.shopify = { ...user.shopify, tokenEnvelope: null, uninstalledAt: new Date().toISOString() };
+    await user.save();
+    await this.audit.create({ sellerId: user._id, action: 'shopify.disconnect', meta: { shop } });
+    return this.status(user);
+  }
+
   async resync(user: UserDocument) {
     this.assertOwner(user);
     if (!user.shopify || user.shopify.demo || !user.shopify.tokenEnvelope) {

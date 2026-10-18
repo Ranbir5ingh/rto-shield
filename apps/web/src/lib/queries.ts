@@ -18,7 +18,6 @@ export const qk = {
   activity: ['activity'] as const,
   whatsapp: ['whatsapp'] as const,
   shopify: ['shopify'] as const,
-  gemini: ['gemini'] as const,
   integrations: ['integrations'] as const,
   integrationsPublished: ['integrations-published'] as const,
   orders: (stage: string, offset: number, limit: number, outcome = '', q = '') => ['orders', stage, offset, limit, outcome, q] as const,
@@ -50,13 +49,6 @@ export interface WhatsAppLink {
   verifyToken?: string;
   verifyTokenSet?: boolean;
   webhookVerified: boolean;
-}
-
-export interface GeminiLink {
-  configured: boolean;
-  last4: string;
-  validatedAt: string | null;
-  demoFallback: boolean;
 }
 
 export function createQueryClient() {
@@ -112,10 +104,6 @@ export async function fetchWhatsapp() {
 
 export function fetchShopify() {
   return api<ShopifyLink>('/shopify');
-}
-
-export function fetchGemini() {
-  return api<GeminiLink>('/gemini');
 }
 
 export function fetchIntegrations() {
@@ -187,10 +175,6 @@ export function useShopify() {
     refetchInterval: (query) =>
       query.state.data?.connected && query.state.data.backfill.status === 'running' ? 2000 : false,
   });
-}
-
-export function useGemini() {
-  return useQuery({ queryKey: qk.gemini, staleTime: 60_000, queryFn: fetchGemini });
 }
 
 let mlFailures = 0;

@@ -48,6 +48,8 @@ describe('demo policy', () => {
     expect(demoAllows('DELETE', '/api/account')).toBe(false);
     expect(demoAllows('POST', '/api/gemini')).toBe(false);
     expect(demoAllows('DELETE', '/api/gemini')).toBe(false);
+    expect(demoAllows('POST', '/api/demo/rewind')).toBe(true);
+    expect(demoAllows('POST', '/api/shopify/disconnect')).toBe(false);
     expect(demoAllows('POST', '/api/orders/sample')).toBe(false);
     expect(demoAllows('POST', '/api/orders/import')).toBe(false);
     expect(demoAllows('GET', '/api/account/export')).toBe(false);

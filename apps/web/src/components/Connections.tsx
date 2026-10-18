@@ -2,12 +2,13 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SecretField } from '@/components/SecretField';
 import { useToast } from '@/components/Toaster';
 import { WhatsAppSetupGuide } from '@/components/WhatsAppGuide';
 import { Button, Field, Flag, Notice, inputClass } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { qk, useGemini, useShopify, useWhatsapp, type GeminiLink, type ShopifyLink, type WhatsAppLink } from '@/lib/queries';
+import { qk, useShopify, useWhatsapp, type ShopifyLink, type WhatsAppLink } from '@/lib/queries';
 
 type ShopifyStatus = ShopifyLink;
 type WhatsAppStatus = WhatsAppLink;
@@ -19,8 +20,6 @@ interface ConnectionCheck {
   detail: string;
   hint: string;
 }
-
-type GeminiStatus = GeminiLink;
 
 function Card({
   title,
@@ -56,10 +55,8 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
   const client = useQueryClient();
   const shopifyQuery = useShopify();
   const whatsappQuery = useWhatsapp();
-  const geminiQuery = useGemini();
   const [shopify, setShopify] = useState<ShopifyStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
-  const [gemini, setGemini] = useState<GeminiStatus | null>(null);
   const toast = useToast();
   const [shop, setShop] = useState('');
   const [tokenDraft, setTokenDraft] = useState<string | null>(null);
@@ -70,9 +67,8 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
   const [wabaError, setWabaError] = useState('');
   const [tokenError, setTokenError] = useState('');
   const [testTo, setTestTo] = useState('');
-  const [geminiDraft, setGeminiDraft] = useState<string | null>(null);
-  const [geminiError, setGeminiError] = useState('');
   const [secretEpoch, setSecretEpoch] = useState(0);
+  const [confirm, setConfirm] = useState<'shopify' | 'whatsapp' | null>(null);
   const [connectionChecks, setConnectionChecks] = useState<ConnectionCheck[] | null>(null);
 
   useEffect(() => {
@@ -93,10 +89,6 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
     setWabaId((current) => current || body.wabaId || '');
   }, [whatsappQuery.data]);
 
-  useEffect(() => {
-    if (geminiQuery.data) setGemini(geminiQuery.data);
-  }, [geminiQuery.data]);
-
   function rememberShopify(body: ShopifyStatus) {
     setShopify(body);
     client.setQueryData(qk.shopify, body);
@@ -105,11 +97,6 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
   function rememberWhatsapp(body: WhatsAppStatus) {
     setWhatsapp(body);
     client.setQueryData(qk.whatsapp, body);
-  }
-
-  function rememberGemini(body: GeminiStatus) {
-    setGemini(body);
-    client.setQueryData(qk.gemini, body);
   }
 
   async function run(action: () => Promise<void>) {
@@ -127,7 +114,6 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
           ['Shopify', shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'],
           ['Messaging', whatsapp?.messaging === 'own' ? 'Your own number' : 'RTO Shield (default)'],
           ['Calls', 'by RTO Shield'],
-          ['Gemini', gemini?.configured ? 'Saved · ••••••••' : 'Not configured'],
         ].map(([title, state]) => (
           <div key={title} className="flex items-center justify-between gap-4 border-2 border-ink bg-white px-5 py-4 shadow-sticker-sm">
             <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">{title}</h3>
@@ -218,6 +204,9 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
               >
                 Resync 60 days
               </Button>
+              <Button type="button" tone="danger" onClick={() => setConfirm('shopify')}>
+                Disconnect Shopify
+              </Button>
             </div>
           </form>
         ) : null}
@@ -260,11 +249,7 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
                 setWhatsapp((current) => (current ? { ...current, messaging: 'own' } : current));
                 return;
               }
-              void run(async () => {
-                const body = await api<WhatsAppStatus>('/whatsapp', { method: 'POST', body: JSON.stringify({ useOwnNumber: false }) });
-                rememberWhatsapp(body);
-                toast.success('Messages use RTO Shield’s number.');
-              });
+              setConfirm('whatsapp');
             }}
           />
           <span className="text-[15px]">Use my own WhatsApp Business number</span>
@@ -413,48 +398,35 @@ export function Connections({ locked = false, owner = true }: { locked?: boolean
         </>
         ) : null}
       </Card>
-
-      <Card
-        title="Gemini"
-        desc="Notes for this shop use your key."
-        flag={<Flag tone={gemini?.configured ? 'go' : 'ghost'}>{gemini?.configured ? 'Saved' : 'Not configured'}</Flag>}
-      >
-        {gemini?.demoFallback ? <p className="text-sm leading-6 text-ink/70">The demo shop can use the platform key.</p> : null}
-        <form
-          className="max-w-sm space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const next = geminiDraft?.trim() || '';
-            if (!gemini?.last4 && next.length < 20) {
-              setGeminiError('Paste the AI Studio key.');
-              return;
-            }
-            setGeminiError('');
-            if (!next) {
-              toast.info('The saved key stays in place.');
-              return;
-            }
-            void run(async () => {
-              const body = await api<GeminiStatus>('/gemini', { method: 'POST', body: JSON.stringify({ apiKey: next }) });
-              rememberGemini(body);
-              setGeminiDraft(null);
-              setSecretEpoch((current) => current + 1);
-              toast.success('Gemini key checked and sealed.');
-            });
-          }}
-        >
-          <SecretField
-            key={`gemini-${secretEpoch}`}
-            label="AI Studio key"
-            field="geminiKey"
-            last4={gemini?.last4 || ''}
-            draft={geminiDraft}
-            onDraftChange={setGeminiDraft}
-            error={geminiError}
-          />
-          <Button type="submit">Test and save</Button>
-        </form>
-      </Card>
+      <ConfirmDialog
+        open={confirm === 'shopify'}
+        title="Disconnect Shopify"
+        body="New orders stop syncing. Orders already here stay. You can connect the shop again later."
+        confirmLabel="Disconnect Shopify"
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          setConfirm(null);
+          void run(async () => {
+            rememberShopify(await api<ShopifyStatus>('/shopify/disconnect', { method: 'POST' }));
+            toast.success('Shopify disconnected.');
+          });
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === 'whatsapp'}
+        title="Use RTO Shield’s number"
+        body="Messages leave your number and go out from RTO Shield. The saved token stays sealed until you turn your number back on."
+        confirmLabel="Turn off my number"
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          setConfirm(null);
+          void run(async () => {
+            const body = await api<WhatsAppStatus>('/whatsapp', { method: 'POST', body: JSON.stringify({ useOwnNumber: false }) });
+            rememberWhatsapp(body);
+            toast.success('Messages use RTO Shield’s number.');
+          });
+        }}
+      />
     </div>
   );
 }

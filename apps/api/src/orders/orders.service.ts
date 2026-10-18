@@ -17,7 +17,6 @@ import {
   toCsv,
 } from '../common/csv';
 import { CryptoService } from '../common/crypto.service';
-import { VaultService } from '../common/vault.service';
 import { hourInKolkata } from '../common/hour';
 import { assertSafeVoiceScript, templateMessage, type DraftMessage } from '../common/messages';
 import { maskPhone, whatsappNumber } from '../common/phone';
@@ -26,8 +25,7 @@ import type { ColumnMapping, ImportInput, ManualOrderInput } from '../common/val
 import { ModelRun } from '../database/model-run.schema';
 import { Order, type OrderDocument } from '../database/order.schema';
 import { User, type UserDocument } from '../database/user.schema';
-import { geminiCallFor } from '../ml/gemini-call';
-import { MlService, type GeminiCall } from '../ml/ml.service';
+import { MlService } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
 import { demoSendCap, effectiveRole, isOfficialDemoAccount } from '../demo/demo.policy';
@@ -77,7 +75,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     @InjectModel(ModelRun.name) private readonly runs: Model<ModelRun>,
     @InjectModel(User.name) private readonly users: Model<User>,
     private readonly crypto: CryptoService,
-    private readonly vault: VaultService,
     private readonly ml: MlService,
     @Inject(forwardRef(() => ShopifyService)) private readonly shopify: ShopifyService,
     @Inject(forwardRef(() => ElevenLabsService)) private readonly calls: ElevenLabsService,
@@ -623,22 +620,12 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Address notes and confirmation drafts. Scores already on the order stay put. */
-  private geminiCall(user: UserDocument): GeminiCall | undefined {
-    return geminiCallFor(user, (envelope) => this.vault.open(envelope));
-  }
-
   private async refreshGemma(user: UserDocument) {
     try {
-      const gemini = this.geminiCall(user);
-      if (gemini?.mode === 'seller' && !gemini.key) {
-        this.logger.warn('Gemma skipped: the saved Gemini key could not be opened');
-        return;
-      }
-      // No saved key uses the platform Gemini key on the ML service, capped so one shop cannot drain it.
-      const platform = !gemini;
-      const noteCap = platform ? 24 : 80;
-      const draftCap = platform ? 12 : 48;
-      if (platform) this.logger.log('Address notes and drafts: platform Gemini');
+      // Platform GEMINI_API_KEY only. A miss falls back to the built-in templates.
+      const noteCap = 24;
+      const draftCap = 12;
+      this.logger.log('Address notes and drafts: platform Gemini');
       const pending = await this.orders.find({ sellerId: user._id, stage: 'pending' }).limit(noteCap);
       if (!pending.length) return;
       // One batch per request so a rate limit on a later batch still keeps the notes already written.
@@ -654,7 +641,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
               state: order.state,
               pincode: order.pincode,
             })),
-            gemini,
           );
           for (const row of noted.addresses) notes.set(row.id, row.address_quality);
           this.logger.log(`Address notes engine: ${noted.source}`);
@@ -679,7 +665,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
               product_name: order.productName || 'order',
               payment_type: order.paymentType,
             })),
-            gemini,
           );
           this.logger.log(`Confirmation drafts engine: ${generated.source}`);
           if (generated.source !== 'gemini' && generated.source !== 'ollama') {
@@ -798,7 +783,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         speed: fast ? 'fast' : 'full',
         timeoutMs: options?.timeoutMs ?? (fast ? 9_000 : 55_000),
         address,
-        gemini: address === 'heuristic' ? undefined : this.geminiCall(user),
       });
     } catch (error) {
       if (!fast) throw error;
@@ -1321,7 +1305,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       { at: new Date().toISOString(), direction: 'in', kind: 'text', text: 'Address reply' },
     ];
     order.addressReplyEnc = stripped ? this.crypto.encrypt(stripped) : '';
-    const key = this.addressKey(user);
+    const key = this.addressKey();
     let parsed: ParsedAddress | null = null;
     try {
       parsed = await askGeminiForAddress(key, stripped);
@@ -1702,10 +1686,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     await order.save();
   }
 
-  private addressKey(user: UserDocument) {
-    const call = this.geminiCall(user);
-    if (call?.mode === 'seller') return call.key || '';
-    return process.env.GEMINI_API_KEY || '';
+  private addressKey() {
+    return process.env.GEMINI_API_KEY?.trim() || '';
   }
 
   private openText(enc: string | null | undefined) {

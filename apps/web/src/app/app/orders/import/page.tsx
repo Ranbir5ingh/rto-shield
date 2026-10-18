@@ -13,12 +13,12 @@ export default function ImportOrdersPage() {
 
   return (
     <Page
-      eyebrow="/ Scanner · Bulk import"
+      eyebrow="/ Orders · Import"
       title="Upload a CSV"
       sub="A Shopify export, a Meesho-style file, or the generic template. Columns are matched automatically."
     >
       <Link href="/app/orders" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
-        ← Back to scanner
+        ← Orders
       </Link>
 
       <div className="max-w-3xl">

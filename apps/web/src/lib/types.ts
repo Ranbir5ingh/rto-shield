@@ -8,7 +8,6 @@ export interface PublicUser {
   role?: 'owner' | 'staff' | 'demo';
   isDemo?: boolean;
   officialDemo?: boolean;
-  sellerGemini?: boolean;
   tour?: { sellerSeen: boolean; demoSeen: boolean };
   reduction?: {
     autopilot: boolean;

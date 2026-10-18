@@ -72,6 +72,11 @@ export class ShopifyController {
     return this.shopify.resync(user);
   }
 
+  @Post('shopify/disconnect')
+  disconnect(@CurrentUser() user: UserDocument) {
+    return this.shopify.disconnect(user);
+  }
+
   /**
    * Browser returns here after the merchant approves the app.
    * HMAC plus a single-use state is the authentication. Late retries are not

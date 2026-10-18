@@ -237,13 +237,13 @@ See `.env.example`. Every integration degrades when its key is missing.
 | `ML_CORS_ORIGINS` | ML | Extra browser origins for `GET /health`, comma-separated. `https://www.rtoshield.tech` and localhost are already allowed. |
 | `TABPFN_TOKEN` | ML | Optional Prior Labs TabPFN. |
 | `TABPFN_MAX_ROWS` | ML | Default 500 in-context rows. |
-| `GEMINI_API_KEY` | ML | Optional Gemma via AI Studio. |
+| `GEMINI_API_KEY` | ML | Platform only. Optional Gemma via AI Studio. Sellers do not paste a key. Empty, or a Gemini error, falls back to built-in notes and drafts. |
 | `GEMMA_MODEL` | ML | Default `gemma-4-26b-a4b-it`. A 404 tries the other hosted Gemma ids. |
 | `OLLAMA_BASE_URL` | ML | Optional. If set, preferred over AI Studio. |
 | `OLLAMA_MODEL` | ML | Default `gemma3:4b`. |
 | `MIN_TRAIN_ROWS` | ML | Default 30 labelled rows before a trained model. Below that, a rules prior. |
 | `PORT` | API and web | Render sets this. Local defaults 4000 and 3000. |
-| `KEY_ENCRYPTION_KEY` | API, Vercel | Master key that wraps Shopify, WhatsApp, and Gemini secrets. 64 hex chars, 32-byte base64, or a passphrase. Production will not store those secrets until it is set. Generate it yourself and keep it out of git. |
+| `KEY_ENCRYPTION_KEY` | API, Vercel | Master key that wraps Shopify and WhatsApp secrets. 64 hex chars, 32-byte base64, or a passphrase. Production will not store those secrets until it is set. Generate it yourself and keep it out of git. |
 | `SHOPIFY_API_KEY` | API | Partner app client id. |
 | `SHOPIFY_API_SECRET` | API, Vercel | Partner app secret. Vercel uses it to verify webhook HMAC before the API wakes. |
 | `SHOPIFY_APP_URL` | API | Public app origin, `https://www.rtoshield.tech`. OAuth redirect is `{SHOPIFY_APP_URL}/api/shopify/callback`. |
@@ -275,7 +275,7 @@ WhatsApp Cloud API (your own number):
 5. Callback URL: `https://api.rtoshield.tech/api/whatsapp/webhook`. Verify token: the value of `WHATSAPP_VERIFY_TOKEN` on Render. Reveal it in Settings with your password. Subscribe to the `messages` field.
 6. In the queue, **Approve & send** uses that template. Confirm and Cancel buttons mark the order and tag it in Shopify. Auto-cancel in Shopify stays off until you turn it on. If WhatsApp is not connected, the queue keeps the `wa.me` link.
 
-The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Gemini notes for a real shop use that seller's key. The platform `GEMINI_API_KEY` is only the demo fallback.
+The demo shop is already marked Shopify-connected (`asha-studio.myshopify.com`) with no live token, so the flow is visible without a Partner install. Address notes and drafts use the platform `GEMINI_API_KEY` on the ML service. Shops do not paste a key. If that key is missing, or Gemini does not answer, the notes fall back to built-in templates.
 
 See `docs/shopify-production.md` for the public app, Level 2 protected data, and `read_all_orders`.
 
@@ -300,7 +300,7 @@ Both print `agentId`. `webhookSecret` appears only when ElevenLabs issues a new 
 
 ## Purge a shop
 
-`POST /api/admin/users/purge` hard-deletes one account and the data hanging off it: the Shopify token, orders (decisions, messages, and calls), WhatsApp, Gemini, and ElevenLabs secrets, demo sessions, demo snapshots, inbox rows, and earlier audit events. It writes one new `admin.purge` audit row with counts and no email. A demo session cannot call it. The header is the same inbox secret, compared in constant time:
+`POST /api/admin/users/purge` hard-deletes one account and the data hanging off it: the Shopify token, orders (decisions, messages, and calls), WhatsApp secrets, any leftover Gemini envelope, ElevenLabs secrets, demo sessions, demo snapshots, inbox rows, and earlier audit events. It writes one new `admin.purge` audit row with counts and no email. A demo session cannot call it. The header is the same inbox secret, compared in constant time:
 
 ```bash
 curl -sS -X POST https://api.rtoshield.tech/api/admin/users/purge \

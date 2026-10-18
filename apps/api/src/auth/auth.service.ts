@@ -25,7 +25,6 @@ export interface PublicUser {
   role: 'owner' | 'staff' | 'demo';
   isDemo: boolean;
   officialDemo: boolean;
-  sellerGemini: boolean;
   tour: { sellerSeen: boolean; demoSeen: boolean };
   reduction: {
     autopilot: boolean;
@@ -70,7 +69,6 @@ export class AuthService implements OnModuleInit {
       role: effectiveRole(user),
       isDemo: Boolean(user.isDemo),
       officialDemo: isOfficialDemoAccount(user.email),
-      sellerGemini: Boolean(user.gemini?.keyEnvelope && user.gemini.validatedAt),
       tour: {
         sellerSeen: Boolean(user.sellerTourSeenAt),
         demoSeen: user.$locals?.actor === 'demo' ? Boolean(user.$locals?.demoTourSeen) : Boolean(user.demoTourSeenAt),

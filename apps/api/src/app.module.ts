@@ -13,7 +13,6 @@ import { DemoModule } from './demo/demo.module';
 import { DemoWriteGuard } from './demo/demo.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
-import { GeminiModule } from './gemini/gemini.module';
 import { HealthModule } from './health/health.module';
 import { InboxModule } from './inbox/inbox.module';
 import { IntegrationsModule } from './integrations/integrations.module';
@@ -60,7 +59,6 @@ const sentryImports = process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
     WhatsAppModule,
     VoiceModule,
     InboxModule,
-    GeminiModule,
     DemoModule,
   ],
   providers: [

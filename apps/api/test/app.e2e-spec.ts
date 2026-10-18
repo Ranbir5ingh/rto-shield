@@ -417,9 +417,7 @@ describe('RTO Shield API', () => {
       { email },
       { $set: { gemini: { keyEnvelope: vault.seal(geminiKey), last4: '7890', validatedAt: new Date().toISOString() } } },
     );
-    const blank = await agent.post('/api/gemini').set('x-csrf-token', session).send({ apiKey: '' }).expect(201);
-    expect(blank.body.last4).toBe('7890');
-    expect(blank.body.configured).toBe(true);
+    await agent.post('/api/gemini').set('x-csrf-token', session).send({ apiKey: '' }).expect(404);
 
     await agent
       .post('/api/whatsapp')
@@ -695,8 +693,7 @@ describe('RTO Shield API', () => {
       expect(JSON.stringify(template.body)).not.toContain(accessToken);
       expect(template.body.tokenLast4).toBe('');
 
-      const gemini = await visitor.get('/api/gemini').expect(200);
-      expect(gemini.body.last4).toBe('');
+      const gemini = await visitor.get('/api/gemini').expect(404);
       expect(JSON.stringify(gemini.body)).not.toContain('AIzaSyJudgeKeyValue1234567890');
       const shop = await visitor.get('/api/shopify').expect(200);
       expect(JSON.stringify(shop.body)).not.toContain('shpat_judge_demo_token');
@@ -720,7 +717,7 @@ describe('RTO Shield API', () => {
       await visitor.post('/api/shopify/resync').set('x-csrf-token', demoCsrf).expect(403);
       await visitor.post('/api/elevenlabs').set('x-csrf-token', demoCsrf).send({ apiKey: 'sk_this_should_not_save_123456' }).expect(403);
       await visitor.delete('/api/elevenlabs').set('x-csrf-token', demoCsrf).expect(403);
-      await visitor.post('/api/gemini').set('x-csrf-token', demoCsrf).send({ apiKey: 'AIzaSyShouldNotBeSaved000000' }).expect(403);
+      await visitor.post('/api/gemini').set('x-csrf-token', demoCsrf).send({ apiKey: 'AIzaSyShouldNotBeSaved000000' }).expect(404);
       await visitor.delete('/api/account/data').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE' }).expect(403);
       await visitor.delete('/api/account').set('x-csrf-token', demoCsrf).send({ confirm: 'DELETE', password }).expect(403);
       await visitor.get('/api/account/export').expect(403);

@@ -55,12 +55,12 @@ export default function NewOrderPage() {
 
   return (
     <Page
-      eyebrow="/ Scanner · Manual entry"
+      eyebrow="/ Orders · Manual entry"
       title="Add an order"
       sub="One buyer, typed by hand. It lands in pending — score the batch when you're ready."
     >
       <Link href="/app/orders" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] underline decoration-lime decoration-2 underline-offset-4">
-        ← Back to scanner
+        ← Orders
       </Link>
 
       <div className="max-w-3xl">

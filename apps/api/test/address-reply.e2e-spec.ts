@@ -28,6 +28,7 @@ describe('buyer address replies write Shopify', () => {
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     process.env.MONGODB_URI = mongo.getUri();
+    process.env.GEMINI_API_KEY = 'AIzaSyPlatformAddressKey123456';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(MlService)
       .useValue({
@@ -43,6 +44,7 @@ describe('buyer address replies write Shopify', () => {
 
   afterAll(async () => {
     global.fetch = originalFetch;
+    delete process.env.GEMINI_API_KEY;
     await app.close();
     await mongo.stop();
   });
@@ -148,11 +150,6 @@ describe('buyer address replies write Shopify', () => {
               'address_updated_confirmation:en': 'APPROVED',
               'order_reminder:en': 'APPROVED',
             },
-          },
-          gemini: {
-            keyEnvelope: vault.seal('AIzaSyAddressKeyValue1234567890'),
-            last4: '7890',
-            validatedAt: new Date().toISOString(),
           },
         },
       },

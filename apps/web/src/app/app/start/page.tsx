@@ -158,8 +158,8 @@ function StartForm() {
           <div className="border-2 border-ink bg-paper p-5">
             <h3 className="font-display text-lg font-extrabold uppercase tracking-tight">CSV, if you must</h3>
             <p className="mt-2 text-sm leading-6 text-ink/70">A Shopify export, a Meesho-style file, or the generic template.</p>
-            <Link href="/app/history" className="btn-ghost mt-4 inline-flex !px-5 !py-3 !text-[11px]">
-              Upload history
+            <Link href="/app/orders/import" className="btn-ghost mt-4 inline-flex !px-5 !py-3 !text-[11px]">
+              Upload CSV
             </Link>
           </div>
           <div className="border-2 border-ink bg-paper p-5">

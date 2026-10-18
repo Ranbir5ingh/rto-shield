@@ -7,7 +7,7 @@ import { effectiveRole } from '../demo/demo.policy';
 import { AuditEvent } from '../database/audit.schema';
 import type { UserDocument } from '../database/user.schema';
 
-export type SecretField = 'whatsappToken' | 'whatsappAppSecret' | 'geminiKey';
+export type SecretField = 'whatsappToken' | 'whatsappAppSecret';
 
 @Injectable()
 export class SecretsService {
@@ -27,12 +27,7 @@ export class SecretsService {
       throw new UnauthorizedException('Password did not match');
     }
     if (user.role === 'staff') throw new ForbiddenException('Only the shop owner can reveal secrets');
-    const envelope =
-      field === 'whatsappToken'
-        ? user.whatsapp?.tokenEnvelope
-        : field === 'whatsappAppSecret'
-          ? user.whatsapp?.appSecretEnvelope
-          : user.gemini?.keyEnvelope;
+    const envelope = field === 'whatsappToken' ? user.whatsapp?.tokenEnvelope : user.whatsapp?.appSecretEnvelope;
     let value = '';
     try {
       value = this.vault.open(envelope);

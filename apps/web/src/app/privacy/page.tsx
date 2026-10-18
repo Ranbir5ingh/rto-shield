@@ -25,13 +25,13 @@ export default function PrivacyPage() {
         </p>
         <p>
           Phone numbers are not sent to TabPFN, Gemma, SerpApi, or ElevenLabs. The Hindi voice script is shop name
-          and amount only. Addresses are sent to your own ML service so it can score quality. From there they reach
-          Gemma only when GEMINI_API_KEY or OLLAMA_BASE_URL is set.
+          and amount only. Addresses are sent to the platform ML service so it can score quality. From there they
+          reach Gemma only when the platform sets GEMINI_API_KEY or OLLAMA_BASE_URL. Shops do not paste a Gemini key.
         </p>
         <p>
-          Ollama is the privacy-max option: Gemma runs on a machine you control, including fully offline. AI Studio
-          serves the same open-weight Gemma family when you prefer not to host it. Closed-model APIs are not on the
-          scoring path.
+          Ollama is the privacy-max option: Gemma runs on a machine the platform controls, including fully offline.
+          The platform GEMINI_API_KEY serves the same open-weight Gemma family when Ollama is not set. If neither
+          answers, notes and drafts use built-in templates. Closed-model APIs are not on the scoring path.
         </p>
         <p>Uploads are capped (about 5 MB, 5,000 rows). CSV export prefixes cells that start with =, +, -, or @ so a spreadsheet does not treat them as formulas.</p>
       </div>

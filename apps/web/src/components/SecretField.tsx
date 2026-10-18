@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useRef, useState } from 'react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ApiError, api } from '@/lib/api';
 import { useToast } from '@/components/Toaster';
 import { Button, Field, inputClass } from '@/components/ui';
 
-export type SecretFieldName = 'whatsappToken' | 'whatsappAppSecret' | 'geminiKey';
+export type SecretFieldName = 'whatsappToken' | 'whatsappAppSecret';
 
 export function maskedSecret(last4: string) {
   return last4 ? `••••••••${last4}` : '';
@@ -149,129 +149,35 @@ export function SecretField({
         </Button>
       </div>
       {gate ? (
-        <SecretPasswordDialog
-          mode={gate}
+        <ConfirmDialog
+          open
           phase={phase}
-          password={password}
-          passwordError={passwordError}
+          tone="go"
+          title={gate === 'edit' ? 'Edit the saved key' : 'Show the saved key'}
+          body="Enter the password for this RTO Shield login. The key stays on this page."
+          confirmLabel="Confirm"
           pending={pending}
-          onPassword={setPassword}
           onConfirm={() => void confirm()}
           onClose={requestClose}
           onExitEnd={finishClose}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function SecretPasswordDialog({
-  mode,
-  phase,
-  password,
-  passwordError,
-  pending,
-  onPassword,
-  onConfirm,
-  onClose,
-  onExitEnd,
-}: {
-  mode: 'reveal' | 'edit';
-  phase: 'in' | 'out';
-  password: string;
-  passwordError: string;
-  pending: boolean;
-  onPassword: (value: string) => void;
-  onConfirm: () => void;
-  onClose: () => void;
-  onExitEnd: () => void;
-}) {
-  const titleId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  const title = mode === 'edit' ? 'Edit the saved key' : 'Show the saved key';
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeRef.current();
-        return;
-      }
-      if (event.key !== 'Tab' || !panelRef.current) return;
-      const nodes = [...panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input')];
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (!first || !last) return;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    const earlier = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = earlier;
-    };
-  }, []);
-
-  return createPortal(
-    <div
-      className={`secret-modal fixed inset-0 z-[220] flex items-center justify-center px-4 ${phase === 'out' ? 'secret-modal-out' : 'secret-modal-in'}`}
-      onAnimationEnd={(event) => {
-        if (event.target !== event.currentTarget || event.animationName !== 'secret-modal-out') return;
-        onExitEnd();
-      }}
-    >
-      <button type="button" tabIndex={-1} className="absolute inset-0 bg-ink/40 backdrop-blur-[3px]" aria-label="Close password prompt" onClick={onClose} />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="secret-modal-card relative w-full max-w-md border-2 border-ink bg-white p-6 shadow-sticker"
-      >
-        <p className="eyebrow">Password</p>
-        <h2 id={titleId} className="mt-2 font-display text-3xl">
-          {title}
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-ink/75">Enter the password for this RTO Shield login. The key stays on this page.</p>
-        <div className="mt-5">
+        >
           <Field label="RTO Shield password" error={passwordError}>
             <input
-              ref={inputRef}
               className={inputClass}
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(event) => onPassword(event.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  onConfirm();
+                  void confirm();
                 }
               }}
             />
           </Field>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button type="button" onClick={onConfirm} disabled={pending}>
-            {pending ? 'Checking…' : 'Confirm'}
-          </Button>
-          <Button type="button" tone="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </ConfirmDialog>
+      ) : null}
+    </div>
   );
 }

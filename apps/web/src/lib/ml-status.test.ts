@@ -17,7 +17,7 @@ describe('ML banner reachability', () => {
     expect(gemmaNotice({ reachable: true, gemini: false, ollama: false })).toBe(true);
     expect(gemmaNotice({ reachable: true, gemini: false, ollama: true, gemmaReady: false })).toBe(false);
     expect(gemmaNotice({ reachable: false, gemini: false, ollama: false, gemmaReady: false })).toBe(false);
-    expect(gemmaNotice({ reachable: true, gemini: false, ollama: false, gemmaReady: false }, { sellerGemini: true })).toBe(false);
+    expect(gemmaNotice({ reachable: true, gemini: false, ollama: false, gemmaReady: false })).toBe(true);
   });
 
   it('clears a confirmed outage as soon as a check succeeds', () => {

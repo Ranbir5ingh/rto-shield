@@ -67,7 +67,7 @@ export default function OrdersPage() {
 
   return (
     <Page
-      eyebrow="/ Scanner"
+      eyebrow="/ Orders"
       title="Score pending orders"
       sub="Low scores can ship straight away. Medium and High go to the confirmation queue."
       actions={
@@ -97,7 +97,7 @@ export default function OrdersPage() {
       ) : null}
 
       <Section eyebrow={`Pending · ${total}`} title="Orders waiting for a score" pad={false}>
-        <div id="scanner-list" className={`mt-4 border-t-2 border-ink ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
+        <div id="pending-orders" className={`mt-4 border-t-2 border-ink ${list.isFetching && !list.isLoading ? 'opacity-80' : ''}`}>
           {list.isLoading ? <div className="p-5"><Skeleton className="h-48" /></div> : null}
           {orders.map((order) => (
             <article key={order.id} className="grid gap-4 border-b-2 border-ink/60 px-5 py-4 transition last:border-b-0 hover:bg-hl/20 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">

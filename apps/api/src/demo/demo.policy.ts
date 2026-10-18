@@ -69,6 +69,7 @@ const DEMO_WRITES = [
   /^\/tours\/complete$/,
   /^\/auth\/logout$/,
   /^\/auth\/refresh$/,
+  /^\/demo\/rewind$/,
 ];
 
 const DEMO_BLOCKED_READS = [/^\/account\/export$/];

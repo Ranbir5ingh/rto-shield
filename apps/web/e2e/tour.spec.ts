@@ -229,13 +229,21 @@ test('every screen renders without a sideways scroll', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Open your shop' })).toBeVisible();
   await page.goto('/guides/whatsapp');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.goto('/privacy');
+  await expect(page.getByRole('heading', { level: 1, name: 'What leaves the shop' })).toBeVisible();
+  await page.goto('/terms');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.goto('/shopify');
+  await expect(page.getByRole('heading', { level: 1, name: 'RTO Shield' })).toBeVisible();
+  await page.goto('/pay/not-a-real-token');
+  await expect(page.getByRole('heading', { level: 1, name: 'Pay this order' })).toBeVisible();
 
   await loginOwner(page);
   if (await page.locator('#tour-card').isVisible().catch(() => false)) {
     await page.keyboard.press('Escape');
     await assertTourClosed(page);
   }
-  const routes = ['/app', '/app/queue', '/app/orders', '/app/history', '/app/settings', '/app/start'];
+  const routes = ['/app', '/app/queue', '/app/orders', '/app/orders/new', '/app/orders/import', '/app/history', '/app/settings', '/app/start'];
   for (const route of routes) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();

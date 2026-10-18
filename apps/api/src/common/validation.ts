@@ -110,10 +110,6 @@ export const whatsappSendSchema = z.object({
   ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(50),
 });
 
-export const geminiKeySchema = z.object({
-  apiKey: z.union([z.literal(''), z.string().trim().min(20).max(400)]).optional(),
-});
-
 export const elevenKeySchema = z.object({
   apiKey: z.union([z.literal(''), z.string().trim().min(20).max(400)]).optional(),
 });
@@ -132,7 +128,7 @@ export const callSchema = z
   .default({});
 
 export const secretRevealSchema = z.object({
-  field: z.enum(['whatsappToken', 'whatsappAppSecret', 'geminiKey']),
+  field: z.enum(['whatsappToken', 'whatsappAppSecret']),
   password: z.string().min(1).max(72),
 });
 

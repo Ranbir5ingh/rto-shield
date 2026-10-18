@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { History, LayoutDashboard, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Search, Settings } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Dock } from '@/components/Dock';
 import { LogoMark } from '@/components/Logo';
 import { Tour } from '@/components/Tour';
@@ -20,7 +21,7 @@ const links = [
   ['/app', 'Results', 'What the shop saved', LayoutDashboard],
   ['/app/queue', 'Exceptions', 'Orders that stopped', ListChecks],
   ['/app/history', 'Activity', 'What the shop did', History],
-  ['/app/settings', 'Settings', 'Policy and keys', Settings],
+  ['/app/settings', 'Settings', 'Policy and connections', Settings],
 ] as const;
 
 function activeNav(pathname: string, href: string) {
@@ -114,6 +115,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return window.localStorage.getItem('rto-sidebar') === 'collapsed';
   });
   const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const tourStarted = useRef(false);
   const tourSteps = useMemo(
     () => (tour && surface ? toursFor(tour, surface, 'english', { shopifyConnected }) : null),
@@ -286,7 +288,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ) : null}
           <button
             type="button"
-            onClick={() => void logout()}
+            onClick={() => setConfirmLogout(true)}
             aria-label="Log out"
             onMouseEnter={(e) => {
               if (collapsed) {
@@ -385,7 +387,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </button>
             <button
               type="button"
-              onClick={() => void logout()}
+              onClick={() => setConfirmLogout(true)}
               aria-label="Log out"
               className="grid h-10 w-10 place-items-center border-2 border-ink bg-white text-inksoft shadow-sticker-sm transition hover:text-ink lg:hidden"
             >
@@ -394,7 +396,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <StatusStrip status={status} sellerGemini={Boolean(user?.sellerGemini)} />
+        <StatusStrip status={status} />
+        <ConfirmDialog
+          open={confirmLogout}
+          tone="go"
+          title="Log out"
+          body="You will need to sign in again to open this shop."
+          confirmLabel="Log out"
+          onClose={() => setConfirmLogout(false)}
+          onConfirm={() => {
+            setConfirmLogout(false);
+            void logout();
+          }}
+        />
 
         {/* page scroller — full-bleed so the scrollbar hugs the viewport edge */}
         <main id="app-main" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 lg:pb-0">
@@ -440,7 +454,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatusStrip({ status, sellerGemini }: { status: Integrations | null; sellerGemini: boolean }) {
+function StatusStrip({ status }: { status: Integrations | null }) {
   if (!status) return null;
   const notes = [
     status.encryption === 'development-fallback' ? 'Encryption key is unset. Set ENCRYPTION_KEY before real buyer data.' : null,
@@ -449,14 +463,14 @@ function StatusStrip({ status, sellerGemini }: { status: Integrations | null; se
     status.ml.reachable && status.ml.activePredictor?.includes('sklearn')
       ? 'Scores use the scikit-learn fallback until TABPFN_TOKEN is set.'
       : null,
-    gemmaNotice(status.ml, { sellerGemini })
-      ? 'Address notes and drafts use local templates until Gemma is configured.'
+    gemmaNotice(status.ml)
+      ? 'Address notes and drafts use local templates until the platform Gemini key is set.'
       : null,
   ].filter(Boolean);
   if (!notes.length) return null;
   return (
-    <div className="shrink-0 border-b-2 border-ink bg-hl/40 px-4 py-2.5 sm:px-6">
-      <div className="mx-auto w-full max-w-page">
+    <div className="shrink-0 border-b-2 border-ink bg-hl/40">
+      <div className="mx-auto w-full max-w-page px-4 py-2.5 sm:px-6">
         <Notice>
           <ul className="space-y-1">
             {notes.map((note) => (

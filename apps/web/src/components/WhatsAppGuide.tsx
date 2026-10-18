@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { ApiError, api } from '@/lib/api';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button, CopyButton, Field, inputClass } from '@/components/ui';
 import {
   WHATSAPP_CALLBACK_URL,
@@ -201,49 +202,54 @@ function VerifyTokenControl() {
     );
   }
 
-  if (!asking) {
-    return (
-      <div className="space-y-2">
-        <p className="font-mono text-xs tracking-[0.2em] text-ink/70">••••••••••••</p>
-        <Button type="button" tone="ghost" onClick={() => setAsking(true)}>
-          Reveal verify token
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <form
-      className="space-y-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!password || pending) return;
-        setPending(true);
-        setError('');
-        api<{ value: string }>('/whatsapp/verify-token', { method: 'POST', body: JSON.stringify({ password }) })
-          .then((body) => {
-            setValue(body.value);
-            setPassword('');
-            setAsking(false);
-          })
-          .catch((err: unknown) => {
-            setError(err instanceof ApiError ? err.message : 'Could not reveal the verify token');
-          })
-          .finally(() => setPending(false));
-      }}
-    >
-      <Field label="Account password" error={error}>
-        <input
-          className={inputClass}
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </Field>
-      <Button type="submit" disabled={pending}>
-        {pending ? 'Checking…' : 'Show verify token'}
+    <div className="space-y-2">
+      <p className="font-mono text-xs tracking-[0.2em] text-ink/70">••••••••••••</p>
+      <Button type="button" tone="ghost" onClick={() => setAsking(true)}>
+        Reveal verify token
       </Button>
-    </form>
+      <ConfirmDialog
+        open={asking}
+        tone="go"
+        title="Show verify token"
+        body="Enter the password for this RTO Shield login. The token stays on this page."
+        confirmLabel="Show verify token"
+        pending={pending}
+        onClose={() => {
+          if (pending) return;
+          setAsking(false);
+          setPassword('');
+          setError('');
+        }}
+        onConfirm={() => {
+          if (!password || pending) {
+            if (!password) setError('Enter your password.');
+            return;
+          }
+          setPending(true);
+          setError('');
+          api<{ value: string }>('/whatsapp/verify-token', { method: 'POST', body: JSON.stringify({ password }) })
+            .then((body) => {
+              setValue(body.value);
+              setPassword('');
+              setAsking(false);
+            })
+            .catch((err: unknown) => {
+              setError(err instanceof ApiError ? err.message : 'Could not reveal the verify token');
+            })
+            .finally(() => setPending(false));
+        }}
+      >
+        <Field label="Account password" error={error}>
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </Field>
+      </ConfirmDialog>
+    </div>
   );
 }

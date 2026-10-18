@@ -4,16 +4,12 @@
  * for a second miss and clears on the next success.
  */
 /** Yellow Gemma notice: only when notes cannot actually be written. */
-export function gemmaNotice(
-  ml: {
-    reachable: boolean;
-    gemini: boolean;
-    ollama: boolean;
-    gemmaReady?: boolean | null;
-  },
-  options?: { sellerGemini?: boolean },
-): boolean {
-  if (options?.sellerGemini) return false;
+export function gemmaNotice(ml: {
+  reachable: boolean;
+  gemini: boolean;
+  ollama: boolean;
+  gemmaReady?: boolean | null;
+}): boolean {
   if (!ml.reachable || ml.ollama) return false;
   if (ml.gemmaReady === false) return true;
   // Older health payloads only know whether a key is set.

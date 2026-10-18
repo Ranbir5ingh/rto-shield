@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MessageThread } from '@/components/MessageThread';
 import { useToast } from '@/components/Toaster';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button, Flag } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { inr } from '@/lib/format';
@@ -59,6 +60,7 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
   const toast = useToast();
   const client = useQueryClient();
   const [saving, setSaving] = useState('');
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   async function mark(outcome: 'confirmed' | 'cancelled') {
     if (!order || saving) return;
@@ -96,7 +98,7 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
       {order ? (
         <>
           <p className="eyebrow">{exceptionLabel(order)}</p>
-          <h2 className="mt-2 font-display text-2xl font-black uppercase">{order.buyerName}</h2>
+          <h2 className="mt-2 break-words font-display text-2xl font-black uppercase">{order.buyerName}</h2>
           <p className="mt-2 text-[15px] leading-7">{order.exceptionWhy || order.interventionWhy}</p>
           {order.exception === 'address' ? (
             <div className="mt-4 border-2 border-ink bg-hl/50 p-3">
@@ -111,7 +113,7 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
               </Button>
             ) : null}
             <Button type="button" disabled={Boolean(saving) || order.stage === 'closed'} onClick={() => { void mark('confirmed'); }}>Confirm</Button>
-            <Button type="button" tone="danger" disabled={Boolean(saving) || order.stage === 'closed'} onClick={() => { void mark('cancelled'); }}>Cancel</Button>
+            <Button type="button" tone="danger" disabled={Boolean(saving) || order.stage === 'closed'} onClick={() => setConfirmCancel(true)}>Cancel</Button>
             <Link href={`/app/orders/${order.id}`} className="btn-ghost !px-3 !py-2 !text-[11px]">Open</Link>
           </div>
           <ol className="mt-5 space-y-2">
@@ -125,6 +127,17 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
           <div className="mt-4">
             <MessageThread status={order.whatsappStatus} conversation={order.conversation} />
           </div>
+          <ConfirmDialog
+            open={confirmCancel}
+            title="Cancel this order"
+            body="The order closes as cancelled. Autopilot will not message the buyer again."
+            confirmLabel="Cancel order"
+            onClose={() => setConfirmCancel(false)}
+            onConfirm={() => {
+              setConfirmCancel(false);
+              void mark('cancelled');
+            }}
+          />
         </>
       ) : (
         <>
@@ -132,7 +145,7 @@ export function ExceptionPanel({ order }: { order: OrderDetail | null }) {
           <h2 className="mt-2 font-display text-2xl font-black uppercase">Nothing waiting</h2>
           <p className="mt-2 text-[15px] leading-7 text-ink/75">When an order stops, it lands here with the reply and the next action.</p>
           <div className="mt-4" data-tour="exception-action">
-            <Button type="button" disabled>Confirm</Button>
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">Confirm, cancel, or use a reply when an order stops.</p>
           </div>
         </>
       )}

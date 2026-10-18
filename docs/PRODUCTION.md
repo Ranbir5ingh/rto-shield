@@ -36,6 +36,10 @@ A shop that wants buyers to see its own number turns on **Use my own WhatsApp Bu
 
 `CALLS_MODE=simulated` keeps every call on screen and dials nobody. `browser` is the free default. `live` places an outbound call only when the phone number id is set. There is no seller ElevenLabs key.
 
+## Platform Gemini
+
+`GEMINI_API_KEY` is a platform env var on the ML service. Sellers do not paste a key, and the app has no Gemini key field. Address notes and confirmation drafts use that key. If it is unset, or Gemini does not answer, those notes fall back to the built-in templates and scoring continues. `OLLAMA_BASE_URL`, when set on the same service, is preferred over the hosted key.
+
 ## Render variables
 
 Set these on the API service. Do not commit the values.
@@ -52,3 +56,4 @@ Set these on the API service. Do not commit the values.
 | `ELEVENLABS_PHONE_NUMBER_ID` | Empty | Twilio number id in ElevenLabs |
 | `ELEVENLABS_AGENT_ID` | Optional. Created on boot when empty | Same |
 | `ELEVENLABS_WEBHOOK_SECRET` | Set when call outcomes should close orders | Same |
+| `GEMINI_API_KEY` | ML service only. Platform key. Empty uses templates | Same |
