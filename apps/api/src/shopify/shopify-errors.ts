@@ -87,6 +87,52 @@ export function shopifyFailure(error: unknown): { seller: string; log: string } 
   return explainShopify({ errors: message });
 }
 
+/** Seller-facing exception text when orderUpdate or the address tag is rejected. */
+export function shopifyWriteException(error: unknown): string {
+  const reason = shopifyFailure(error).seller.replace(/\s+/g, ' ').trim() || 'Shopify rejected the write';
+  const text = /^shopify write failed\b/i.test(reason) ? reason : `Shopify write failed: ${reason}`;
+  return text.slice(0, 240);
+}
+
+export function graphqlUserErrors(data: unknown): ShopifyUserError[] {
+  const found: ShopifyUserError[] = [];
+  const seen = new Set<unknown>();
+  const visit = (node: unknown, depth: number) => {
+    if (!node || typeof node !== 'object' || depth > 6 || seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    if (Array.isArray(record.userErrors)) {
+      for (const item of record.userErrors) {
+        if (item && typeof item === 'object') found.push(item as ShopifyUserError);
+      }
+    }
+    for (const [key, value] of Object.entries(record)) {
+      if (key === 'userErrors') continue;
+      if (value && typeof value === 'object') visit(value, depth + 1);
+    }
+  };
+  visit(data, 0);
+  return found;
+}
+
+function userErrorMatters(item: ShopifyUserError): boolean {
+  const message = (item.message || '').trim();
+  if (message && webhookAlreadyRegistered(message)) return false;
+  if (message) return true;
+  if (item.code) return true;
+  if (Array.isArray(item.field)) return item.field.some((part) => Boolean(part));
+  return Boolean(item.field);
+}
+
+/** userErrors that should fail the mutation. An already-registered webhook is not one of them. */
+export function blockingUserErrors(data: unknown): ShopifyUserError[] {
+  return graphqlUserErrors(data).filter(userErrorMatters);
+}
+
 function collectMessages(errors: unknown, userErrors?: ShopifyUserError[] | null): Array<{ code: string; field: string; message: string }> {
   const rows: Array<{ code: string; field: string; message: string }> = [];
   if (typeof errors === 'string') rows.push({ code: '', field: '', message: errors });

@@ -136,10 +136,10 @@ function StartForm() {
         >
           <div data-tour="whatsapp-card">
             <p className="text-[15px] leading-7 text-ink/70">
-              Your own Cloud API number. The setup guide walks through Meta, then you paste the token in Settings.
+              Optional. Messages go out from RTO Shield&apos;s number. The setup guide is only for a shop that wants its own.
             </p>
             <div className="mt-4 flex items-center gap-3">
-              <Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Saved' : 'Not configured'}</Flag>
+              <Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Your number' : 'Platform number'}</Flag>
               {whatsapp?.templateStatus ? (
                 <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-inksoft">
                   Template {whatsapp.templateStatus}

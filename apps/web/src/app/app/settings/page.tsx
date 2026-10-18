@@ -200,8 +200,10 @@ export default function SettingsPage() {
         </Section>
       </form>
 
-      <Section eyebrow="04 · Voice" title="ElevenLabs">
-        <ElevenLabsKey demo={demo} configured={Boolean(user.elevenlabsConfigured)} last4={user.elevenlabsLast4 || ''} onSaved={(last4) => setUser({ ...user, elevenlabsConfigured: true, elevenlabsLast4: last4 })} />
+      <Section eyebrow="04 · Calls" title="Voice calls">
+        <p className="-mt-2 max-w-xl text-[15px] leading-7 text-ink/70">
+          Calls are included. RTO Shield places them.
+        </p>
       </Section>
 
       <Section eyebrow="05 · Connections" title="Where orders come from">
@@ -240,7 +242,7 @@ export default function SettingsPage() {
               ['TabPFN token', status?.ml.tabpfnToken ? 'set' : 'missing'],
               ['Gemma via AI Studio', status?.ml.gemmaReady ? 'answering' : status?.ml.gemini ? 'set' : 'missing'],
               ['Ollama (local Gemma)', status?.ml.ollama ? 'set' : 'missing'],
-              ['ElevenLabs voice', status?.elevenlabs ? 'set' : 'missing — script only'],
+              ['Voice calls', status?.elevenlabs ? 'platform' : 'script only'],
               ['SerpApi pincode search', status?.serpapi ? 'set' : 'missing — embedded localities only'],
               ['Sentry', status?.sentry ? 'set' : 'missing'],
             ].map(([label, value]) => (
@@ -307,35 +309,3 @@ function patchReduction(user: PublicUser, patch: Partial<NonNullable<PublicUser[
   };
 }
 
-function ElevenLabsKey({ demo, configured, last4, onSaved }: { demo: boolean; configured: boolean; last4: string; onSaved: (last4: string) => void }) {
-  const toast = useToast();
-  const [apiKey, setApiKey] = useState('');
-  if (demo) return null;
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    try {
-      const body = await api<{ last4: string; configured: boolean }>('/elevenlabs', { method: 'POST', body: JSON.stringify({ apiKey }) });
-      setApiKey('');
-      onSaved(body.last4 || '');
-      toast.success(body.configured ? 'ElevenLabs key saved.' : 'Saved.');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save the ElevenLabs key');
-    }
-  }
-  return (
-    <form onSubmit={save}>
-      <p className="-mt-2 mb-4 max-w-xl text-[15px] leading-7 text-ink/70">
-        Optional seller key for voice calls. The platform key on the server is used when this is empty. Stored encrypted.
-      </p>
-      <p className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-inksoft">
-        {configured ? `Saved ···· ${last4}` : 'No seller key'}
-      </p>
-      <div className="max-w-sm">
-        <Field label="API key">
-          <input className={inputClass} type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
-        </Field>
-        <Button type="submit" className="mt-4">Save key</Button>
-      </div>
-    </form>
-  );
-}

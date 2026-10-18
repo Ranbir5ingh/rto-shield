@@ -33,6 +33,7 @@ describe('whatsapp guide', () => {
     expect(text).toMatch(/developers\.facebook\.com\/apps\/creation/);
     expect(text).toMatch(/business\.facebook\.com\/latest\/settings\/system_users/);
     expect(text).toMatch(/not published on the public guide/);
+    expect(text).toMatch(/Optional/);
     expect(text).not.toMatch(/WHATSAPP_VERIFY_TOKEN|EAA[A-Za-z0-9]/);
   });
 });

@@ -125,7 +125,7 @@ export class ElevenLabsService implements OnModuleInit {
         mode: 'browser',
         signedUrl: null,
         variables,
-        notice: 'Set ELEVENLABS_API_KEY to call the buyer.',
+        notice: 'Calls are unavailable right now.',
         conversationId: '',
       };
     }

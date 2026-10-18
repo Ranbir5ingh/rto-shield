@@ -3,8 +3,12 @@ import {
   SHOPIFY_API_WEBHOOK_TOPICS,
   SHOPIFY_CONFIG_ONLY_TOPICS,
   SHOPIFY_IMPORT_FAILED,
+  ShopifyQueryError,
+  blockingUserErrors,
   explainShopify,
+  graphqlUserErrors,
   sanitizeShopifyText,
+  shopifyWriteException,
   topicsToRegister,
   webhookAlreadyRegistered,
 } from './shopify-errors';
@@ -48,6 +52,19 @@ describe('shopify error explanations', () => {
     expect(explainShopify({ errors: 'Something broke for buyer@example.com' }).seller).toBe(SHOPIFY_IMPORT_FAILED);
     expect(sanitizeShopifyText('Bearer shpss_secret deadbeefdeadbeefdeadbeefdeadbeef')).not.toContain('shpss_secret');
     expect(explainShopify({}).seller).toBe(SHOPIFY_IMPORT_FAILED);
+  });
+
+  it('fails a write on nested userErrors and keeps an already-registered webhook', () => {
+    const data = {
+      orderUpdate: { userErrors: [{ field: ['shippingAddress', 'zip'], message: 'Shipping address zip is invalid' }] },
+      webhookSubscriptionCreate: { userErrors: [{ message: 'Address for this topic has already been taken' }] },
+    };
+    expect(graphqlUserErrors(data)).toHaveLength(2);
+    expect(blockingUserErrors(data).map((item) => item.message)).toEqual(['Shipping address zip is invalid']);
+    expect(blockingUserErrors({ orderUpdate: { userErrors: [] } })).toEqual([]);
+    expect(shopifyWriteException(new ShopifyQueryError('Shipping address zip is invalid', 'zip'))).toBe(
+      'Shopify write failed: Shipping address zip is invalid',
+    );
   });
 
   it('registers order webhooks only, and skips topics that already exist', () => {

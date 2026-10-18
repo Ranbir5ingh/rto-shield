@@ -51,6 +51,59 @@ export function templateKey(identity: TemplateIdentity) {
   return `${identity.name}:${identity.language}`;
 }
 
+export type TemplateEdition = 'legacy' | 'v2';
+
+/** Store-name templates were submitted as _v2. These two flows stayed on the approved names. */
+const V2_FLOWS: ReadonlySet<TemplateFlow> = new Set([
+  'order_confirmation',
+  'payment_link_request',
+  'prepaid_offer',
+  'address_updated_confirmation',
+]);
+
+export function v2Template(messageLanguage: string, flow: TemplateFlow): TemplateIdentity | null {
+  if (!V2_FLOWS.has(flow)) return null;
+  const legacy = expectedTemplate(messageLanguage, flow);
+  return { name: `${legacy.name}_v2`, language: legacy.language };
+}
+
+export function templateIdentities(messageLanguage: string, flow: TemplateFlow): TemplateIdentity[] {
+  const legacy = expectedTemplate(messageLanguage, flow);
+  const next = v2Template(messageLanguage, flow);
+  return next ? [next, legacy] : [legacy];
+}
+
+export function editionOf(identity: TemplateIdentity): TemplateEdition {
+  return identity.name.endsWith('_v2') ? 'v2' : 'legacy';
+}
+
+/** Approved _v2 wins. Otherwise the approved legacy name. Null when neither is approved. */
+export function pickSendableTemplate(
+  messageLanguage: string,
+  flow: TemplateFlow,
+  statusOf: (identity: TemplateIdentity) => string,
+): { identity: TemplateIdentity; edition: TemplateEdition } | null {
+  const next = v2Template(messageLanguage, flow);
+  if (next && statusOf(next) === 'APPROVED') return { identity: next, edition: 'v2' };
+  const legacy = expectedTemplate(messageLanguage, flow);
+  if (statusOf(legacy) === 'APPROVED') return { identity: legacy, edition: 'legacy' };
+  return null;
+}
+
+/** Settings badge: the confirmation template that will send, or the pending _v2 name while it waits. */
+export function confirmationBadge(
+  messageLanguage: string,
+  statusOf: (identity: TemplateIdentity) => string,
+): { identity: TemplateIdentity; status: string } {
+  const chosen = pickSendableTemplate(messageLanguage, 'order_confirmation', statusOf);
+  if (chosen) return { identity: chosen.identity, status: 'APPROVED' };
+  const next = v2Template(messageLanguage, 'order_confirmation');
+  const pending = next ? statusOf(next) : '';
+  if (next && pending) return { identity: next, status: pending };
+  const legacy = expectedTemplate(messageLanguage, 'order_confirmation');
+  return { identity: legacy, status: statusOf(legacy) };
+}
+
 /** payment_link_request, then prepaid_offer, then order_confirmation. Other flows fall back once. */
 export function chooseApprovedFlow(
   requested: TemplateFlow,
@@ -85,29 +138,30 @@ export interface FlowFields {
   payToken: string;
 }
 
-export function flowBodyParameters(flow: TemplateFlow, fields: FlowFields) {
+export function flowBodyParameters(flow: TemplateFlow, fields: FlowFields, edition: TemplateEdition = 'legacy') {
   const name = templateText(fields.firstName, 'there');
   const order = templateText(fields.orderNo, 'order');
   const amount = templateText(fields.amount, '0');
   const store = templateText(fields.store, 'the shop');
   const address = templateText(fields.address, 'the address on file');
   const discount = templateText(fields.discount, '0');
+  const v2 = edition === 'v2' && V2_FLOWS.has(flow);
   const values = flow === 'address_update_request'
     ? [name, order, amount, store, address]
     : flow === 'prepaid_offer'
-      ? [name, order, amount, discount]
+      ? (v2 ? [name, order, amount, store, discount] : [name, order, amount, discount])
       : flow === 'payment_link_request'
-        ? [name, order, amount]
+        ? (v2 ? [name, order, amount, store] : [name, order, amount])
         : flow === 'order_reminder'
           ? [name, order, store]
           : flow === 'address_updated_confirmation'
-            ? [name, order, address]
-            : [name, order, amount];
+            ? (v2 ? [name, order, store, address] : [name, order, address])
+            : (v2 ? [name, order, amount, store] : [name, order, amount]);
   return values.map((text) => ({ type: 'text' as const, text }));
 }
 
-export function flowComponents(flow: TemplateFlow, fields: FlowFields) {
-  const components: Array<Record<string, unknown>> = [{ type: 'body', parameters: flowBodyParameters(flow, fields) }];
+export function flowComponents(flow: TemplateFlow, fields: FlowFields, edition: TemplateEdition = 'legacy') {
+  const components: Array<Record<string, unknown>> = [{ type: 'body', parameters: flowBodyParameters(flow, fields, edition) }];
   if (flow === 'payment_link_request' || flow === 'prepaid_offer') {
     components.push({
       type: 'button',

@@ -28,6 +28,8 @@ describe('demo session tour', () => {
     ]);
     expect(steps.some((step) => step.id === 'shopify-connect')).toBe(false);
     expect(steps.find((step) => step.id === 'shopify-connected')?.title).toBe('Shopify, connected');
+    expect(steps[7]?.title).toBe('WhatsApp');
+    expect(steps[7]?.body).toMatch(/RTO Shield/);
   });
 
   it('keeps Connect Shopify for a seller who has not connected', () => {
@@ -35,7 +37,11 @@ describe('demo session tour', () => {
     expect(steps[0]?.id).toBe('impact');
     expect(steps[6]?.id).toBe('shopify-connect');
     expect(steps.some((step) => step.id === 'shopify-connected')).toBe(false);
-    expect(steps.some((step) => step.id === 'whatsapp-setup')).toBe(true);
+    expect(steps[7]?.id).toBe('whatsapp-setup');
+    expect(steps[7]?.title).toBe('WhatsApp');
+    expect(steps[7]?.body).toMatch(/Optional/);
+    expect(toursFor('seller', 'desktop', 'hindi')[7]?.body).toMatch(/RTO Shield/);
+    expect(toursFor('seller', 'desktop', 'hinglish')[7]?.body).toMatch(/Optional/);
   });
 
   it('adapts the seller tour when Shopify is already connected', () => {

@@ -119,9 +119,9 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hinglish: '[curious] Check pincode. Area dikhata hai. Ban nahi. Score nahi.',
   },
   'call-buyer': {
-    english: '[warm] This panel calls in the browser. Allow the mic. The number stays on the server.',
-    hindi: '[warm] यह पैनल ब्राउज़र में कॉल करता है। माइक दें। नंबर सर्वर पर रहता है।',
-    hinglish: '[warm] Yeh panel browser mein call karega. Mic allow karo. Number server par rehta hai.',
+    english: '[warm] Calls are included. This panel calls in the browser. Allow the mic.',
+    hindi: '[warm] कॉल शामिल हैं। यह पैनल ब्राउज़र में कॉल करता है। माइक दें।',
+    hinglish: '[warm] Calls included hain. Yeh panel browser mein call karega. Mic allow karo.',
   },
   'prepaid-offer': {
     english: '[excited] Offer prepaid makes a checkout link. Cash on delivery stays until they pay.',
@@ -129,14 +129,14 @@ export const NARRATION: Record<string, Record<NarrationLang, string>> = {
     hinglish: '[excited] Offer prepaid checkout link banata hai. COD tab tak rehta hai jab tak payment nahi.',
   },
   'whatsapp-setup': {
-    english: '[warm] Setup guide. It walks through Meta.',
-    hindi: '[warm] Setup guide। यह Meta तक ले जाता है।',
-    hinglish: '[warm] Setup guide. Meta tak le jaayegi.',
+    english: "[warm] WhatsApp is optional. Messages use RTO Shield's number. Your own number is extra.",
+    hindi: '[warm] WhatsApp ज़रूरी नहीं। मैसेज RTO Shield के नंबर से जाते हैं। अपना नंबर अतिरिक्त है।',
+    hinglish: '[warm] WhatsApp optional hai. Messages RTO Shield ke number se jaate hain. Apna number extra hai.',
   },
   'whatsapp-card': {
-    english: "[warm] The demo uses Meta's test number. A real shop pastes its own token.",
-    hindi: '[warm] डेमो पर Meta का टेस्ट नंबर है। असली शॉप अपना टोकन डालती है।',
-    hinglish: '[warm] Demo pe Meta ka test number hai. Asli shop apna token paste karti hai.',
+    english: "[warm] This demo uses RTO Shield's number. A shop can add its own later.",
+    hindi: '[warm] यह डेमो RTO Shield के नंबर से चलता है। शॉप बाद में अपना नंबर जोड़ सकती है।',
+    hinglish: '[warm] Yeh demo RTO Shield ke number se chalta hai. Shop baad mein apna number jod sakti hai.',
   },
   'history-list': {
     english: '[curious] Delivered, RTO, and cancelled orders teach the model. A confirm in the app is not training.',

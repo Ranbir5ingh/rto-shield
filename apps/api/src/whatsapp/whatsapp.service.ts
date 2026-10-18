@@ -15,6 +15,7 @@ import { demoSendCap, effectiveRole } from '../demo/demo.policy';
 import { pushTimeline, reductionSettings } from '../orders/action';
 import { OrdersService } from '../orders/orders.service';
 import { ShopifyService } from '../shopify/shopify.service';
+import { latestOpenAddressRequest } from './address-match';
 import { connectionReport, type ProbeResult } from './whatsapp-connection';
 import {
   CONFIRMATION_LANGUAGES,
@@ -22,17 +23,22 @@ import {
   TEMPLATE_FLOWS,
   TEMPLATE_REJECTED,
   chooseApprovedFlow,
+  confirmationBadge,
   expectedTemplate,
   explainMetaTemplateError,
   flowComponents,
+  pickSendableTemplate,
   pickTemplateStatus,
   readButtonChoice,
   sessionOpen,
+  templateIdentities,
   templateKey,
   templateText,
+  v2Template,
   type FlowFields,
   type ListedTemplate,
   type TemplateFlow,
+  type TemplateIdentity,
 } from './whatsapp-templates';
 
 const GRAPH = process.env.META_GRAPH_VERSION || 'v23.0';
@@ -134,15 +140,28 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       if (hasPhone) phone = await this.probeGraph(`${link.phoneNumberId}?fields=id,display_phone_number,verified_name`, token);
       if (hasWaba) {
         waba = await this.probeGraph(`${link.wabaId}?fields=id,name`, token);
-        const expected = expectedTemplate(user.messageLanguage);
-        const listed = await this.templateState(link, token, expected);
-        templateStatus = listed === null ? null : listed || 'missing';
-        if (listed) {
+        const statuses: Record<string, string> = { ...(link.flowStatus || {}) };
+        const identities = [v2Template(user.messageLanguage, 'order_confirmation'), expectedTemplate(user.messageLanguage)].filter(
+          (identity): identity is TemplateIdentity => Boolean(identity),
+        );
+        let missed = false;
+        for (const identity of identities) {
+          const listed = await this.templateState(link, token, identity);
+          if (listed === null) {
+            missed = true;
+            break;
+          }
+          if (listed) statuses[templateKey(identity)] = listed;
+        }
+        const badge = confirmationBadge(user.messageLanguage, (identity) => statuses[templateKey(identity)] || '');
+        templateStatus = missed ? null : badge.status || 'missing';
+        if (!missed && badge.status) {
           user.whatsapp = {
             ...link,
-            templateName: expected.name,
-            templateLanguage: expected.language,
-            templateStatus: listed,
+            flowStatus: statuses,
+            templateName: badge.identity.name,
+            templateLanguage: badge.identity.language,
+            templateStatus: badge.status,
           };
           await user.save();
         }
@@ -222,11 +241,15 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     }
     const expected = expectedTemplate(user.messageLanguage);
     const listed = await this.templateState(link, secret, expected);
+    const flowStatus = { ...(link.flowStatus || {}) };
+    if (listed) flowStatus[templateKey(expected)] = listed;
+    const badge = confirmationBadge(user.messageLanguage, (identity) => flowStatus[templateKey(identity)] || '');
     user.whatsapp = {
       ...link,
-      templateName: expected.name,
-      templateLanguage: expected.language,
-      templateStatus: listed || 'submitted',
+      flowStatus,
+      templateName: badge.status ? badge.identity.name : expected.name,
+      templateLanguage: badge.status ? badge.identity.language : expected.language,
+      templateStatus: badge.status || listed || 'submitted',
     };
     await user.save();
     return this.status(user);
@@ -245,19 +268,19 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     const languages = new Set<string>([user.messageLanguage, ...CONFIRMATION_LANGUAGES]);
     for (const language of languages) {
       for (const flow of TEMPLATE_FLOWS) {
-        const identity = expectedTemplate(language, flow);
-        const listed = pickTemplateStatus(rows, identity);
-        if (listed) flowStatus[templateKey(identity)] = listed;
+        for (const identity of templateIdentities(language, flow)) {
+          const listed = pickTemplateStatus(rows, identity);
+          if (listed) flowStatus[templateKey(identity)] = listed;
+        }
       }
     }
-    const mine = expectedTemplate(user.messageLanguage);
-    const mineStatus = pickTemplateStatus(rows, mine);
+    const badge = confirmationBadge(user.messageLanguage, (identity) => flowStatus[templateKey(identity)] || '');
     user.whatsapp = {
       ...link,
       flowStatus,
-      templateName: mine.name,
-      templateLanguage: mine.language,
-      templateStatus: mineStatus || link.templateStatus,
+      templateName: badge.status ? badge.identity.name : link.templateName,
+      templateLanguage: badge.status ? badge.identity.language : link.templateLanguage,
+      templateStatus: badge.status || link.templateStatus,
     };
     await user.save();
     return this.status(user);
@@ -273,15 +296,15 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     const to = allow[0];
     if (!to) throw new BadRequestException('No test number is configured');
     await this.refreshTemplate(user, true);
-    const identity = this.approvedConfirmation(user);
-    if (!identity) throw new BadRequestException('The confirmation template is not approved yet');
+    const chosen = this.approvedConfirmation(user);
+    if (!chosen) throw new BadRequestException('The confirmation template is not approved yet');
     const result = await this.graphSend(user, {
       messaging_product: 'whatsapp',
       to,
       type: 'template',
       template: {
-        name: identity.name,
-        language: { code: identity.language },
+        name: chosen.identity.name,
+        language: { code: chosen.identity.language },
         components: flowComponents('order_confirmation', {
           firstName: 'there',
           orderNo: 'TEST',
@@ -290,7 +313,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           address: '',
           discount: '0',
           payToken: '',
-        }),
+        }, chosen.edition),
       },
     });
     const wamid = result.messages?.[0]?.id || '';
@@ -299,7 +322,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       sellerId: user._id,
       action: 'whatsapp.allowlist_test',
       orderId: '',
-      meta: { template: identity.name, toLast4: to.slice(-4), wamid },
+      meta: { template: chosen.identity.name, toLast4: to.slice(-4), wamid },
     });
     return { sent: true, wamid };
   }
@@ -309,8 +332,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     const visitor = effectiveRole(user) === 'demo';
     const synthetic = Boolean(user.isDemo && !user.whatsapp?.tokenEnvelope);
     if (!visitor && !synthetic) {
-      const link = this.requireLink(user);
-      if (link.templateStatus !== 'APPROVED') {
+      this.requireLink(user);
+      if (!this.approvedConfirmation(user)) {
         throw new BadRequestException('The order_confirmation template is not approved yet');
       }
     }
@@ -344,23 +367,17 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       if (visitor) await this.holdDemoSend(user);
+      const chosen = this.approvedConfirmation(user);
+      const sendName = chosen?.identity.name || name;
+      const sendLanguage = chosen?.identity.language || language;
       const result = await this.graphSend(user, {
         messaging_product: 'whatsapp',
         to: phone,
         type: 'template',
         template: {
-          name,
-          language: { code: language },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: this.firstName(order) },
-                { type: 'text', text: order.externalOrderId.slice(0, 30) },
-                { type: 'text', text: String(Math.round(order.orderValue)) },
-              ],
-            },
-          ],
+          name: sendName,
+          language: { code: sendLanguage },
+          components: flowComponents('order_confirmation', this.flowFields(user, order), chosen?.edition || 'legacy'),
         },
       });
       const wamid = result.messages?.[0]?.id || '';
@@ -368,18 +385,18 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       order.whatsappMessageId = wamid;
       order.conversation = [
         ...(order.conversation || []),
-        { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${name} ${order.externalOrderId}` },
+        { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${sendName} ${order.externalOrderId}` },
       ];
       this.stampEscalation(user, order);
       await order.save();
       if (visitor) {
-        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: name });
+        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: sendName });
       } else {
         await this.audit.create({
           sellerId: user._id,
           action: 'whatsapp.send',
           orderId: String(order._id),
-          meta: { wamid, template: name },
+          meta: { wamid, template: sendName },
         });
       }
       sent.push(String(order._id));
@@ -454,13 +471,10 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   private approvedConfirmation(user: UserDocument) {
-    const link = user.whatsapp;
-    const flowStatus = link?.flowStatus || {};
     const languages = [user.messageLanguage, ...CONFIRMATION_LANGUAGES];
     for (const language of languages) {
-      const identity = expectedTemplate(language);
-      const status = flowStatus[templateKey(identity)] || (link?.templateName === identity.name ? link.templateStatus : '');
-      if (status === 'APPROVED') return identity;
+      const chosen = pickSendableTemplate(language, 'order_confirmation', (identity) => this.templateStatusOf(user, identity));
+      if (chosen) return chosen;
     }
     return null;
   }
@@ -533,34 +547,35 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         return 'failed';
       }
     }
-    const identity = expectedTemplate(user.messageLanguage, chosen.flow);
+    const sendable = pickSendableTemplate(user.messageLanguage, chosen.flow, (identity) => this.templateStatusOf(user, identity));
+    if (!sendable) return 'pending';
     try {
       const result = await this.graphSend(user, {
         messaging_product: 'whatsapp',
         to: phone,
         type: 'template',
         template: {
-          name: identity.name,
-          language: { code: identity.language },
-          components: flowComponents(chosen.flow, this.flowFields(user, order)),
+          name: sendable.identity.name,
+          language: { code: sendable.identity.language },
+          components: flowComponents(chosen.flow, this.flowFields(user, order), sendable.edition),
         },
       });
       order.whatsappStatus = 'sent';
       order.whatsappMessageId = result.messages?.[0]?.id || '';
       order.conversation = [
         ...(order.conversation || []),
-        { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${identity.name} ${order.externalOrderId}` },
+        { at: new Date().toISOString(), direction: 'out', kind: 'template', text: `${sendable.identity.name} ${order.externalOrderId}` },
       ];
       this.stampEscalation(user, order);
       await order.save();
       if (visitor) {
-        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: identity.name });
+        await this.demoState.note(user, 'demo.whatsapp.send', String(order._id), { template: sendable.identity.name });
       } else {
         await this.audit.create({
           sellerId: user._id,
           action: 'whatsapp.send',
           orderId: String(order._id),
-          meta: { template: identity.name },
+          meta: { template: sendable.identity.name },
         });
       }
       return chosen.fallback ? 'fallback' : 'sent';
@@ -637,12 +652,18 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     order.timeline = pushTimeline(order.timeline, 'whatsapp', 'WhatsApp sent. A call follows if there is no reply.');
   }
 
-  private flowApproved(user: UserDocument, flow: TemplateFlow) {
-    const identity = expectedTemplate(user.messageLanguage, flow);
+  private templateStatusOf(user: UserDocument, identity: TemplateIdentity) {
     const stored = user.whatsapp?.flowStatus?.[templateKey(identity)] || '';
-    if (stored === 'APPROVED') return true;
-    if (flow !== 'order_confirmation' || user.whatsapp?.templateStatus !== 'APPROVED') return false;
-    return user.whatsapp.templateName === identity.name && user.whatsapp.templateLanguage === identity.language;
+    if (stored) return stored;
+    const link = user.whatsapp;
+    if (!link || link.templateName !== identity.name) return '';
+    const storedLanguage = link.templateLanguage === 'hi' ? 'hi' : link.templateLanguage === 'en' || link.templateLanguage === 'hinglish' ? 'en' : '';
+    if (storedLanguage && storedLanguage !== identity.language) return '';
+    return link.templateStatus || '';
+  }
+
+  private flowApproved(user: UserDocument, flow: TemplateFlow) {
+    return Boolean(pickSendableTemplate(user.messageLanguage, flow, (identity) => this.templateStatusOf(user, identity)));
   }
 
   private flowFields(user: UserDocument, order: OrderDocument): FlowFields {
@@ -666,10 +687,30 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private async applyText(user: UserDocument, message: Record<string, unknown>) {
     const context = (message.context || {}) as { id?: string };
     const text = String((message.text as { body?: string } | undefined)?.body || '').trim();
-    if (!context.id || text.length < 8 || /^(confirm|cancel|haan|nahi|ok|yes|no)$/i.test(text)) return;
-    const order = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
-    if (!order || order.stage !== 'pending') return;
-    await this.orderDesk.ingestAddressReply(user, order, text);
+    if (text.length < 8 || /^(confirm|cancel|haan|nahi|ok|yes|no)$/i.test(text)) return;
+    if (context.id) {
+      const quoted = await this.orders.findOne({ sellerId: user._id, whatsappMessageId: context.id });
+      if (!quoted || quoted.stage !== 'pending') return;
+      await this.orderDesk.ingestAddressReply(user, quoted, text);
+      return;
+    }
+    const phone = whatsappNumber(String(message.from || '')) || '';
+    if (!phone) return;
+    const open = await this.orders
+      .find({ sellerId: user._id, stage: 'pending', intervention: 'request_address' })
+      .sort({ updatedAt: -1 })
+      .limit(80);
+    const match = latestOpenAddressRequest(
+      open.map((order) => ({
+        order,
+        phone: this.phoneOf(order) || '',
+        conversation: order.conversation,
+        timeline: order.timeline,
+      })),
+      phone,
+    );
+    if (!match) return;
+    await this.orderDesk.ingestAddressReply(user, match.order, text);
   }
 
   /** A button with no order is the allowlist TEST send. Record it and leave every order alone. */

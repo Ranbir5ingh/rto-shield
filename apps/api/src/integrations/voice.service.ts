@@ -22,7 +22,7 @@ export class VoiceService {
         mime: null as string | null,
         script: safe,
         source: 'template',
-        notice: 'Hindi voice needs ELEVENLABS_API_KEY. The script is ready to read aloud or paste into WhatsApp.',
+        notice: 'Hindi voice is unavailable right now. The script is ready to read aloud.',
       };
     }
     const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID') || '0muxiGNHAVvmM1qWRtyV';
@@ -63,7 +63,7 @@ export class VoiceService {
           mime: null,
           script: safe,
           source: 'template',
-          notice: 'ElevenLabs did not return audio. Check the API key. The script is still here.',
+          notice: 'Voice did not come back. The script is still here.',
         };
       }
       return { audioBase64: audio, mime: 'audio/mpeg', script: safe, source: 'elevenlabs', notice: null };

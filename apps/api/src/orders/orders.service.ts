@@ -31,11 +31,13 @@ import { MlService, type GeminiCall } from '../ml/ml.service';
 import { DemoService } from '../demo/demo.service';
 import { whatsappAllowlist } from '../demo/demo-send';
 import { demoSendCap, effectiveRole, isOfficialDemoAccount } from '../demo/demo.policy';
+import { shopifyWriteException } from '../shopify/shopify-errors';
 import { ShopifyService } from '../shopify/shopify.service';
 import { ElevenLabsService } from '../voice/elevenlabs.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { sessionOpen } from '../whatsapp/whatsapp-templates';
 import { buyerReplied, chooseIntervention, pushTimeline, reductionSettings } from './action';
+import { DEMO_DEV_ADDRESS, isRtoTestGid } from './demo-address';
 import {
   askGeminiForAddress,
   fetchIndiaPost,
@@ -399,10 +401,18 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         .limit(40);
       if (!pending.length) return;
       const counts = { conversions: 0, confirmations: 0, addressFixes: 0, holds: 0 };
+      let rtoTestGids = new Set<string>();
+      if (source === 'shopify' && shopifyDemo) {
+        try {
+          rtoTestGids = await this.shopify.rtoTestOrderGids(user);
+        } catch (error) {
+          this.logger.warn(`Demo test orders missed: ${error instanceof Error ? error.name : 'error'}`);
+        }
+      }
       const offices = new Map<string, Awaited<ReturnType<typeof fetchIndiaPost>> | null>();
-      const lookup = async (pin: string) => {
+      const lookup = async (pin: string, force = false) => {
         if (offices.has(pin)) return offices.get(pin) || [];
-        if (offices.size >= 4) return [];
+        if (!force && offices.size >= 4) return [];
         try {
           const rows = await fetchIndiaPost(pin, fetch, 2_500);
           offices.set(pin, rows);
@@ -423,15 +433,44 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         const order = pending[index]!;
         const bucket = index % 4;
         if (bucket === 0) {
-          const parsed: ParsedAddress = {
-            street: 'Lane 4, Shastri Nagar',
-            landmark: '',
-            city: order.city || '',
-            state: order.state || '',
-            pin: order.pincode || '',
-          };
-          const matched = matchPostOffices(parsed, await lookup(parsed.pin));
+          const live = isRtoTestGid(order.shopifyGid, rtoTestGids);
+          const parsed: ParsedAddress = live
+            ? { ...DEMO_DEV_ADDRESS }
+            : {
+                street: 'Lane 4, Shastri Nagar',
+                landmark: '',
+                city: order.city || '',
+                state: order.state || '',
+                pin: order.pincode || '',
+              };
+          const matched = matchPostOffices(parsed, await lookup(parsed.pin, live));
           if (!matched.ok) continue;
+          if (live) {
+            try {
+              await this.shopify.updateShippingAddress(
+                user,
+                order.shopifyGid,
+                {
+                  address1: matched.address.street,
+                  address2: matched.address.landmark,
+                  city: matched.address.city,
+                  province: matched.address.state,
+                  zip: matched.address.pin,
+                },
+                { demoTest: true },
+              );
+              await this.shopify.tag(user, order.shopifyGid, ['rto-address-fixed'], { demoTest: true });
+            } catch (error) {
+              const why = shopifyWriteException(error);
+              this.logger.warn(why);
+              await writeOutcome(order, {
+                exception: 'shopify',
+                exceptionWhy: why,
+                timeline: pushTimeline(order.timeline, 'shopify', why),
+              });
+              continue;
+            }
+          }
           const line = [matched.address.street, matched.address.landmark].filter(Boolean).join(', ').slice(0, 300);
           const saved = await writeOutcome(order, {
             addressEnc: this.crypto.encrypt(line || matched.address.street),
@@ -1508,12 +1547,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (address.city) order.city = address.city;
     if (address.state) order.state = address.state;
     if (address.pin) order.pincode = address.pin;
-    order.addressFixedAt = new Date();
     if (order.exception === 'address') {
       order.exception = null;
       order.exceptionWhy = '';
     }
-    order.timeline = pushTimeline(order.timeline, 'address', `Address checked and saved from ${source}.`);
     if (order.intervention === 'request_address') {
       order.intervention = 'confirm';
       order.interventionWhy = 'Address updated. Confirm before it ships.';
@@ -1529,11 +1566,17 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       });
       if (order.shopifyGid) await this.shopify.tag(user, order.shopifyGid, ['rto-address-fixed']);
     } catch (error) {
-      this.logger.warn(`Address writeback missed: ${error instanceof Error ? error.name : 'error'}`);
+      const why = shopifyWriteException(error);
+      this.logger.warn(why);
       order.exception = 'shopify';
-      order.exceptionWhy = 'Shopify did not take the address';
+      order.exceptionWhy = why;
+      order.timeline = pushTimeline(order.timeline, 'shopify', why);
       await order.save();
+      return;
     }
+    order.addressFixedAt = new Date();
+    order.timeline = pushTimeline(order.timeline, 'address', `Address checked and saved from ${source}.`);
+    await order.save();
     const spoken = [line, order.city, order.state, order.pincode].filter(Boolean).join(', ');
     const result = await this.whatsapp.dispatchFlow(user, order, 'address_updated_confirmation');
     if (result === 'pending' && sessionOpen(order.conversation)) {

@@ -236,7 +236,7 @@ describe('RTO Shield API', () => {
     await agent.post('/api/elevenlabs/agent').set('x-inbox-secret', 'inbox-test-secret').expect(400);
     const voice = await agent.post(`/api/orders/${top.id}/voice`).set('x-csrf-token', csrfToken).expect(201);
     expect(voice.body.audioBase64).toBeNull();
-    expect(voice.body.notice).toMatch(/ELEVENLABS_API_KEY/);
+    expect(voice.body.notice).toMatch(/unavailable right now/);
     const exported = await agent.get('/api/account/export').expect(200);
     expect(exported.text).toContain("'=cmd|calc");
     expect(exported.headers['content-type']).toMatch(/text\/csv/);

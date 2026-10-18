@@ -125,7 +125,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
       <div className="space-y-4">
         {[
           ['Shopify', shopify?.connected ? shopify.shop || 'Connected' : 'Not connected'],
-          ['WhatsApp', whatsapp?.configured ? 'Saved · ••••••••' : 'Not configured'],
+          ['WhatsApp', whatsapp?.configured ? 'Your number · ••••••••' : 'Platform number'],
           ['Gemini', gemini?.configured ? 'Saved · ••••••••' : 'Not configured'],
         ].map(([title, state]) => (
           <div key={title} className="flex items-center justify-between gap-4 border-2 border-ink bg-white px-5 py-4 shadow-sticker-sm">
@@ -224,8 +224,8 @@ export function Connections({ locked = false }: { locked?: boolean }) {
 
       <Card
         title="WhatsApp"
-        desc="Your own Cloud API number. Templates only, until the buyer replies."
-        flag={<Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Saved' : 'Not configured'}</Flag>}
+        desc="Optional. RTO Shield's number is the default. Connect yours if buyers should see the shop."
+        flag={<Flag tone={whatsapp?.configured ? 'go' : 'ghost'}>{whatsapp?.configured ? 'Your number' : 'Platform number'}</Flag>}
         guide={
           <WhatsAppSetupGuide
             callbackUrl={whatsapp?.callbackUrl || ''}
@@ -288,7 +288,7 @@ export function Connections({ locked = false }: { locked?: boolean }) {
           <div className="sm:col-span-2">
             <SecretField
               key={`whatsapp-secret-${secretEpoch}`}
-              label="App secret, optional but required for replies"
+              label="App secret, for replies on your own number"
               field="whatsappAppSecret"
               last4={whatsapp?.appSecretLast4 || ''}
               draft={secretDraft}

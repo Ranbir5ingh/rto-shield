@@ -339,43 +339,43 @@ const COPY: Record<string, Record<TourLang, Line>> = {
   'call-panel': {
     english: {
       title: 'Call the buyer',
-      body: 'Call the buyer opened this panel and closed the menu. The call stays in the browser. Allow the microphone. The phone number stays on the server.',
+      body: 'Calls are included. This panel stays in the browser. Allow the microphone. The number stays on the server.',
     },
     hindi: {
       title: 'Call the buyer',
-      body: 'Call the buyer ने यह पैनल खोला और मेनू बंद किया। कॉल ब्राउज़र में रहती है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
+      body: 'कॉल शामिल हैं। यह पैनल ब्राउज़र में रहता है। माइक की अनुमति दें। नंबर सर्वर पर रहता है।',
     },
     hinglish: {
       title: 'Call the buyer',
-      body: 'Call the buyer ne yeh panel khola aur menu band kiya. Call browser mein rehti hai. Mic allow karo. Number server par rehta hai.',
+      body: 'Calls included hain. Yeh panel browser mein rehta hai. Mic allow karo. Number server par rehta hai.',
     },
   },
   'whatsapp-setup': {
     english: {
-      title: 'Setup guide',
-      body: 'Setup guide walks through Meta for this Cloud API number.',
+      title: 'WhatsApp',
+      body: 'Optional. Messages use RTO Shield’s number. Your own number is in the setup guide.',
     },
     hindi: {
-      title: 'Setup guide',
-      body: 'Setup guide इस Cloud API नंबर के लिए Meta तक ले जाता है।',
+      title: 'WhatsApp',
+      body: 'ज़रूरी नहीं। मैसेज RTO Shield के नंबर से जाते हैं। अपना नंबर सेटअप गाइड में है।',
     },
     hinglish: {
-      title: 'Setup guide',
-      body: 'Setup guide is Cloud API number ke liye Meta tak le jaata hai.',
+      title: 'WhatsApp',
+      body: 'Optional hai. Messages RTO Shield ke number se jaate hain. Apna number setup guide mein hai.',
     },
   },
   'whatsapp-card': {
     english: {
-      title: 'WhatsApp, ready',
-      body: "Already configured with Meta's test number. A real shop pastes its own token.",
+      title: 'WhatsApp',
+      body: 'The demo sends from RTO Shield’s number. A shop can add its own later.',
     },
     hindi: {
-      title: 'WhatsApp तैयार',
-      body: 'Meta के टेस्ट नंबर पर पहले से सेट है। असली शॉप अपना टोकन डालती है।',
+      title: 'WhatsApp',
+      body: 'डेमो RTO Shield के नंबर से भेजता है। शॉप बाद में अपना नंबर जोड़ सकती है।',
     },
     hinglish: {
-      title: 'WhatsApp, ready',
-      body: 'Meta ke test number par pehle se set hai. Asli shop apna token paste karti hai.',
+      title: 'WhatsApp',
+      body: 'Demo RTO Shield ke number se bhejta hai. Shop baad mein apna number jod sakti hai.',
     },
   },
   'history-list': {

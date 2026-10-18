@@ -13,13 +13,16 @@ import { OauthState } from '../database/oauth-state.schema';
 import { Order } from '../database/order.schema';
 import { User, type ShopifyLink, type UserDocument } from '../database/user.schema';
 import { OrdersService } from '../orders/orders.service';
+import { shopifyShippingAddress } from './india-province';
 import {
   ShopifyQueryError,
+  blockingUserErrors,
   explainShopify,
   hasGraphqlErrors,
   shopifyFailure,
   topicsToRegister,
   webhookAlreadyRegistered,
+  type ShopifyUserError,
 } from './shopify-errors';
 import { pushTimeline } from '../orders/action';
 import { backfillSince, mapGraphqlOrder, mapRestOrder, normalizeShop, shopifyOutcomeUpdate, staleRiskTags, type MappedOrder } from './shopify-map';
@@ -193,8 +196,31 @@ export class ShopifyService {
   }
 
   tokenOf(user: UserDocument): string {
-    if (!user.shopify?.tokenEnvelope || user.shopify.demo) return '';
+    return this.tokenFor(user, false);
+  }
+
+  /** Demo shops keep a sealed token. Only an rto-test address write may open it. */
+  private tokenFor(user: UserDocument, allowDemo: boolean): string {
+    if (!user.shopify?.tokenEnvelope) return '';
+    if (user.shopify.demo && !allowDemo) return '';
     return this.vault.open(user.shopify.tokenEnvelope);
+  }
+
+  /** Order ids on this shop that Shopify currently tags rto-test. Anything else is left alone. */
+  async rtoTestOrderGids(user: UserDocument): Promise<Set<string>> {
+    const token = this.tokenFor(user, true);
+    const shop = user.shopify?.shopDomain;
+    if (!token || !shop) return new Set();
+    const data = await this.graphql<{
+      orders?: { edges?: Array<{ node?: { id?: string | null; tags?: string[] | null } | null }> };
+    }>(shop, token, `query { orders(first: 50, query: "tag:rto-test") { edges { node { id tags } } } }`, {});
+    const ids = new Set<string>();
+    for (const edge of data.orders?.edges || []) {
+      const id = edge.node?.id || '';
+      const tags = Array.isArray(edge.node?.tags) ? edge.node.tags : [];
+      if (id && tags.some((tag) => tag.trim().toLowerCase() === 'rto-test')) ids.add(id);
+    }
+    return ids;
   }
 
   startBackfill(user: UserDocument) {
@@ -344,12 +370,12 @@ export class ShopifyService {
     await this.audit.create({ sellerId: user._id, action: 'shopify.cancel', meta: { gid } });
   }
 
-  async tag(user: UserDocument, gid: string, tags: string[]) {
-    const token = this.tokenOf(user);
+  async tag(user: UserDocument, gid: string, tags: string[], options?: { demoTest?: boolean }) {
+    const token = this.tokenFor(user, Boolean(options?.demoTest));
     const shop = user.shopify?.shopDomain;
     const clean = tags.map((tag) => tag.slice(0, 40)).filter(Boolean);
-    if (!token || !shop || !gid || !clean.length || user.shopify?.demo) return;
-    await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`, {
+    if (!token || !shop || !gid || !clean.length) return;
+    await this.graphql(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { field message } } }`, {
       id: gid,
       tags: clean,
     });
@@ -592,21 +618,23 @@ export class ShopifyService {
         simulated: true,
       };
     }
-    const data = await this.graphql<{
+    let data: {
       draftOrderCreate?: {
         draftOrder?: { id?: string; invoiceUrl?: string } | null;
         userErrors?: Array<{ message?: string | null }>;
       };
-    }>(
-      shop,
-      token,
-      `mutation($input: DraftOrderInput!) {
+    };
+    try {
+      data = await this.graphql(
+        shop,
+        token,
+        `mutation($input: DraftOrderInput!) {
         draftOrderCreate(input: $input) {
           draftOrder { id invoiceUrl }
           userErrors { field message }
         }
       }`,
-      {
+        {
         input: {
           lineItems: [
             {
@@ -631,13 +659,18 @@ export class ShopifyService {
           tags: ['rto-shield-prepaid'],
         },
       },
-    );
-    const errors = (data.draftOrderCreate?.userErrors || []).map((item) => item.message || '').filter(Boolean);
-    if (errors.length || !data.draftOrderCreate?.draftOrder?.invoiceUrl) {
-      const explained = explainShopify({ userErrors: data.draftOrderCreate?.userErrors || [] });
-      if (/access denied|write_draft_orders|scope/i.test(explained.log)) {
-        throw new BadRequestException('Shopify needs the write_draft_orders scope before a prepaid draft can be created.');
+      );
+    } catch (error) {
+      if (error instanceof ShopifyQueryError) {
+        if (/access denied|write_draft_orders|scope/i.test(error.logLine)) {
+          throw new BadRequestException('Shopify needs the write_draft_orders scope before a prepaid draft can be created.');
+        }
+        throw new BadRequestException(error.seller || 'Shopify could not create the prepaid draft.');
       }
+      throw error;
+    }
+    if (!data.draftOrderCreate?.draftOrder?.invoiceUrl) {
+      const explained = explainShopify({ userErrors: data.draftOrderCreate?.userErrors || [] });
       throw new BadRequestException(explained.seller || 'Shopify could not create the prepaid draft.');
     }
     return {
@@ -651,23 +684,26 @@ export class ShopifyService {
     user: UserDocument,
     gid: string,
     address: { address1: string; address2?: string; city: string; province: string; zip: string },
+    options?: { demoTest?: boolean },
   ) {
-    const token = this.tokenOf(user);
+    const token = this.tokenFor(user, Boolean(options?.demoTest));
     const shop = user.shopify?.shopDomain;
-    if (!token || !shop || !gid || user.shopify?.demo) return;
-    await this.graphql(shop, token, `mutation($input: OrderInput!) { orderUpdate(input: $input) { userErrors { message } } }`, {
-      input: {
-        id: gid,
-        shippingAddress: {
-          address1: address.address1.slice(0, 200),
-          address2: (address.address2 || '').slice(0, 160),
-          city: address.city,
-          province: address.province,
-          zip: address.zip,
-          countryCode: 'IN',
-        },
-      },
-    });
+    if (!token || !shop || !gid) return;
+    const shippingAddress = shopifyShippingAddress(address);
+    if (!shippingAddress) {
+      throw new ShopifyQueryError('This state has no Shopify province code.', `missing provinceCode for ${address.province || 'state'}`);
+    }
+    const data = await this.graphql<{ orderUpdate?: { userErrors?: ShopifyUserError[] | null } }>(
+      shop,
+      token,
+      `mutation($input: OrderInput!) { orderUpdate(input: $input) { userErrors { field message } } }`,
+      { input: { id: gid, shippingAddress } },
+    );
+    const failures = (data.orderUpdate?.userErrors || []).filter((item) => item?.message || item?.field || item?.code);
+    if (failures.length) {
+      const explained = explainShopify({ userErrors: failures });
+      throw new ShopifyQueryError(explained.seller, explained.log);
+    }
   }
 
   async notePrepaidPaid(user: UserDocument, body: Record<string, unknown>) {
@@ -748,6 +784,11 @@ export class ShopifyService {
         status: response.ok ? undefined : response.status,
         errors: hasGraphqlErrors(body.errors) ? body.errors : undefined,
       });
+      throw new ShopifyQueryError(explained.seller, explained.log);
+    }
+    const userErrors = blockingUserErrors(body.data);
+    if (userErrors.length) {
+      const explained = explainShopify({ userErrors });
       throw new ShopifyQueryError(explained.seller, explained.log);
     }
     return (body.data || {}) as T;

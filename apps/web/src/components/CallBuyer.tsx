@@ -19,7 +19,7 @@ function describeCallError(error: unknown): string {
     return 'Allow the microphone for this site, then start the call again.';
   }
   if (/websocket|network|failed to fetch|wss:/i.test(blob)) {
-    return 'The call could not reach ElevenLabs. Check the connection and try again.';
+    return 'The call could not connect. Check the connection and try again.';
   }
   if (error instanceof ApiError) return error.message;
   return 'The browser call could not start.';
@@ -44,7 +44,7 @@ export function CallBuyer({ orderId, open, onClose }: { orderId: string; open: b
       }
       if (!plan.signedUrl) {
         setPhase('idle');
-        setNotice(plan.notice || 'Set ELEVENLABS_API_KEY to call the buyer.');
+        setNotice(plan.notice || 'Calls are unavailable right now.');
         return;
       }
       const mod = await import('@elevenlabs/client');

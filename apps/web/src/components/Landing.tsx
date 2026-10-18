@@ -351,7 +351,7 @@ function Pricing() {
               <span className="hl">₹499</span><span className="text-2xl font-bold text-inksoft">/mo</span>
             </p>
             <p className="mt-6 max-w-xl text-[15px] leading-7 text-inksoft">
-              Scoring, the confirmation queue, export, and delete. Your TabPFN, Gemma, ElevenLabs, and SerpApi keys if you want them. This build does not take a card.
+              Scoring, the confirmation queue, WhatsApp, and calls. Your TabPFN, Gemma, and SerpApi keys if you want them. This build does not take a card.
             </p>
           </div>
           <div className="border-t-2 border-dashed border-ink/20 p-8 sm:p-12 lg:border-l lg:border-t-0">

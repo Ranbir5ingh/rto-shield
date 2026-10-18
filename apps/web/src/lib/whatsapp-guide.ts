@@ -25,7 +25,7 @@ export const WHATSAPP_GUIDE_STEPS: GuideStep[] = [
   {
     id: 'app',
     title: 'Create a Meta developer app',
-    body: 'Go to Meta for Developers and create an app. Choose the WhatsApp use case. The app is the place that later holds your token, secret, and webhook.',
+    body: 'Optional. RTO Shield already sends from its number. Create a Meta app only if buyers should see yours. The app later holds the token, secret, and webhook.',
     links: [
       { label: 'Create an app', href: 'https://developers.facebook.com/apps/creation/' },
       { label: 'WhatsApp Cloud API get started', href: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started' },

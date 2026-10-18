@@ -86,7 +86,10 @@ export function WhatsAppSetupGuide({
                 Close
               </button>
             </div>
-            <p className="mt-3 font-mono text-xs text-ink/70">
+            <p className="mt-3 text-sm leading-6 text-ink/75">
+              Optional. Messages already use RTO Shield&apos;s number.
+            </p>
+            <p className="mt-2 font-mono text-xs text-ink/70">
               {finished} of {WHATSAPP_GUIDE_STEPS.length} done. Steps tick off when the matching field is saved.
             </p>
             <WhatsAppGuideBody
